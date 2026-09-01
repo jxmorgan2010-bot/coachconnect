@@ -1,0 +1,306 @@
+// CoachConnect data model
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  PARENT
+  COACH
+  ADMIN
+}
+
+enum Sport {
+  BASKETBALL
+  SOCCER
+  FOOTBALL
+  LACROSSE
+  TENNIS
+  PICKLEBALL
+  BASEBALL
+}
+
+enum SchoolLevel {
+  HIGH_SCHOOL
+  COLLEGE
+}
+
+enum IdVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BackgroundCheckStatus {
+  NOT_STARTED
+  PENDING
+  CLEAR
+  FLAGGED
+}
+
+enum PayoutStatus {
+  NOT_STARTED
+  PENDING
+  COMPLETE
+}
+
+enum RecommendationStatus {
+  REQUESTED
+  SUBMITTED
+}
+
+enum BookingStatus {
+  PENDING_CONSENT
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum ReportTargetType {
+  COACH_PROFILE
+  PARENT_PROFILE
+  MESSAGE
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+enum DisputeReason {
+  NO_SHOW
+  DISSATISFIED
+  OTHER
+}
+
+enum DisputeStatus {
+  OPEN
+  INFO_REQUESTED
+  REFUNDED
+  SIDED_WITH_COACH
+  DISMISSED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  role          Role
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  parentProfile ParentProfile?
+  coachProfile  CoachProfile?
+  sentMessages  Message[]
+  reports       Report[]
+}
+
+model ParentProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone     String?
+  createdAt DateTime @default(now())
+
+  referralCode          String          @unique
+  creditCents           Int             @default(0)
+  referredById          String?
+  referredBy            ParentProfile?  @relation("Referrals", fields: [referredById], references: [id])
+  referredParents       ParentProfile[] @relation("Referrals")
+
+  children  Child[]
+  bookings  Booking[]
+  reviews   Review[]
+  threads   Thread[]
+  disputes  Dispute[]
+}
+
+model Child {
+  id              String        @id @default(cuid())
+  parentProfileId String
+  parentProfile   ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  firstName       String
+  gradeOrAge      String
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  bookings        Booking[]
+}
+
+model CoachProfile {
+  id        String      @id @default(cuid())
+  userId    String      @unique
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bio              String?
+  schoolLevel      SchoolLevel?
+  schoolName       String?
+  gradYear         Int?
+  hourlyRateCents  Int?
+  city             String?
+  state            String?
+
+  profilePhotoUrl  String?
+  idPhotoPath      String?
+
+  idVerificationStatus   IdVerificationStatus   @default(PENDING)
+  backgroundCheckStatus  BackgroundCheckStatus  @default(NOT_STARTED)
+  backgroundCheckRef     String?
+  backgroundCheckExpiresAt DateTime?
+  payoutStatus           PayoutStatus           @default(NOT_STARTED)
+  conductAcknowledged    Boolean                @default(false)
+
+  isSuspended   Boolean   @default(false)
+  suspendedAt   DateTime?
+
+  zip               String?
+  introVideoUrl     String?
+  introVideoSeconds Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sports          CoachSport[]
+  availability    Availability[]
+  bookings        Booking[]
+  reviews         Review[]
+  threads         Thread[]
+  recommendations Recommendation[]
+  disputes        Dispute[]
+}
+
+model CoachSport {
+  id             String       @id @default(cuid())
+  coachProfileId String
+  coachProfile   CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  sport          Sport
+
+  @@unique([coachProfileId, sport])
+}
+
+model Availability {
+  id             String       @id @default(cuid())
+  coachProfileId String
+  coachProfile   CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int // 0 = Sunday ... 6 = Saturday
+  startMinute    Int // minutes after midnight
+  endMinute      Int
+}
+
+model Recommendation {
+  id             String                @id @default(cuid())
+  coachProfileId String
+  coachProfile   CoachProfile          @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  token          String                @unique
+  recommenderName  String?
+  recommenderRole  String?
+  content          String?
+  status           RecommendationStatus @default(REQUESTED)
+  createdAt        DateTime             @default(now())
+  submittedAt      DateTime?
+}
+
+model Booking {
+  id                String        @id @default(cuid())
+  parentProfileId   String
+  parentProfile     ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  coachProfileId    String
+  coachProfile      CoachProfile  @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  childId           String?
+  child             Child?        @relation(fields: [childId], references: [id])
+  sport             Sport
+  scheduledAt       DateTime
+  durationMinutes   Int
+  locationText      String
+  priceCents        Int
+  platformFeeCents  Int
+  discountCents     Int           @default(0)
+  status            BookingStatus @default(PENDING_CONSENT)
+  parentalConsent   Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  completedAt       DateTime?
+
+  videoCallUrl      String?
+
+  reminder24SentAt  DateTime?
+  reminder1hSentAt  DateTime?
+
+  progressWhatWorkedOn String?
+  progressNextFocus    String?
+  progressNoteAddedAt  DateTime?
+
+  review            Review?
+  dispute           Dispute?
+}
+
+model Review {
+  id              String        @id @default(cuid())
+  bookingId       String        @unique
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  parentProfileId String
+  parentProfile   ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  coachProfileId  String
+  coachProfile    CoachProfile  @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  rating          Int
+  comment         String?
+  createdAt       DateTime      @default(now())
+}
+
+model Thread {
+  id              String        @id @default(cuid())
+  parentProfileId String
+  parentProfile   ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  coachProfileId  String
+  coachProfile    CoachProfile  @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  messages        Message[]
+
+  @@unique([parentProfileId, coachProfileId])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  threadId   String
+  thread     Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id])
+  body       String
+  createdAt  DateTime @default(now())
+}
+
+model Report {
+  id           String           @id @default(cuid())
+  reporterId   String
+  reporter     User             @relation(fields: [reporterId], references: [id])
+  targetType   ReportTargetType
+  targetId     String
+  reason       String
+  details      String?
+  status       ReportStatus     @default(OPEN)
+  createdAt    DateTime         @default(now())
+}
+
+model Dispute {
+  id              String        @id @default(cuid())
+  bookingId       String        @unique
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  parentProfileId String
+  parentProfile   ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  coachProfileId  String
+  coachProfile    CoachProfile  @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  reason          DisputeReason
+  details         String
+  status          DisputeStatus @default(OPEN)
+  refundCents     Int?
+  adminNote       String?
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+}
