@@ -4,7 +4,7 @@ import Badge from "@/components/Badge";
 import { getBackgroundCheckExpiryState } from "@/lib/coach";
 import { formatCents } from "@/lib/money";
 import { secondaryButtonClass } from "@/lib/ui";
-import { MarkCompleteButton, ProgressNoteForm } from "./BookingActions";
+import { ProgressNoteForm } from "./BookingActions";
 
 export default async function CoachDashboard({ coachProfileId }: { coachProfileId: string }) {
   const profile = await prisma.coachProfile.findUniqueOrThrow({ where: { id: coachProfileId } });
@@ -103,7 +103,10 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
                     </p>
                   )}
                 </div>
-                <MarkCompleteButton bookingId={b.id} />
+                <div className="text-right text-xs font-bold text-muted-foreground sm:max-w-[10rem]">
+                  Payment held. Released once the parent marks this complete (or automatically 48 hours after the
+                  session).
+                </div>
               </div>
             ))}
           </div>

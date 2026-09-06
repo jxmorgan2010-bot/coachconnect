@@ -19,6 +19,12 @@ function hoursFromNow(hours: number) {
 }
 
 async function main() {
+  // Bookings/reviews/disputes/reports/messages aren't upserted below, so clear them first —
+  // makes this script safe to re-run without piling up duplicate demo data.
+  await prisma.booking.deleteMany({}); // cascades to Review + Dispute
+  await prisma.message.deleteMany({});
+  await prisma.report.deleteMany({});
+
   const passwordHash = await bcrypt.hash("password123", 10);
 
   const admin = await prisma.user.upsert({
@@ -152,6 +158,23 @@ async function main() {
       expiresInDays: -5, // expired — good test case for auto-unpublish
       withRecommendation: false,
     },
+    {
+      email: "casey.softball@coachconnect.dev",
+      name: "Casey Nguyen",
+      bio: "All-conference shortstop and pitcher heading into my senior season. I love working with beginners on hitting mechanics, glove work, and pitching fundamentals.",
+      schoolLevel: "HIGH_SCHOOL" as const,
+      schoolName: "Eastview High School",
+      gradYear: 2027,
+      hourlyRateCents: 3800,
+      city: "Austin",
+      state: "TX",
+      zip: "78745",
+      sports: ["SOFTBALL", "BASEBALL"] as const,
+      idVerificationStatus: "APPROVED" as const,
+      backgroundCheckStatus: "CLEAR" as const,
+      expiresInDays: 300,
+      withRecommendation: false,
+    },
     // A profile that's fully filled out but still awaiting admin approval (demo of the gating flow).
     {
       email: "sofia.lacrosse@coachconnect.dev",
@@ -234,6 +257,7 @@ async function main() {
   const diegoId = coachIds["diego.soccer@coachconnect.dev"];
   const priyaId = coachIds["priya.tennis@coachconnect.dev"];
   const marcusId = coachIds["marcus.football@coachconnect.dev"];
+  const caseyId = coachIds["casey.softball@coachconnect.dev"];
 
   // Amara + Alex: completed, reviewed, with a progress note (progress-history demo)
   const amaraAlexBooking = await prisma.booking.create({
@@ -250,6 +274,10 @@ async function main() {
       status: "COMPLETED",
       parentalConsent: true,
       completedAt: daysFromNow(-7),
+      paymentStatus: "CAPTURED",
+      capturedAt: daysFromNow(-7),
+      tipCents: 500,
+      tippedAt: daysFromNow(-7),
       videoCallUrl: "https://meet.coachconnect.dev/room/seed-amara-alex",
       progressWhatWorkedOn: "Ball-handling drills — crossover and hesitation moves. Free throw form.",
       progressNextFocus: "Left-hand layups and staying low on defense.",
@@ -282,6 +310,8 @@ async function main() {
       status: "COMPLETED",
       parentalConsent: true,
       completedAt: daysFromNow(-2),
+      paymentStatus: "CAPTURED",
+      capturedAt: daysFromNow(-2),
     },
   });
 
@@ -336,6 +366,8 @@ async function main() {
       status: "COMPLETED",
       parentalConsent: true,
       completedAt: daysFromNow(-3),
+      paymentStatus: "CAPTURED",
+      capturedAt: daysFromNow(-3),
     },
   });
   await prisma.dispute.create({
@@ -345,6 +377,24 @@ async function main() {
       coachProfileId: marcusId,
       reason: "NO_SHOW",
       details: "Waited 30 minutes at the field and the coach never showed up or messaged.",
+    },
+  });
+
+  // Casey + Sam: session was 4 days ago and still sitting CONFIRMED — parent never
+  // marked it complete or reported an issue. Good test case for the auto-release sweep.
+  await prisma.booking.create({
+    data: {
+      parentProfileId: jamie.id,
+      coachProfileId: caseyId,
+      childId: sam.id,
+      sport: "SOFTBALL",
+      scheduledAt: daysFromNow(-4),
+      durationMinutes: 60,
+      locationText: "Eastview High School batting cages",
+      priceCents: 3800,
+      platformFeeCents: 570,
+      status: "CONFIRMED",
+      parentalConsent: true,
     },
   });
 

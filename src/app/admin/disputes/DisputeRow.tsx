@@ -11,6 +11,7 @@ type DisputeData = {
   coachName: string;
   sessionDate: string;
   sessionPriceCents: number;
+  paymentStatus: "AUTHORIZED" | "CAPTURED" | "CANCELLED" | "REFUNDED";
   reason: string;
   details: string;
   status: "OPEN" | "INFO_REQUESTED" | "REFUNDED" | "SIDED_WITH_COACH" | "DISMISSED";
@@ -60,6 +61,7 @@ export default function DisputeRow({ dispute }: { dispute: DisputeData }) {
   }
 
   const resolved = status === "REFUNDED" || status === "SIDED_WITH_COACH" || status === "DISMISSED";
+  const canRefund = dispute.paymentStatus === "CAPTURED";
 
   return (
     <div className="card flex flex-col gap-2 p-4">
@@ -80,6 +82,12 @@ export default function DisputeRow({ dispute }: { dispute: DisputeData }) {
 
       {!resolved && (
         <div className="mt-2 flex flex-col gap-2 rounded-lg border-2 border-ink bg-muted p-3">
+          {!canRefund && (
+            <p className="text-xs font-bold text-muted-foreground">
+              No refund needed — this session&apos;s payment was already voided when the no-show was reported, so
+              the parent was never charged.
+            </p>
+          )}
           <textarea
             className={inputClass}
             rows={2}
@@ -88,15 +96,19 @@ export default function DisputeRow({ dispute }: { dispute: DisputeData }) {
             onChange={(e) => setAdminNote(e.target.value)}
           />
           <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="number"
-              className={`${inputClass} w-28`}
-              value={refundCents / 100}
-              onChange={(e) => setRefundCents(Math.round(Number(e.target.value) * 100))}
-            />
-            <button onClick={() => act("refund", { refundCents })} disabled={loading} className={primaryButtonClass}>
-              Issue refund
-            </button>
+            {canRefund && (
+              <>
+                <input
+                  type="number"
+                  className={`${inputClass} w-28`}
+                  value={refundCents / 100}
+                  onChange={(e) => setRefundCents(Math.round(Number(e.target.value) * 100))}
+                />
+                <button onClick={() => act("refund", { refundCents })} disabled={loading} className={primaryButtonClass}>
+                  Issue refund
+                </button>
+              </>
+            )}
             <button onClick={() => act("side_with_coach")} disabled={loading} className={secondaryButtonClass}>
               Side with coach
             </button>

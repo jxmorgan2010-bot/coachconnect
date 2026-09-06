@@ -1,26 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, useStripe, useElements, CardNumberElement } from "@stripe/react-stripe-js";
 import type { Sport } from "@/generated/prisma/client";
 import { SPORT_LABELS } from "@/lib/sports";
 import { calculatePriceBreakdown, formatCents } from "@/lib/money";
+import { rangesOverlap } from "@/lib/bookingConflicts";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass } from "@/lib/ui";
+import CardSection from "./CardSection";
 
 type ChildOption = { id: string; firstName: string; gradeOrAge: string };
+type BookedSlot = { scheduledAt: string; durationMinutes: number };
+type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[] };
 
 const DURATIONS = [30, 60, 90, 120];
 
-export default function BookingForm({
+// Candidate start times shown on the picker: every 30 minutes, 7am to 9pm.
+const SLOT_START_MINUTE = 7 * 60;
+const SLOT_END_MINUTE = 21 * 60;
+const SLOT_STEP_MINUTES = 30;
+
+// Stripe's practical minimum charge in USD — must match the server's STRIPE_MIN_CENTS.
+const STRIPE_MIN_CENTS = 50;
+
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
+
+function minutesToLabel(minutes: number): string {
+  const h24 = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  const ampm = h24 >= 12 ? "PM" : "AM";
+  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function minutesToTimeValue(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+export default function BookingForm(props: { coach: CoachInfo; childOptions: ChildOption[]; creditCents: number }) {
+  return (
+    <Elements stripe={stripePromise}>
+      <BookingFormInner {...props} />
+    </Elements>
+  );
+}
+
+function BookingFormInner({
   coach,
   childOptions,
   creditCents,
 }: {
-  coach: { id: string; name: string; hourlyRateCents: number; sports: Sport[] };
+  coach: CoachInfo;
   childOptions: ChildOption[];
   creditCents: number;
 }) {
   const router = useRouter();
+  const stripe = useStripe();
+  const elements = useElements();
+
   const [childList, setChildList] = useState(childOptions);
   const [showAddChild, setShowAddChild] = useState(childOptions.length === 0);
   const [newChildName, setNewChildName] = useState("");
@@ -34,14 +76,71 @@ export default function BookingForm({
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState(60);
   const [locationText, setLocationText] = useState("");
+  const [zip, setZip] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<{ videoCallUrl: string | null } | null>(null);
+  const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
+  const [stripeSlowToLoad, setStripeSlowToLoad] = useState(false);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [error]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStripeSlowToLoad(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const breakdown = calculatePriceBreakdown(coach.hourlyRateCents, duration);
   const discountCents = Math.min(creditCents, breakdown.sessionCostCents);
   const totalDueCents = breakdown.totalChargedCents - discountCents;
+  const paymentRequired = totalDueCents >= STRIPE_MIN_CENTS;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/coaches/${coach.id}/booked-times`)
+      .then((res) => (res.ok ? res.json() : { slots: [] }))
+      .then((data) => {
+        if (!cancelled) setBookedSlots(data.slots ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [coach.id]);
+
+  // Booked ranges that fall on the selected date, converted to local Date objects.
+  const bookedRangesForDate = useMemo(() => {
+    if (!date) return [];
+    return bookedSlots
+      .map((s) => ({ start: new Date(s.scheduledAt), durationMinutes: s.durationMinutes }))
+      .filter((s) => {
+        const y = s.start.getFullYear();
+        const m = String(s.start.getMonth() + 1).padStart(2, "0");
+        const d = String(s.start.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}` === date;
+      });
+  }, [bookedSlots, date]);
+
+  const timeSlots = useMemo(() => {
+    if (!date) return [];
+    const now = new Date();
+    const isToday = date === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const slots: { value: string; label: string; disabled: boolean }[] = [];
+    for (let m = SLOT_START_MINUTE; m <= SLOT_END_MINUTE; m += SLOT_STEP_MINUTES) {
+      const slotStart = new Date(`${date}T${minutesToTimeValue(m)}`);
+      const inPast = isToday && slotStart.getTime() <= now.getTime();
+      const booked = bookedRangesForDate.some((b) => rangesOverlap(slotStart, duration, b.start, b.durationMinutes));
+      slots.push({ value: minutesToTimeValue(m), label: minutesToLabel(m), disabled: inPast || booked });
+    }
+    return slots;
+  }, [date, duration, bookedRangesForDate]);
+
+  // True once the chosen time is no longer a valid, available slot (e.g. duration changed after picking it).
+  const timeNoLongerValid = Boolean(time) && !timeSlots.some((s) => s.value === time && !s.disabled);
 
   async function addChild(e: React.FormEvent) {
     e.preventDefault();
@@ -77,21 +176,76 @@ export default function BookingForm({
       setError("Pick a date and time.");
       return;
     }
+    if (timeNoLongerValid) {
+      setError("That time is no longer available — pick another.");
+      return;
+    }
+    if (locationText.trim().length < 5) {
+      setError("Enter a public location, like a park or rec center.");
+      return;
+    }
+    if (paymentRequired && zip.trim().length < 5) {
+      setError("Enter your card's billing zip code.");
+      return;
+    }
 
     const scheduledAt = new Date(`${date}T${time}`);
+    const basePayload = {
+      coachProfileId: coach.id,
+      childId,
+      sport,
+      scheduledAt: scheduledAt.toISOString(),
+      durationMinutes: duration,
+      locationText,
+      consent,
+    };
+
     setLoading(true);
+
+    const intentRes = await fetch("/api/bookings/create-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(basePayload),
+    });
+    const intentData = await intentRes.json();
+    if (!intentRes.ok) {
+      setLoading(false);
+      setError(intentData.error ?? "Something went wrong.");
+      return;
+    }
+
+    let paymentIntentId: string | undefined;
+
+    if (!intentData.noPaymentRequired) {
+      if (!stripe || !elements) {
+        setLoading(false);
+        setError("The payment form isn't ready yet — please wait a moment and try again.");
+        return;
+      }
+      const cardNumberElement = elements.getElement(CardNumberElement);
+      if (!cardNumberElement) {
+        setLoading(false);
+        setError("Enter your card details.");
+        return;
+      }
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(intentData.clientSecret, {
+        payment_method: {
+          card: cardNumberElement,
+          billing_details: { address: { postal_code: zip.trim() } },
+        },
+      });
+      if (stripeError) {
+        setLoading(false);
+        setError(stripeError.message ?? "Your card couldn't be authorized.");
+        return;
+      }
+      paymentIntentId = paymentIntent?.id;
+    }
+
     const res = await fetch("/api/bookings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        coachProfileId: coach.id,
-        childId,
-        sport,
-        scheduledAt: scheduledAt.toISOString(),
-        durationMinutes: duration,
-        locationText,
-        consent,
-      }),
+      body: JSON.stringify({ ...basePayload, paymentIntentId }),
     });
     const data = await res.json();
     setLoading(false);
@@ -159,7 +313,11 @@ export default function BookingForm({
         </form>
       ) : (
         <form onSubmit={onSubmit} className="card flex flex-col gap-4 p-5">
-          {error && <p className={errorClass}>{error}</p>}
+          {error && (
+            <p ref={errorRef} className={errorClass}>
+              {error}
+            </p>
+          )}
 
           <div>
             <label className={labelClass} htmlFor="child">Child</label>
@@ -190,18 +348,43 @@ export default function BookingForm({
               <input id="date" type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} required />
             </div>
             <div>
-              <label className={labelClass} htmlFor="time">Time</label>
-              <input id="time" type="time" className={inputClass} value={time} onChange={(e) => setTime(e.target.value)} required />
+              <label className={labelClass} htmlFor="duration">Duration</label>
+              <select id="duration" className={inputClass} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+                {DURATIONS.map((d) => (
+                  <option key={d} value={d}>{d} minutes</option>
+                ))}
+              </select>
             </div>
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="duration">Duration</label>
-            <select id="duration" className={inputClass} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-              {DURATIONS.map((d) => (
-                <option key={d} value={d}>{d} minutes</option>
-              ))}
-            </select>
+            <label className={labelClass}>Time</label>
+            {!date ? (
+              <p className="text-sm text-muted-foreground">Pick a date to see open times.</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {timeSlots.map((slot) => (
+                  <button
+                    key={slot.value}
+                    type="button"
+                    disabled={slot.disabled}
+                    onClick={() => setTime(slot.value)}
+                    className={`rounded-lg border-2 border-ink px-2 py-2 text-xs font-bold ${
+                      slot.disabled
+                        ? "cursor-not-allowed bg-muted text-muted-foreground opacity-50 line-through"
+                        : time === slot.value
+                          ? "bg-ink text-white"
+                          : "bg-surface text-ink hover:bg-muted"
+                    }`}
+                  >
+                    {slot.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {date && bookedRangesForDate.length > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">Greyed-out times are already booked with this coach.</p>
+            )}
           </div>
 
           <div>
@@ -229,14 +412,29 @@ export default function BookingForm({
               </div>
             )}
             <div className="mt-2 flex justify-between border-t-2 border-ink pt-2 font-display text-lg text-ink">
-              <span>Total due today</span>
+              <span>Card hold today</span>
               <span>{formatCents(totalDueCents)}</span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Held securely until the session is marked complete, then released to the coach minus a 15% platform
-              fee.
+              Your card is authorized (held), not charged, when you book. It&apos;s only captured after you mark the
+              session complete — minus a 15% platform fee to the coach&apos;s payout. Card/digital payment only.
             </p>
           </div>
+
+          {paymentRequired ? (
+            stripe && elements ? (
+              <CardSection zip={zip} onZipChange={setZip} />
+            ) : stripeSlowToLoad ? (
+              <p className={errorClass}>
+                Payments aren&apos;t configured — add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+                (test-mode keys from your Stripe dashboard) to .env and restart the server.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading payment form...</p>
+            )
+          ) : (
+            <p className={successClass}>Fully covered by your referral credit — no card needed for this booking.</p>
+          )}
 
           <label className="flex items-start gap-2 text-sm text-muted-foreground">
             <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} required />
@@ -244,8 +442,10 @@ export default function BookingForm({
             the location above.
           </label>
 
+          {error && <p className={errorClass}>{error}</p>}
+
           <button type="submit" className={primaryButtonClass} disabled={loading}>
-            {loading ? "Booking..." : `Book & pay ${formatCents(totalDueCents)}`}
+            {loading ? "Booking..." : paymentRequired ? `Book & hold ${formatCents(totalDueCents)}` : "Book session"}
           </button>
         </form>
       )}

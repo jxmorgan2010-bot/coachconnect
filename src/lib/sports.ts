@@ -8,6 +8,7 @@ export const SPORTS: Sport[] = [
   "TENNIS",
   "PICKLEBALL",
   "BASEBALL",
+  "SOFTBALL",
 ];
 
 export const SPORT_LABELS: Record<Sport, string> = {
@@ -18,6 +19,7 @@ export const SPORT_LABELS: Record<Sport, string> = {
   TENNIS: "Tennis",
   PICKLEBALL: "Pickleball",
   BASEBALL: "Baseball",
+  SOFTBALL: "Softball",
 };
 
 /** Roster-style abbreviations, the way these sports actually get shorthanded on a schedule board. */
@@ -29,6 +31,7 @@ export const SPORT_TAG: Record<Sport, string> = {
   TENNIS: "TNS",
   PICKLEBALL: "PKL",
   BASEBALL: "BSB",
+  SOFTBALL: "SFTBL",
 };
 
 /** One brand color per sport so the roster reads like real team colors, not a single accent repeated. */
@@ -40,6 +43,7 @@ export const SPORT_COLOR: Record<Sport, { bg: string; fg: string }> = {
   TENNIS: { bg: "#FFCE3D", fg: "#10201A" },
   PICKLEBALL: { bg: "#1E5631", fg: "#FFFFFF" },
   BASEBALL: { bg: "#57614F", fg: "#FFFFFF" },
+  SOFTBALL: { bg: "#3B6FA0", fg: "#FFFFFF" },
 };
 
 export function isSport(value: string): value is Sport {

@@ -4,6 +4,7 @@ import "./globals.css";
 import SessionProviderWrapper from "@/components/SessionProviderWrapper";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import SupportWidget from "@/components/SupportWidget";
 
 const anton = Anton({
   variable: "--font-anton",
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <Navbar />
           <main className="flex-1">{children}</main>
           <Footer />
+          <SupportWidget />
         </SessionProviderWrapper>
       </body>
     </html>

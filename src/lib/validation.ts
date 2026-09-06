@@ -23,6 +23,7 @@ export const bookingCreateSchema = z.object({
   durationMinutes: z.coerce.number().int().min(30).max(180),
   locationText: z.string().trim().min(5, "Enter a public location, like a park or rec center."),
   consent: z.literal(true, { error: "Parental consent is required to book." }),
+  paymentIntentId: z.string().trim().min(1).optional(),
 });
 
 export const reviewSchema = z.object({
@@ -38,6 +39,19 @@ export const progressNoteSchema = z.object({
 export const disputeSchema = z.object({
   reason: z.enum(["NO_SHOW", "DISSATISFIED", "OTHER"]),
   details: z.string().trim().min(10, "Give a few details so admins can look into it.").max(2000),
+});
+
+export const noShowSchema = z.object({
+  details: z.string().trim().max(2000).optional(),
+});
+
+export const tipSchema = z.object({
+  tipCents: z.coerce.number().int().min(100, "Minimum tip is $1.").max(50000, "Max tip is $500."),
+});
+
+export const supportRequestSchema = z.object({
+  bookingId: z.string().trim().min(1).optional(),
+  message: z.string().trim().min(5, "Give us a few details so we can help.").max(2000),
 });
 
 export const messageSchema = z.object({

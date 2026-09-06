@@ -7,6 +7,9 @@ export function formatCents(cents: number): string {
 
 export const PLATFORM_FEE_RATE = 0.15;
 
+/** How long after a session's scheduled end time we auto-capture the held payment if the parent hasn't acted. */
+export const AUTO_RELEASE_GRACE_HOURS = 48;
+
 /**
  * Parent pays the session cost in full (no markup). The platform fee is
  * withheld from the coach's payout when funds are released after the
@@ -22,4 +25,9 @@ export function calculatePriceBreakdown(hourlyRateCents: number, durationMinutes
     totalChargedCents: sessionCostCents,
     coachPayoutCents,
   };
+}
+
+/** Tips pass through to the coach in full — no platform fee is taken out of them. */
+export function tipPayoutCents(tipCents: number): number {
+  return tipCents;
 }

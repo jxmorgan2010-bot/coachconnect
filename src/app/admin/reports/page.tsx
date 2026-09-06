@@ -20,6 +20,16 @@ async function describeTarget(targetType: string, targetId: string): Promise<str
     });
     return thread ? `Conversation: ${thread.parentProfile.user.name} <> ${thread.coachProfile.user.name}` : "Conversation (deleted)";
   }
+  if (targetType === "SUPPORT_REQUEST") {
+    if (targetId === "general") return "Support request: general";
+    const booking = await prisma.booking.findUnique({
+      where: { id: targetId },
+      include: { coachProfile: { include: { user: true } }, parentProfile: { include: { user: true } } },
+    });
+    return booking
+      ? `Support request: ${booking.parentProfile.user.name} <> ${booking.coachProfile.user.name} session`
+      : "Support request";
+  }
   return targetType;
 }
 

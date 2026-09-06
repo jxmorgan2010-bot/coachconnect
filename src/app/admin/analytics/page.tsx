@@ -6,6 +6,7 @@ import { SPORT_LABELS } from "@/lib/sports";
 import BarList from "@/components/BarList";
 import AdminNav from "../AdminNav";
 import ReminderSweepButton from "./ReminderSweepButton";
+import AutoReleaseSweepButton from "./AutoReleaseSweepButton";
 
 export default async function AdminAnalyticsPage() {
   const session = await getCurrentSession();
@@ -56,7 +57,7 @@ export default async function AdminAnalyticsPage() {
       <p className="mb-6 text-muted-foreground">Booking activity, revenue, and regional demand (based on confirmed and completed sessions).</p>
       <AdminNav />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2">
         <div className="card p-5">
           <p className="text-xs font-bold text-muted-foreground">Total bookings</p>
           <p className="font-display text-3xl text-ink">{totalBookings}</p>
@@ -65,9 +66,16 @@ export default async function AdminAnalyticsPage() {
           <p className="text-xs font-bold text-muted-foreground">Total revenue (net of credits)</p>
           <p className="font-display text-3xl text-ink">{formatCents(totalRevenueCents)}</p>
         </div>
+      </div>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-2">
         <div className="card p-5">
           <p className="mb-2 text-xs font-bold text-muted-foreground">Reminder sweep</p>
           <ReminderSweepButton />
+        </div>
+        <div className="card p-5">
+          <p className="mb-2 text-xs font-bold text-muted-foreground">Payment auto-release sweep</p>
+          <AutoReleaseSweepButton />
         </div>
       </div>
 

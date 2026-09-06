@@ -40,6 +40,7 @@ export default async function AdminDisputesPage() {
                 coachName: d.coachProfile.user.name,
                 sessionDate: d.booking.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
                 sessionPriceCents: d.booking.priceCents,
+                paymentStatus: d.booking.paymentStatus,
                 reason: d.reason,
                 details: d.details,
                 status: d.status,

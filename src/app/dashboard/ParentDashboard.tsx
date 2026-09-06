@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatCents } from "@/lib/money";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui";
 import ReferralPanel from "./ReferralPanel";
 import RatingForm from "./RatingForm";
-import DisputeButton from "./DisputeButton";
+import ParentTabs from "./ParentTabs";
 
 export default async function ParentDashboard({ userId, name }: { userId: string; name: string }) {
   const parentProfile = await prisma.parentProfile.findUnique({
@@ -24,10 +23,8 @@ export default async function ParentDashboard({ userId, name }: { userId: string
     orderBy: { scheduledAt: "desc" },
   });
 
-  const upcoming = bookings.filter((b) => b.status === "CONFIRMED").sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
   const needingRating = bookings.filter((b) => b.status === "COMPLETED" && !b.review);
   const withNotes = bookings.filter((b) => b.status === "COMPLETED" && b.progressNoteAddedAt);
-  const completedNoIssue = bookings.filter((b) => b.status === "COMPLETED");
 
   const notesByChild = new Map<string, { childName: string; entries: typeof withNotes }>();
   for (const b of withNotes) {
@@ -50,6 +47,8 @@ export default async function ParentDashboard({ userId, name }: { userId: string
         <Link href="/messages" className={secondaryButtonClass}>Messages</Link>
       </div>
 
+      <ParentTabs />
+
       <div className="mb-8">
         <ReferralPanel code={parentProfile.referralCode} creditCents={parentProfile.creditCents} />
       </div>
@@ -64,31 +63,6 @@ export default async function ParentDashboard({ userId, name }: { userId: string
           </div>
         </section>
       )}
-
-      <section className="mb-8">
-        <h2 className="mb-3 font-display text-2xl text-ink">Upcoming sessions</h2>
-        {upcoming.length === 0 ? (
-          <p className="text-muted-foreground">Nothing booked yet.</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {upcoming.map((b) => (
-              <div key={b.id} className="card flex flex-col gap-1 p-4">
-                <p className="font-bold text-ink">{b.coachProfile.user.name} &middot; {b.child?.firstName}</p>
-                <p className="text-sm text-muted-foreground">
-                  {b.scheduledAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} &middot;{" "}
-                  {b.locationText}
-                </p>
-                <p className="text-sm font-bold text-pitch">{formatCents(b.priceCents - b.discountCents)}</p>
-                {b.videoCallUrl && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    First session — video call: <code className="text-pitch">{b.videoCallUrl}</code>
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
 
       {notesByChild.size > 0 && (
         <section className="mb-8">
@@ -122,28 +96,11 @@ export default async function ParentDashboard({ userId, name }: { userId: string
         </section>
       )}
 
-      {completedNoIssue.length > 0 && (
-        <section>
-          <h2 className="mb-3 font-display text-2xl text-ink">Past sessions</h2>
-          <div className="flex flex-col gap-3">
-            {completedNoIssue.map((b) => (
-              <div key={b.id} className="card flex flex-col gap-2 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-bold text-ink">{b.coachProfile.user.name} &middot; {b.child?.firstName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  </p>
-                </div>
-                {b.dispute ? (
-                  <p className="text-sm font-bold text-warning">Case open: {b.dispute.status.replaceAll("_", " ").toLowerCase()}</p>
-                ) : (
-                  <DisputeButton bookingId={b.id} />
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <section>
+        <Link href="/dashboard/bookings" className={secondaryButtonClass}>
+          View all my bookings →
+        </Link>
+      </section>
     </div>
   );
 }
