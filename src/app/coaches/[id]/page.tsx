@@ -8,7 +8,8 @@ import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
 import ReportButton from "@/components/ReportButton";
 import MessageCoachButton from "@/components/MessageCoachButton";
-import { isCoachLive, getBackgroundCheckExpiryState } from "@/lib/coach";
+import { isCoachLive, getBackgroundCheckExpiryState, hasVerifiedVideoBio } from "@/lib/coach";
+import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { SPORT_COLOR } from "@/lib/sports";
 import { getCoachSessionsCompleted, getCoachAverageResponseMinutes, formatResponseTime, getSiblingsCoachedForFamily } from "@/lib/stats";
 import { IconShieldCheck, IconStar, IconCalendar } from "@/components/icons";
@@ -47,6 +48,8 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
 
   if (!live && !isOwner && !isAdmin) notFound();
 
+  const isMinorCoach = ENABLE_MINOR_COACHES && profile.isMinorCoach;
+  const videoVerified = hasVerifiedVideoBio(profile);
   const reviewCount = profile.reviews.length;
   const avgRating = reviewCount ? profile.reviews.reduce((s, r) => s + r.rating, 0) / reviewCount : null;
   const primarySport = profile.sports[0]?.sport;
@@ -143,6 +146,8 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <Badge variant="success" icon={<IconShieldCheck className="h-3.5 w-3.5" />}>Background check clear</Badge>
           <Badge variant="success" icon={<IconShieldCheck className="h-3.5 w-3.5" />}>ID verified</Badge>
+          {videoVerified && <Badge variant="accent">Video verified</Badge>}
+          {isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}
           {profile.recommendations.length > 0 && <Badge variant="accent">Recommended by Coach</Badge>}
           {reviewCount > 0 ? (
             <Badge variant="neutral" icon={<IconStar className="h-3.5 w-3.5 text-gold" />}>
@@ -171,14 +176,40 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
           {!isOwner && <ReportButton targetType="COACH_PROFILE" targetId={profile.id} />}
         </div>
 
-        {profile.introVideoUrl && (
+        {isMinorCoach && (
+          <section className="mb-8 rounded-lg border-2 border-ink bg-accent/10 p-4">
+            <h2 className="mb-1 font-display text-xl text-ink">Minor Coach</h2>
+            <p className="text-sm text-muted-foreground">
+              {profile.user.name.split(" ")[0]} is under 18. Their parent/guardian has signed a consent form, and
+              CoachConnect requires a second adult — beyond the booking parent — to be present at every session
+              with them.
+            </p>
+          </section>
+        )}
+
+        {(profile.introClipUrl || profile.coachingClipUrl || profile.playingClipUrl) && (
           <section className="mb-8">
             <h2 className="mb-2 font-display text-2xl text-ink">Meet {profile.user.name.split(" ")[0]}</h2>
-            <video
-              controls
-              className="w-full max-w-sm rounded-lg border-2 border-ink shadow-[4px_4px_0_var(--ink)]"
-              src={profile.introVideoUrl}
-            />
+            <div className="grid gap-4 sm:grid-cols-3">
+              {profile.introClipUrl && (
+                <div>
+                  <video controls className="w-full rounded-lg border-2 border-ink shadow-[4px_4px_0_var(--ink)]" src={profile.introClipUrl} />
+                  <p className="mt-1 text-xs font-bold text-muted-foreground">Introduction</p>
+                </div>
+              )}
+              {profile.coachingClipUrl && (
+                <div>
+                  <video controls className="w-full rounded-lg border-2 border-ink shadow-[4px_4px_0_var(--ink)]" src={profile.coachingClipUrl} />
+                  <p className="mt-1 text-xs font-bold text-muted-foreground">Coaching</p>
+                </div>
+              )}
+              {profile.playingClipUrl && (
+                <div>
+                  <video controls className="w-full rounded-lg border-2 border-ink shadow-[4px_4px_0_var(--ink)]" src={profile.playingClipUrl} />
+                  <p className="mt-1 text-xs font-bold text-muted-foreground">Playing</p>
+                </div>
+              )}
+            </div>
           </section>
         )}
 

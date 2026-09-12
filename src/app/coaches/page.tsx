@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { SPORTS, SPORT_LABELS, isSport } from "@/lib/sports";
 import CoachCard from "@/components/CoachCard";
 import type { CoachCardData } from "@/lib/coach";
+import { hasVerifiedVideoBio } from "@/lib/coach";
+import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { inputClass, labelClass, primaryButtonClass } from "@/lib/ui";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -21,18 +23,32 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
   const maxPrice = params.maxPrice ? Number(params.maxPrice) : undefined;
   const day = params.day !== undefined && params.day !== "" ? Number(params.day) : undefined;
 
+  // Mirrors isCoachLive()'s two branches (standard adult flow vs. minor coach flow) as a
+  // DB-level filter — a plain flag+status where clause can't express "either/or" cleanly.
+  const liveFilter = {
+    OR: [
+      { isMinorCoach: false, idVerificationStatus: "APPROVED" as const, backgroundCheckStatus: "CLEAR" as const, backgroundCheckExpiresAt: { gt: new Date() } },
+      ...(ENABLE_MINOR_COACHES
+        ? [{ isMinorCoach: true, idVerificationStatus: "APPROVED" as const, minorGuardianConsentedAt: { not: null }, minorBackgroundCheckNote: { not: null } }]
+        : []),
+    ],
+  };
+
   const profiles = await prisma.coachProfile.findMany({
     where: {
-      idVerificationStatus: "APPROVED",
-      backgroundCheckStatus: "CLEAR",
       isSuspended: false,
-      backgroundCheckExpiresAt: { gt: new Date() },
-      ...(sportFilter ? { sports: { some: { sport: sportFilter } } } : {}),
-      ...(locationFilter
-        ? { OR: [{ city: { contains: locationFilter } }, { state: { contains: locationFilter } }] }
-        : {}),
-      ...(maxPrice ? { hourlyRateCents: { lte: Math.round(maxPrice * 100) } } : {}),
-      ...(day !== undefined ? { availability: { some: { dayOfWeek: day } } } : {}),
+      // Each condition lives in its own AND entry — liveFilter and the location filter
+      // both use an "OR" key, which would silently overwrite each other if merged into
+      // one object instead.
+      AND: [
+        liveFilter,
+        ...(sportFilter ? [{ sports: { some: { sport: sportFilter } } }] : []),
+        ...(locationFilter
+          ? [{ OR: [{ city: { contains: locationFilter } }, { state: { contains: locationFilter } }] }]
+          : []),
+        ...(maxPrice ? [{ hourlyRateCents: { lte: Math.round(maxPrice * 100) } }] : []),
+        ...(day !== undefined ? [{ availability: { some: { dayOfWeek: day } } }] : []),
+      ],
     },
     include: {
       user: true,
@@ -61,6 +77,8 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
         hasRecommendation: p.recommendations.length > 0,
         avgRating,
         reviewCount,
+        videoVerified: hasVerifiedVideoBio(p),
+        isMinorCoach: ENABLE_MINOR_COACHES && p.isMinorCoach,
       };
     })
     .sort((a, b) => {

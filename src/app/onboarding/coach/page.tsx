@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import CoachOnboardingClient from "./CoachOnboardingClient";
 
 export default async function CoachOnboardingPage() {
@@ -19,5 +20,5 @@ export default async function CoachOnboardingPage() {
 
   if (!profile) redirect("/dashboard");
 
-  return <CoachOnboardingClient profile={profile} />;
+  return <CoachOnboardingClient profile={profile} minorCoachesEnabled={ENABLE_MINOR_COACHES} />;
 }

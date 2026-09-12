@@ -10,7 +10,9 @@ import VerificationUploads from "./VerificationUploads";
 import BackgroundCheckPanel from "./BackgroundCheckPanel";
 import RecommendationPanel from "./RecommendationPanel";
 import ConductAck from "./ConductAck";
-import IntroVideoUpload from "./IntroVideoUpload";
+import BioVideoUpload from "./BioVideoUpload";
+import MinorGuardianConsentForm from "./MinorGuardianConsentForm";
+import MinorBackgroundNotice from "./MinorBackgroundNotice";
 
 type FullProfile = CoachProfile & {
   sports: CoachSport[];
@@ -36,7 +38,14 @@ function Section({ step, title, done, children }: { step: number; title: string;
   );
 }
 
-export default function CoachOnboardingClient({ profile }: { profile: FullProfile }) {
+export default function CoachOnboardingClient({
+  profile,
+  minorCoachesEnabled,
+}: {
+  profile: FullProfile;
+  minorCoachesEnabled: boolean;
+}) {
+  const isMinorCoach = minorCoachesEnabled && profile.isMinorCoach;
   const [profileValues, setProfileValues] = useState<ProfileFormValues>({
     bio: profile.bio ?? "",
     schoolLevel: profile.schoolLevel ?? "",
@@ -86,7 +95,17 @@ export default function CoachOnboardingClient({ profile }: { profile: FullProfil
         </div>
       )}
 
-      {expiryState === "RENEWAL_NEEDED" && !profile.isSuspended && (
+      {isMinorCoach && !profile.isSuspended && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl border-2 border-ink bg-accent/10 p-4">
+          <Badge variant="accent">Minor Coach</Badge>
+          <span className="text-sm text-secondary">
+            You&apos;re in the under-18 coach flow: your parent/guardian must sign a consent form, and our team
+            manually confirms background verification before your profile can go live.
+          </span>
+        </div>
+      )}
+
+      {!isMinorCoach && expiryState === "RENEWAL_NEEDED" && !profile.isSuspended && (
         <div className="mb-4 flex items-center gap-3 rounded-xl border-2 border-ink bg-warning/10 p-4">
           <Badge variant="warning">Renewal needed</Badge>
           <span className="text-sm text-secondary">
@@ -97,7 +116,7 @@ export default function CoachOnboardingClient({ profile }: { profile: FullProfil
         </div>
       )}
 
-      {expiryState === "EXPIRED" && !profile.isSuspended && (
+      {!isMinorCoach && expiryState === "EXPIRED" && !profile.isSuspended && (
         <div className="mb-4 flex items-center gap-3 rounded-xl border-2 border-ink bg-danger/10 p-4">
           <Badge variant="danger">Expired</Badge>
           <span className="text-sm text-secondary">
@@ -142,18 +161,43 @@ export default function CoachOnboardingClient({ profile }: { profile: FullProfil
           />
         </Section>
 
-        <Section step={4} title="Background check" done={expiryState === "VALID" || expiryState === "RENEWAL_NEEDED"}>
-          <BackgroundCheckPanel
-            initialStatus={profile.backgroundCheckStatus}
-            expiresAt={profile.backgroundCheckExpiresAt}
+        {isMinorCoach ? (
+          <Section step={4} title="Parent/guardian consent" done={Boolean(profile.minorGuardianConsentedAt)}>
+            <MinorGuardianConsentForm
+              initial={{
+                token: profile.minorConsentToken,
+                guardianName: profile.minorGuardianName,
+                guardianRelationship: profile.minorGuardianRelationship,
+                consentedAt: profile.minorGuardianConsentedAt ? profile.minorGuardianConsentedAt.toISOString() : null,
+              }}
+            />
+          </Section>
+        ) : (
+          <Section step={4} title="Background check" done={expiryState === "VALID" || expiryState === "RENEWAL_NEEDED"}>
+            <BackgroundCheckPanel
+              initialStatus={profile.backgroundCheckStatus}
+              expiresAt={profile.backgroundCheckExpiresAt}
+            />
+          </Section>
+        )}
+
+        {isMinorCoach && (
+          <Section step={5} title="Background verification" done={Boolean(profile.minorBackgroundCheckNote)}>
+            <MinorBackgroundNotice verified={Boolean(profile.minorBackgroundCheckNote)} />
+          </Section>
+        )}
+
+        <Section step={isMinorCoach ? 6 : 5} title="Bio video (optional)" done={Boolean(profile.introClipUrl && profile.coachingClipUrl && profile.playingClipUrl)}>
+          <BioVideoUpload
+            initial={{
+              intro: { url: profile.introClipUrl, seconds: profile.introClipSeconds },
+              coaching: { url: profile.coachingClipUrl, seconds: profile.coachingClipSeconds },
+              playing: { url: profile.playingClipUrl, seconds: profile.playingClipSeconds },
+            }}
           />
         </Section>
 
-        <Section step={5} title="Video intro (optional)" done={Boolean(profile.introVideoUrl)}>
-          <IntroVideoUpload initialUrl={profile.introVideoUrl} initialSeconds={profile.introVideoSeconds} />
-        </Section>
-
-        <Section step={6} title="Recommendation (optional)" done={profile.recommendations.some((r) => r.status === "SUBMITTED")}>
+        <Section step={isMinorCoach ? 7 : 6} title="Recommendation (optional)" done={profile.recommendations.some((r) => r.status === "SUBMITTED")}>
           <RecommendationPanel
             initial={profile.recommendations.map((r) => ({
               id: r.id,
@@ -165,7 +209,7 @@ export default function CoachOnboardingClient({ profile }: { profile: FullProfil
           />
         </Section>
 
-        <Section step={7} title="Platform conduct rules" done={profile.conductAcknowledged}>
+        <Section step={isMinorCoach ? 8 : 7} title="Platform conduct rules" done={profile.conductAcknowledged}>
           <ConductAck initialAcknowledged={profile.conductAcknowledged} />
         </Section>
       </div>

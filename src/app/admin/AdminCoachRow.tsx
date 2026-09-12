@@ -17,6 +17,10 @@ type CoachRowData = {
   backgroundCheckExpiresAt: string | null;
   isSuspended: boolean;
   profileComplete: boolean;
+  isMinorCoach: boolean;
+  minorGuardianConsentedAt: string | null;
+  minorGuardianName: string | null;
+  minorBackgroundCheckNote: string | null;
 };
 
 const ID_BADGE: Record<IdVerificationStatus, "success" | "warning" | "danger"> = {
@@ -32,12 +36,25 @@ const BGC_BADGE: Record<BackgroundCheckStatus, "success" | "warning" | "danger" 
   NOT_STARTED: "neutral",
 };
 
-export default function AdminCoachRow({ coach }: { coach: CoachRowData }) {
+export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: CoachRowData; minorCoachesEnabled: boolean }) {
   const [idStatus, setIdStatus] = useState(coach.idVerificationStatus);
   const [bgcStatus, setBgcStatus] = useState(coach.backgroundCheckStatus);
   const [expiresAt, setExpiresAt] = useState(coach.backgroundCheckExpiresAt);
   const [isSuspended, setIsSuspended] = useState(coach.isSuspended);
   const [loading, setLoading] = useState(false);
+  const [minorNote, setMinorNote] = useState(coach.minorBackgroundCheckNote ?? "");
+  const [minorNoteSaved, setMinorNoteSaved] = useState(Boolean(coach.minorBackgroundCheckNote));
+
+  async function saveMinorNote() {
+    setLoading(true);
+    const res = await fetch(`/api/admin/coaches/${coach.id}/minor-verification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: minorNote }),
+    });
+    setLoading(false);
+    if (res.ok) setMinorNoteSaved(true);
+  }
 
   async function setId(status: "APPROVED" | "REJECTED") {
     setLoading(true);
@@ -96,7 +113,41 @@ export default function AdminCoachRow({ coach }: { coach: CoachRowData }) {
           )}
           {expiryState === "EXPIRED" && <Badge variant="danger">Background check expired</Badge>}
           {isSuspended && <Badge variant="danger">Suspended — 3+ reports</Badge>}
+          {minorCoachesEnabled && coach.isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}
         </div>
+
+        {minorCoachesEnabled && coach.isMinorCoach && (
+          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">
+              Guardian consent:{" "}
+              {coach.minorGuardianConsentedAt ? (
+                <span className="font-bold text-secondary">
+                  Signed by {coach.minorGuardianName} on{" "}
+                  {new Date(coach.minorGuardianConsentedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              ) : (
+                "Not yet signed"
+              )}
+            </p>
+            <label className="text-xs font-bold text-muted-foreground" htmlFor={`minor-note-${coach.id}`}>
+              Admin note — alternative verification used (standard background checks may not apply to minor
+              coaches)
+            </label>
+            <textarea
+              id={`minor-note-${coach.id}`}
+              rows={2}
+              className="w-full rounded-md border border-border p-2 text-sm"
+              value={minorNote}
+              onChange={(e) => {
+                setMinorNote(e.target.value);
+                setMinorNoteSaved(false);
+              }}
+            />
+            <button onClick={saveMinorNote} disabled={loading} className={`${secondaryButtonClass} self-start`}>
+              {minorNoteSaved ? "Saved" : loading ? "Saving..." : "Save note"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">

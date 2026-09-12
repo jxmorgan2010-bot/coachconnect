@@ -172,8 +172,36 @@ model CoachProfile {
   suspendedAt   DateTime?
 
   zip               String?
-  introVideoUrl     String?
-  introVideoSeconds Int?
+
+  // Bio video — three independently-recordable clips (intro, coaching, playing). Entirely
+  // optional; a coach with all three uploaded gets a "Video verified" trust badge.
+  introClipUrl        String?
+  introClipSeconds    Int?
+  coachingClipUrl     String?
+  coachingClipSeconds Int?
+  playingClipUrl      String?
+  playingClipSeconds  Int?
+
+  // Under-18 coach tier — structure only. Gated behind the ENABLE_MINOR_COACHES flag
+  // (see src/lib/flags.ts) until legal requirements are confirmed; do not treat the
+  // presence of these fields as meaning the tier is live.
+  dateOfBirth   DateTime?
+  isMinorCoach  Boolean   @default(false)
+
+  // Consent from the coach's OWN parent/guardian (distinct from a booking family's consent).
+  // The coach requests consent, which generates minorConsentToken; the guardian fills out
+  // and signs the rest themselves at /minor-consent/[token], mirroring the Recommendation
+  // token-link pattern below rather than letting the coach self-attest on their behalf.
+  minorConsentToken         String?   @unique
+  minorGuardianName         String?
+  minorGuardianRelationship String?
+  minorGuardianEmail        String?
+  minorGuardianConsentedAt  DateTime?
+
+  // Standard automated background checks may not apply to minor coaches. This is an
+  // admin-only free-text note recording whatever alternative verification was actually
+  // done — manual for now, pending legal confirmation of what's required.
+  minorBackgroundCheckNote String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -248,6 +276,10 @@ model Booking {
   stripePaymentMethodId String?
 
   videoCallUrl      String?
+
+  // Required whenever the booked coach is a minor coach (see CoachProfile.isMinorCoach) —
+  // the name of the additional adult, beyond the booking parent, who'll be present.
+  secondAdultName   String?
 
   reminder24SentAt  DateTime?
   reminder1hSentAt  DateTime?

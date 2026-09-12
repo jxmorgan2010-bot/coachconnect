@@ -5,6 +5,7 @@ import { formatCents } from "@/lib/money";
 import { SPORT_COLOR } from "@/lib/sports";
 import { IconShieldCheck, IconStar } from "@/components/icons";
 import SportPill from "@/components/SportPill";
+import Badge from "@/components/Badge";
 
 export default function CoachCard({ coach }: { coach: CoachCardData }) {
   const primarySport = coach.sports[0];
@@ -72,6 +73,13 @@ export default function CoachCard({ coach }: { coach: CoachCardData }) {
             <span className="text-xs font-bold text-muted-foreground">+{coach.sports.length - 4}</span>
           )}
         </div>
+
+        {(coach.videoVerified || coach.isMinorCoach) && (
+          <div className="flex flex-wrap gap-1.5">
+            {coach.videoVerified && <Badge variant="accent">Video verified</Badge>}
+            {coach.isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}
+          </div>
+        )}
 
         {coach.bio && <p className="line-clamp-2 text-sm text-muted-foreground">{coach.bio}</p>}
       </div>

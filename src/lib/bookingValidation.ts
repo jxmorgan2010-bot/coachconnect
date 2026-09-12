@@ -18,6 +18,7 @@ export type BookingRequestInput = {
   sport: string;
   scheduledAt: Date;
   durationMinutes: number;
+  secondAdultName?: string;
 };
 
 /**
@@ -40,6 +41,11 @@ export async function validateBookingRequest(parentProfile: ParentProfile, data:
   }
   if (!coach.sports.some((s) => s.sport === data.sport)) {
     throw new BookingValidationError("This coach doesn't offer that sport.");
+  }
+
+  // Sessions with a minor coach require a second adult present beyond the booking parent.
+  if (coach.isMinorCoach && !data.secondAdultName?.trim()) {
+    throw new BookingValidationError("This coach is under 18 — enter the name of a second adult who'll be present.");
   }
 
   const activeBookings = await prisma.booking.findMany({

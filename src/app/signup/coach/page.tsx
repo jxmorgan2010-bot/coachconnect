@@ -14,6 +14,7 @@ export default function CoachSignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +32,7 @@ export default function CoachSignupPage() {
       const res = await fetch("/api/register/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, dateOfBirth }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -81,6 +82,19 @@ export default function CoachSignupPage() {
         <div>
           <label className={labelClass} htmlFor="email">Email</label>
           <input id="email" type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="dateOfBirth">Date of birth</label>
+          <input
+            id="dateOfBirth"
+            type="date"
+            className={inputClass}
+            value={dateOfBirth}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+            max={new Date().toISOString().slice(0, 10)}
+            required
+          />
         </div>
 
         <div>

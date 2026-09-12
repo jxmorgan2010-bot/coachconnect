@@ -24,6 +24,9 @@ export const bookingCreateSchema = z.object({
   locationText: z.string().trim().min(5, "Enter a public location, like a park or rec center."),
   consent: z.literal(true, { error: "Parental consent is required to book." }),
   paymentIntentId: z.string().trim().min(1).optional(),
+  // Required only when the selected coach is a minor coach — validated against that fact
+  // server-side in validateBookingRequest, since it depends on which coach was picked.
+  secondAdultName: z.string().trim().min(2, "Enter the second adult's name.").max(120).optional(),
 });
 
 export const reviewSchema = z.object({
@@ -62,6 +65,18 @@ export const coachRegisterSchema = z.object({
   name: z.string().trim().min(2, "Please enter your full name."),
   email: z.email("Please enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
+  dateOfBirth: z.coerce.date().refine((d) => d.getTime() < Date.now(), "Enter a valid date of birth."),
+});
+
+export const minorGuardianConsentSchema = z.object({
+  guardianName: z.string().trim().min(2, "Enter your full name."),
+  guardianRelationship: z.string().trim().min(2, "Enter your relationship to the coach (e.g. Parent, Legal guardian)."),
+  guardianEmail: z.email("Enter a valid email address."),
+  consented: z.literal(true, { error: "Check the box to confirm your consent." }),
+});
+
+export const minorVerificationNoteSchema = z.object({
+  note: z.string().trim().min(1, "Enter a note describing the verification performed.").max(2000),
 });
 
 export const coachProfileSchema = z.object({

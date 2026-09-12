@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { coachRegisterSchema } from "@/lib/validation";
+import { evaluateCoachAgeEligibility } from "@/lib/coach";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -10,8 +11,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, email, password, dateOfBirth } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
+
+  const eligibility = evaluateCoachAgeEligibility(dateOfBirth);
+  if (!eligibility.ok) {
+    return NextResponse.json({ error: eligibility.reason }, { status: 400 });
+  }
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
@@ -27,7 +33,10 @@ export async function POST(req: Request) {
       passwordHash,
       role: "COACH",
       coachProfile: {
-        create: {},
+        create: {
+          dateOfBirth,
+          isMinorCoach: eligibility.isMinor,
+        },
       },
     },
   });

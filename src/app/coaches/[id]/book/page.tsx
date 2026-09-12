@@ -29,6 +29,7 @@ export default async function BookCoachPage({ params }: { params: Promise<{ id: 
         name: coach.user.name,
         hourlyRateCents: coach.hourlyRateCents,
         sports: coach.sports.map((s) => s.sport),
+        isMinorCoach: coach.isMinorCoach,
       }}
       childOptions={parentProfile.children.map((c) => ({ id: c.id, firstName: c.firstName, gradeOrAge: c.gradeOrAge }))}
       creditCents={parentProfile.creditCents}

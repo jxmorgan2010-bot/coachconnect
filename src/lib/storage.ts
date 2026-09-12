@@ -6,7 +6,10 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB
 
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
-const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25MB, generous for a 30s clip
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB, generous for a 60s clip
+
+export const BIO_VIDEO_CLIP_TYPES = ["intro", "coaching", "playing"] as const;
+export type BioVideoClipType = (typeof BIO_VIDEO_CLIP_TYPES)[number];
 
 const PRIVATE_ROOT = path.join(process.cwd(), "storage", "id-verifications");
 const PUBLIC_ROOT = path.join(process.cwd(), "public", "uploads", "coach-photos");
@@ -68,21 +71,22 @@ export async function savePublicProfilePhoto(coachProfileId: string, file: File)
 }
 
 /**
- * Saves a coach's short intro video. Duration is validated client-side
- * (max 30s, enforced before upload); this is a best-effort file-size cap
- * as a server-side backstop since checking real video duration needs a
- * media-processing library we don't have in this stack.
+ * Saves one clip of a coach's three-part bio video (intro / coaching / playing). Each
+ * clip is stored and replaceable independently of the other two. Duration is validated
+ * client-side (max 60s/clip, enforced before upload); this is a best-effort file-size cap
+ * as a server-side backstop since checking real video duration needs a media-processing
+ * library we don't have in this stack.
  */
-export async function saveIntroVideo(coachProfileId: string, file: File): Promise<string> {
+export async function saveBioVideoClip(coachProfileId: string, clipType: BioVideoClipType, file: File): Promise<string> {
   if (!ALLOWED_VIDEO_TYPES.has(file.type)) {
     throw new Error("Only MP4, WEBM, or MOV videos are allowed.");
   }
   if (file.size > MAX_VIDEO_BYTES) {
-    throw new Error("Video is too large (25MB max — keep it under 30 seconds).");
+    throw new Error("Video is too large (50MB max — keep it under 60 seconds).");
   }
   const buffer = Buffer.from(await file.arrayBuffer());
   await mkdir(VIDEO_ROOT, { recursive: true });
-  const filename = `${coachProfileId}-${randomUUID()}.${extFromVideoType(file.type)}`;
+  const filename = `${coachProfileId}-${clipType}-${randomUUID()}.${extFromVideoType(file.type)}`;
   await writeFile(path.join(VIDEO_ROOT, filename), buffer);
   return `/uploads/coach-videos/${filename}`;
 }

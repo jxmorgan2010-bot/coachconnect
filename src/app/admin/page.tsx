@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isCoachLive, getBackgroundCheckExpiryState } from "@/lib/coach";
+import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import AdminNav from "./AdminNav";
 import AdminCoachRow from "./AdminCoachRow";
 import type { CoachProfile } from "@/generated/prisma/client";
@@ -17,6 +18,10 @@ function toRow(p: CoachProfile & { user: { name: string; email: string } }) {
     backgroundCheckExpiresAt: p.backgroundCheckExpiresAt ? p.backgroundCheckExpiresAt.toISOString() : null,
     isSuspended: p.isSuspended,
     profileComplete: Boolean(p.bio && p.schoolName && p.hourlyRateCents),
+    isMinorCoach: p.isMinorCoach,
+    minorGuardianConsentedAt: p.minorGuardianConsentedAt ? p.minorGuardianConsentedAt.toISOString() : null,
+    minorGuardianName: p.minorGuardianName,
+    minorBackgroundCheckNote: p.minorBackgroundCheckNote,
   };
 }
 
@@ -52,7 +57,7 @@ export default async function AdminPage() {
           <h2 className="mb-3 text-lg font-bold text-secondary">Suspended — 3+ reports ({suspended.length})</h2>
           <div className="mb-10 flex flex-col gap-3">
             {suspended.map((p) => (
-              <AdminCoachRow key={p.id} coach={toRow(p)} />
+              <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
             ))}
           </div>
         </>
@@ -63,7 +68,7 @@ export default async function AdminPage() {
           <h2 className="mb-3 text-lg font-bold text-secondary">Background check expiring within 30 days ({expiringSoon.length})</h2>
           <div className="mb-10 flex flex-col gap-3">
             {expiringSoon.map((p) => (
-              <AdminCoachRow key={p.id} coach={toRow(p)} />
+              <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
             ))}
           </div>
         </>
@@ -73,7 +78,7 @@ export default async function AdminPage() {
       <div className="mb-10 flex flex-col gap-3">
         {pending.length === 0 && <p className="text-sm text-muted-foreground">Nothing pending.</p>}
         {pending.map((p) => (
-          <AdminCoachRow key={p.id} coach={toRow(p)} />
+          <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
         ))}
       </div>
 
@@ -81,7 +86,7 @@ export default async function AdminPage() {
       <div className="flex flex-col gap-3">
         {live.length === 0 && <p className="text-sm text-muted-foreground">No live coaches yet.</p>}
         {live.map((p) => (
-          <AdminCoachRow key={p.id} coach={toRow(p)} />
+          <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
         ))}
       </div>
     </div>

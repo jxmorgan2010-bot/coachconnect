@@ -86,6 +86,7 @@ export async function POST(req: Request) {
         discountCents,
         status: "CONFIRMED",
         parentalConsent: true,
+        secondAdultName: data.secondAdultName?.trim() || null,
         stripePaymentIntentId,
         stripePaymentMethodId,
       },

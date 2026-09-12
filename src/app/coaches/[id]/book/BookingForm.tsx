@@ -13,7 +13,7 @@ import CardSection from "./CardSection";
 
 type ChildOption = { id: string; firstName: string; gradeOrAge: string };
 type BookedSlot = { scheduledAt: string; durationMinutes: number };
-type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[] };
+type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[]; isMinorCoach: boolean };
 
 const DURATIONS = [30, 60, 90, 120];
 
@@ -78,6 +78,7 @@ function BookingFormInner({
   const [locationText, setLocationText] = useState("");
   const [zip, setZip] = useState("");
   const [consent, setConsent] = useState(false);
+  const [secondAdultName, setSecondAdultName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<{ videoCallUrl: string | null } | null>(null);
@@ -184,6 +185,10 @@ function BookingFormInner({
       setError("Enter a public location, like a park or rec center.");
       return;
     }
+    if (coach.isMinorCoach && secondAdultName.trim().length < 2) {
+      setError("This coach is under 18 — enter the name of a second adult who'll be present.");
+      return;
+    }
     if (paymentRequired && zip.trim().length < 5) {
       setError("Enter your card's billing zip code.");
       return;
@@ -198,6 +203,7 @@ function BookingFormInner({
       durationMinutes: duration,
       locationText,
       consent,
+      secondAdultName: coach.isMinorCoach ? secondAdultName.trim() : undefined,
     };
 
     setLoading(true);
@@ -399,6 +405,24 @@ function BookingFormInner({
             />
             <p className="mt-1 text-xs text-muted-foreground">Always a public spot — you pick it, not the coach.</p>
           </div>
+
+          {coach.isMinorCoach && (
+            <div>
+              <label className={labelClass} htmlFor="secondAdultName">Second adult present</label>
+              <input
+                id="secondAdultName"
+                className={inputClass}
+                placeholder="Name of the additional adult who'll be at the session"
+                value={secondAdultName}
+                onChange={(e) => setSecondAdultName(e.target.value)}
+                required
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                This coach is under 18. CoachConnect requires a second adult — beyond you, the booking parent — to
+                be present at every session with a minor coach.
+              </p>
+            </div>
+          )}
 
           <div className="rounded-lg border-2 border-ink bg-muted p-4 text-sm">
             <div className="flex justify-between">

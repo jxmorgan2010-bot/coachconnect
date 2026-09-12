@@ -208,6 +208,7 @@ async function main() {
         passwordHash,
         coachProfile: {
           create: {
+            dateOfBirth: daysFromNow(-20 * 365),
             bio: seed.bio,
             schoolLevel: seed.schoolLevel,
             schoolName: seed.schoolName,
