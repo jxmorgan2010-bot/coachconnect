@@ -19,9 +19,15 @@ function hoursFromNow(hours: number) {
 }
 
 async function main() {
-  // Bookings/reviews/disputes/reports/messages aren't upserted below, so clear them first —
-  // makes this script safe to re-run without piling up duplicate demo data.
+  // Bookings/reviews/disputes/reports/messages/packages/points/training-plan items aren't
+  // upserted below, so clear them first — makes this script safe to re-run without piling
+  // up duplicate demo data. pointsTransaction is cleared before booking (it can reference
+  // one via bookingId); sessionPackage after (bookings reference it via packageId, not
+  // the other way around, so that direction is safe regardless of order).
+  await prisma.pointsTransaction.deleteMany({});
   await prisma.booking.deleteMany({}); // cascades to Review + Dispute
+  await prisma.sessionPackage.deleteMany({});
+  await prisma.trainingPlanItem.deleteMany({});
   await prisma.message.deleteMany({});
   await prisma.report.deleteMany({});
 
@@ -432,6 +438,48 @@ async function main() {
       { threadId: thread.id, senderId: demoParentUser.id, body: "Hi! Excited for Alex's first session Saturday.", createdAt: daysFromNow(-8) },
       { threadId: thread.id, senderId: amaraUser.id, body: "Looking forward to it! Meet by the north courts at 9am.", createdAt: new Date(daysFromNow(-8).getTime() + 12 * 60 * 1000) },
       { threadId: thread.id, senderId: demoParentUser.id, body: "Perfect, we'll be there.", createdAt: daysFromNow(-7.9) },
+    ],
+  });
+
+  // A 5-session package with Amara, already 1 session drawn from it — pairs with Jamie's
+  // 2 existing Amara bookings above to demo priority rebooking with no further seed changes.
+  await prisma.sessionPackage.create({
+    data: {
+      parentProfileId: jamie.id,
+      coachProfileId: amaraId,
+      sport: "BASKETBALL",
+      durationMinutes: 60,
+      totalSessions: 5,
+      sessionsUsed: 1,
+      pricePerSessionCents: 4500,
+      discountPercent: 10,
+      totalChargedCents: Math.round(4500 * 5 * 0.9),
+      stripePaymentIntentId: "seed_pkg_pi_1",
+    },
+  });
+
+  // Points: Jamie has completed + reviewed one Amara session (50 + 20), Amara has taught
+  // two sessions (50 x2) — comfortably over the Top Coach threshold for the demo badge.
+  await prisma.parentProfile.update({ where: { id: jamie.id }, data: { pointsBalance: 70 } });
+  await prisma.pointsTransaction.createMany({
+    data: [
+      { parentProfileId: jamie.id, action: "SESSION_COMPLETED", points: 50, bookingId: amaraAlexBooking.id },
+      { parentProfileId: jamie.id, action: "REVIEW_LEFT", points: 20, bookingId: amaraAlexBooking.id },
+    ],
+  });
+  await prisma.coachProfile.update({ where: { id: amaraId }, data: { pointsBalance: 600, lifetimePoints: 600 } });
+  await prisma.pointsTransaction.createMany({
+    data: [
+      { coachProfileId: amaraId, action: "SESSION_COMPLETED", points: 50, bookingId: amaraAlexBooking.id },
+      { coachProfileId: amaraId, action: "SESSION_COMPLETED", points: 550 },
+    ],
+  });
+
+  // Training plan for Amara + Alex + Basketball, alongside the existing seeded progress note.
+  await prisma.trainingPlanItem.createMany({
+    data: [
+      { coachProfileId: amaraId, childId: alex.id, sport: "BASKETBALL", label: "Ball-handling — crossover", isDone: true, completedAt: daysFromNow(-6), order: 0 },
+      { coachProfileId: amaraId, childId: alex.id, sport: "BASKETBALL", label: "Left-hand layups", isDone: false, order: 1 },
     ],
   });
 

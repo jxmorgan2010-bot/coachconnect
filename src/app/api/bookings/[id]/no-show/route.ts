@@ -21,7 +21,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } }, dispute: true },
+    include: {
+      parentProfile: { include: { user: true } },
+      coachProfile: { include: { user: true } },
+      dispute: true,
+      package: true,
+    },
   });
   if (!booking || booking.parentProfile.userId !== session.user.id) {
     return NextResponse.json({ error: "Booking not found." }, { status: 404 });
@@ -40,25 +45,48 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   const details = parsed.data.details?.trim() || DEFAULT_DETAILS;
 
-  try {
-    await cancelPaymentIntent(booking.stripePaymentIntentId);
-  } catch (err) {
-    console.error("Stripe cancel failed", err);
-    return NextResponse.json({ error: "We couldn't void the payment hold. Please try again or contact support." }, { status: 502 });
-  }
+  // A bundled session's money was already captured in full when the package was bought
+  // (see /api/packages) — there's no per-session Stripe hold to void. Instead, give the
+  // session back to the package so the parent can rebook it, and mark the booking
+  // REFUNDED (its value was returned) rather than CANCELLED (never charged).
+  if (booking.packageId && booking.package) {
+    await prisma.$transaction([
+      prisma.booking.update({ where: { id }, data: { status: "CANCELLED", paymentStatus: "REFUNDED" } }),
+      prisma.sessionPackage.update({
+        where: { id: booking.package.id },
+        data: { sessionsUsed: { decrement: 1 }, sessionsRefunded: { increment: 1 }, status: "ACTIVE" },
+      }),
+      prisma.dispute.create({
+        data: {
+          bookingId: booking.id,
+          parentProfileId: booking.parentProfileId,
+          coachProfileId: booking.coachProfileId,
+          reason: "NO_SHOW",
+          details,
+        },
+      }),
+    ]);
+  } else {
+    try {
+      await cancelPaymentIntent(booking.stripePaymentIntentId);
+    } catch (err) {
+      console.error("Stripe cancel failed", err);
+      return NextResponse.json({ error: "We couldn't void the payment hold. Please try again or contact support." }, { status: 502 });
+    }
 
-  await prisma.$transaction([
-    prisma.booking.update({ where: { id }, data: { status: "CANCELLED", paymentStatus: "CANCELLED" } }),
-    prisma.dispute.create({
-      data: {
-        bookingId: booking.id,
-        parentProfileId: booking.parentProfileId,
-        coachProfileId: booking.coachProfileId,
-        reason: "NO_SHOW",
-        details,
-      },
-    }),
-  ]);
+    await prisma.$transaction([
+      prisma.booking.update({ where: { id }, data: { status: "CANCELLED", paymentStatus: "CANCELLED" } }),
+      prisma.dispute.create({
+        data: {
+          bookingId: booking.id,
+          parentProfileId: booking.parentProfileId,
+          coachProfileId: booking.coachProfileId,
+          reason: "NO_SHOW",
+          details,
+        },
+      }),
+    ]);
+  }
 
   sendMockEmail(
     booking.parentProfile.user.email,

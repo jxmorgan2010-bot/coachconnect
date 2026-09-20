@@ -42,6 +42,13 @@ export function formatResponseTime(minutes: number): string {
   return `~${Math.round(minutes / (60 * 24))} days`;
 }
 
+/** How many times this parent has booked this coach — active or completed sessions only. */
+export async function getPriorBookingCount(coachProfileId: string, parentProfileId: string): Promise<number> {
+  return prisma.booking.count({
+    where: { coachProfileId, parentProfileId, status: { in: ["CONFIRMED", "COMPLETED"] } },
+  });
+}
+
 /** Other children from this same family the coach has already worked with. */
 export async function getSiblingsCoachedForFamily(
   coachProfileId: string,

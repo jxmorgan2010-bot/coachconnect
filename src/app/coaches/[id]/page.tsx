@@ -8,12 +8,17 @@ import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
 import ReportButton from "@/components/ReportButton";
 import MessageCoachButton from "@/components/MessageCoachButton";
+import NotRightFitButton from "@/components/NotRightFitButton";
+import PaymentProtectionNotice from "@/components/PaymentProtectionNotice";
+import { QuickRebookButton } from "@/app/dashboard/BookingActions";
 import { isCoachLive, getBackgroundCheckExpiryState, hasVerifiedVideoBio } from "@/lib/coach";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { SPORT_COLOR } from "@/lib/sports";
-import { getCoachSessionsCompleted, getCoachAverageResponseMinutes, formatResponseTime, getSiblingsCoachedForFamily } from "@/lib/stats";
+import { getCoachSessionsCompleted, getCoachAverageResponseMinutes, formatResponseTime, getSiblingsCoachedForFamily, getPriorBookingCount } from "@/lib/stats";
+import { isTopCoach } from "@/lib/points";
+import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
 import { IconShieldCheck, IconStar, IconCalendar } from "@/components/icons";
-import { primaryButtonClass } from "@/lib/ui";
+import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -62,12 +67,22 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
   ]);
 
   let siblingNote: string | null = null;
+  let quickRebookBookingId: string | null = null;
   if (session?.user?.role === "PARENT" && !isOwner) {
     const parentProfile = await prisma.parentProfile.findUnique({ where: { userId: session.user.id } });
     if (parentProfile) {
       const siblings = await getSiblingsCoachedForFamily(profile.id, parentProfile.id);
       if (siblings.length > 0) {
         siblingNote = `Coached ${siblings.join(" and ")} too`;
+      }
+
+      const priorBookingCount = await getPriorBookingCount(profile.id, parentProfile.id);
+      if (priorBookingCount >= PRIORITY_REBOOK_THRESHOLD) {
+        const mostRecent = await prisma.booking.findFirst({
+          where: { coachProfileId: profile.id, parentProfileId: parentProfile.id, status: { in: ["CONFIRMED", "COMPLETED"] } },
+          orderBy: { scheduledAt: "desc" },
+        });
+        quickRebookBookingId = mostRecent?.id ?? null;
       }
     }
   }
@@ -146,6 +161,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <Badge variant="success" icon={<IconShieldCheck className="h-3.5 w-3.5" />}>Background check clear</Badge>
           <Badge variant="success" icon={<IconShieldCheck className="h-3.5 w-3.5" />}>ID verified</Badge>
+          {isTopCoach(profile.lifetimePoints) && <Badge variant="accent">Top Coach</Badge>}
           {videoVerified && <Badge variant="accent">Video verified</Badge>}
           {isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}
           {profile.recommendations.length > 0 && <Badge variant="accent">Recommended by Coach</Badge>}
@@ -162,19 +178,40 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
           )}
         </div>
 
-        <div className="mb-8 flex flex-wrap gap-3">
+        <div className="mb-4 flex flex-wrap gap-3">
           {live ? (
-            <Link href={`/coaches/${profile.id}/book`} className={primaryButtonClass}>
-              Book a session
-            </Link>
+            <>
+              <Link href={`/coaches/${profile.id}/book`} className={primaryButtonClass}>
+                Book a session
+              </Link>
+              {profile.hourlyRateCents && (
+                <Link href={`/coaches/${profile.id}/packages`} className={secondaryButtonClass}>
+                  Buy a 5-session package — save 10%
+                </Link>
+              )}
+            </>
           ) : (
             <button className={primaryButtonClass} disabled title="This coach isn't currently bookable">
               Book a session
             </button>
           )}
           {!isOwner && <MessageCoachButton coachProfileId={profile.id} />}
+          {!isOwner && <NotRightFitButton coachProfileId={profile.id} sport={primarySport} city={profile.city} />}
           {!isOwner && <ReportButton targetType="COACH_PROFILE" targetId={profile.id} />}
         </div>
+
+        {quickRebookBookingId && (
+          <div className="mb-8 flex flex-wrap items-center gap-3 rounded-lg border-2 border-ink bg-accent/10 p-4">
+            <p className="text-sm font-bold text-ink">You&apos;ve booked {profile.user.name.split(" ")[0]} before —</p>
+            <QuickRebookButton bookingId={quickRebookBookingId} coachName={profile.user.name.split(" ")[0]} />
+          </div>
+        )}
+
+        {live && (
+          <div className="mb-8">
+            <PaymentProtectionNotice />
+          </div>
+        )}
 
         {isMinorCoach && (
           <section className="mb-8 rounded-lg border-2 border-ink bg-accent/10 p-4">

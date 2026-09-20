@@ -17,6 +17,8 @@ export type CoachCardData = {
   reviewCount: number;
   videoVerified: boolean;
   isMinorCoach: boolean;
+  lifetimePoints: number;
+  priorBookingCount: number;
 };
 
 export const BACKGROUND_CHECK_VALIDITY_DAYS = 365;

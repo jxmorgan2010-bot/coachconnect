@@ -48,3 +48,25 @@ export async function chargeTipOffSession(stripeCustomerId: string | null, strip
   });
   console.log(`💳 [payment] Charged tip of $${(amountCents / 100).toFixed(2)} off-session.`);
 }
+
+/**
+ * "Quick rebook" holds the card on file off-session — same manual-capture hold as a
+ * normal booking (so complete/no-show/dispute all work unmodified), just confirmed
+ * without the parent re-entering their card. Throws on Stripe's `authentication_required`
+ * (a real possibility off-session) — callers should catch that and point the parent back
+ * at the normal booking form to re-authenticate their card.
+ */
+export async function chargeOffSessionHold(stripeCustomerId: string, stripePaymentMethodId: string, amountCents: number) {
+  const stripe = getStripe();
+  const intent = await stripe.paymentIntents.create({
+    amount: amountCents,
+    currency: "usd",
+    customer: stripeCustomerId,
+    payment_method: stripePaymentMethodId,
+    capture_method: "manual",
+    off_session: true,
+    confirm: true,
+  });
+  console.log(`💳 [payment] Off-session hold of $${(amountCents / 100).toFixed(2)} authorized for quick rebook — intent ${intent.id}`);
+  return intent;
+}

@@ -27,6 +27,37 @@ export const bookingCreateSchema = z.object({
   // Required only when the selected coach is a minor coach — validated against that fact
   // server-side in validateBookingRequest, since it depends on which coach was picked.
   secondAdultName: z.string().trim().min(2, "Enter the second adult's name.").max(120).optional(),
+  // When set, this booking draws from a prepaid SessionPackage instead of a card hold —
+  // see validatePackageBookingRequest, which locks sport/coach/duration to the package.
+  packageId: z.string().trim().min(1).optional(),
+});
+
+export const packagePurchaseSchema = z.object({
+  coachProfileId: z.string().min(1),
+  sport: z.enum(SPORTS as [string, ...string[]]),
+  durationMinutes: z.coerce.number().int().min(30).max(180),
+});
+
+export const packageConfirmSchema = z.object({
+  paymentIntentId: z.string().trim().min(1),
+});
+
+export const quickRebookSchema = z.object({
+  bookingId: z.string().trim().min(1),
+});
+
+export const pointsRedeemSchema = z.object({
+  points: z.coerce.number().int().min(1, "Enter how many points to redeem."),
+});
+
+export const trainingPlanItemSchema = z.object({
+  childId: z.string().trim().min(1),
+  sport: z.enum(SPORTS as [string, ...string[]]),
+  label: z.string().trim().min(2, "Describe the drill or focus area.").max(200),
+});
+
+export const trainingPlanToggleSchema = z.object({
+  isDone: z.boolean(),
 });
 
 export const reviewSchema = z.object({

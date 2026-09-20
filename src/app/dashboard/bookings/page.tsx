@@ -7,8 +7,8 @@ import SportPill from "@/components/SportPill";
 import { IconStar } from "@/components/icons";
 import ParentTabs from "../ParentTabs";
 import RatingForm from "../RatingForm";
-import DisputeButton from "../DisputeButton";
-import { MarkCompleteButton, NoShowButton, TipForm } from "../BookingActions";
+import SatisfactionGuaranteeNotice from "@/components/SatisfactionGuaranteeNotice";
+import { MarkCompleteButton, NoShowButton, TipForm, QuickRebookButton } from "../BookingActions";
 
 const STATUS_VARIANT = {
   PENDING_CONSENT: "warning",
@@ -132,12 +132,14 @@ export default async function MyBookingsPage() {
 
                     {b.tippedAt ? null : <TipForm bookingId={b.id} />}
 
+                    <QuickRebookButton bookingId={b.id} coachName={b.coachProfile.user.name} />
+
                     {b.dispute ? (
                       <p className="text-sm font-bold text-warning">
                         Case open: {b.dispute.status.replaceAll("_", " ").toLowerCase()}
                       </p>
                     ) : (
-                      <DisputeButton bookingId={b.id} />
+                      <SatisfactionGuaranteeNotice bookingId={b.id} />
                     )}
                   </div>
                 )}

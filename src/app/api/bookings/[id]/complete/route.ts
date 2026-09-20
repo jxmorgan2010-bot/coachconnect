@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { capturePaymentIntent } from "@/lib/payment";
+import { awardPoints, POINTS_SESSION_COMPLETED } from "@/lib/points";
 
 /**
  * Only the parent can mark a session complete — this is what releases the
@@ -31,9 +32,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   const now = new Date();
-  const updated = await prisma.booking.update({
-    where: { id },
-    data: { status: "COMPLETED", completedAt: now, paymentStatus: "CAPTURED", capturedAt: now },
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.booking.update({
+      where: { id },
+      data: { status: "COMPLETED", completedAt: now, paymentStatus: "CAPTURED", capturedAt: now },
+    });
+    await awardPoints(tx, { parentProfileId: booking.parentProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
+    await awardPoints(tx, { coachProfileId: booking.coachProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
+    return result;
   });
 
   return NextResponse.json({ ok: true, booking: updated });

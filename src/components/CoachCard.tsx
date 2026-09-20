@@ -3,19 +3,27 @@ import Image from "next/image";
 import type { CoachCardData } from "@/lib/coach";
 import { formatCents } from "@/lib/money";
 import { SPORT_COLOR } from "@/lib/sports";
-import { IconShieldCheck, IconStar } from "@/components/icons";
+import { isTopCoach } from "@/lib/points";
+import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
+import { IconShieldCheck, IconStar, IconPin } from "@/components/icons";
 import SportPill from "@/components/SportPill";
 import Badge from "@/components/Badge";
 
 export default function CoachCard({ coach }: { coach: CoachCardData }) {
   const primarySport = coach.sports[0];
   const bandColor = primarySport ? SPORT_COLOR[primarySport] : { bg: "#1E5631", fg: "#FFFFFF" };
+  const pinned = coach.priorBookingCount >= PRIORITY_REBOOK_THRESHOLD;
 
   return (
     <Link
       href={`/coaches/${coach.id}`}
       className="press group relative flex flex-col overflow-hidden rounded-xl border-2 border-ink bg-surface shadow-[6px_6px_0_var(--ink)] hover:bg-chalk"
     >
+      {pinned && (
+        <div className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full border-2 border-ink bg-accent px-2 py-0.5 text-[11px] font-bold text-ink shadow-[2px_2px_0_var(--ink)]">
+          <IconPin className="h-3 w-3" /> Book again
+        </div>
+      )}
       {coach.hasRecommendation && (
         <div className="absolute right-[-42px] top-[18px] z-10 w-[160px] rotate-45 border-y-2 border-ink bg-gold py-1 text-center font-display text-[11px] tracking-wide text-ink shadow-[0_2px_0_rgba(0,0,0,0.15)]">
           COACH-RECOMMENDED
@@ -74,8 +82,9 @@ export default function CoachCard({ coach }: { coach: CoachCardData }) {
           )}
         </div>
 
-        {(coach.videoVerified || coach.isMinorCoach) && (
+        {(coach.videoVerified || coach.isMinorCoach || isTopCoach(coach.lifetimePoints)) && (
           <div className="flex flex-wrap gap-1.5">
+            {isTopCoach(coach.lifetimePoints) && <Badge variant="accent">Top Coach</Badge>}
             {coach.videoVerified && <Badge variant="accent">Video verified</Badge>}
             {coach.isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}
           </div>

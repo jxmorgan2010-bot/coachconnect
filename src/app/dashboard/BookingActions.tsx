@@ -99,6 +99,44 @@ export function NoShowButton({ bookingId }: { bookingId: string }) {
   );
 }
 
+export function QuickRebookButton({ bookingId, coachName }: { bookingId: string; coachName: string }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  async function onClick() {
+    setError(null);
+    setLoading(true);
+    const res = await fetch("/api/bookings/quick-rebook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookingId }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    setSuccess(new Date(data.scheduledAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+    router.refresh();
+  }
+
+  if (success) {
+    return <p className={successClass}>Rebooked with {coachName} for {success} — no card needed.</p>;
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {error && <p className={errorClass}>{error}</p>}
+      <button onClick={onClick} className={secondaryButtonClass} disabled={loading}>
+        {loading ? "Rebooking..." : `Quick rebook with ${coachName}`}
+      </button>
+    </div>
+  );
+}
+
 const TIP_PRESETS_CENTS = [300, 500, 1000];
 
 export function TipForm({ bookingId }: { bookingId: string }) {

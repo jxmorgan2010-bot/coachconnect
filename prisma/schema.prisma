@@ -96,6 +96,19 @@ enum DisputeStatus {
   DISMISSED
 }
 
+enum PackageStatus {
+  ACTIVE
+  DEPLETED
+}
+
+enum PointsActionType {
+  SESSION_COMPLETED
+  REVIEW_LEFT
+  REFERRAL_SIGNUP
+  QUICK_REBOOK
+  REDEEMED_FOR_CREDIT
+}
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -126,11 +139,19 @@ model ParentProfile {
   referredBy            ParentProfile?  @relation("Referrals", fields: [referredById], references: [id])
   referredParents       ParentProfile[] @relation("Referrals")
 
+  // Loyalty points — see src/lib/points.ts. pointsBalance is spendable (redemptions
+  // decrement it); nothing currently reads a lifetime total for parents so there's no
+  // separate lifetime field here (contrast CoachProfile.lifetimePoints, used for the
+  // Top Coach badge threshold, which must NOT drop when a coach's points are spent).
+  pointsBalance Int @default(0)
+
   children  Child[]
   bookings  Booking[]
   reviews   Review[]
   threads   Thread[]
   disputes  Dispute[]
+  packages  SessionPackage[]
+  pointsTransactions PointsTransaction[]
 }
 
 model Child {
@@ -142,7 +163,8 @@ model Child {
   notes           String?
   createdAt       DateTime      @default(now())
 
-  bookings        Booking[]
+  bookings          Booking[]
+  trainingPlanItems TrainingPlanItem[]
 }
 
 model CoachProfile {
@@ -206,6 +228,12 @@ model CoachProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Loyalty points — see src/lib/points.ts. pointsBalance is spendable; lifetimePoints
+  // never decrements, so the "Top Coach" badge (a threshold on lifetimePoints) can't be
+  // lost by spending points elsewhere in the future.
+  pointsBalance  Int @default(0)
+  lifetimePoints Int @default(0)
+
   sports          CoachSport[]
   availability    Availability[]
   bookings        Booking[]
@@ -213,6 +241,82 @@ model CoachProfile {
   threads         Thread[]
   recommendations Recommendation[]
   disputes        Dispute[]
+  packages        SessionPackage[]
+  pointsTransactions PointsTransaction[]
+  trainingPlanItems  TrainingPlanItem[]
+}
+
+/**
+ * A prepaid bundle of sessions with one coach, for one sport, bought upfront at a
+ * discount off calculateBundlePricing() (see src/lib/bundles.ts). Scoped to
+ * coach+sport, not to a specific child — any of the parent's kids can draw a session
+ * from it. Unlike a normal Booking (a manual-capture hold released on completion), the
+ * full discounted total is captured immediately at purchase; individual bookings drawn
+ * from the package need no further Stripe hold (see POST /api/bookings's packageId
+ * branch), which is why pricePerSessionCents/discountPercent/durationMinutes are
+ * snapshotted here rather than re-read from the coach profile later.
+ */
+model SessionPackage {
+  id                    String        @id @default(cuid())
+  parentProfileId       String
+  parentProfile         ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  coachProfileId        String
+  coachProfile          CoachProfile  @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  sport                 Sport
+  durationMinutes       Int
+  totalSessions         Int
+  sessionsUsed          Int           @default(0)
+  // Sessions given back to the package after a no-show on a bundled booking — see the
+  // packageId branch of POST /api/bookings/[id]/no-show. Audit/display only.
+  sessionsRefunded      Int           @default(0)
+  pricePerSessionCents  Int
+  discountPercent       Int
+  totalChargedCents     Int
+  status                PackageStatus @default(ACTIVE)
+  stripePaymentIntentId String?       @unique
+  createdAt             DateTime      @default(now())
+
+  bookings              Booking[]
+}
+
+/**
+ * A running ledger of points earned/redeemed by a parent or coach (exactly one of
+ * parentProfileId/coachProfileId is set) — see src/lib/points.ts for point values and
+ * award/redeem logic. Redeeming converts points into the parent's existing
+ * ParentProfile.creditCents wallet (the same one bookingValidation.ts already applies
+ * automatically) rather than a separate discount mechanism.
+ */
+model PointsTransaction {
+  id              String            @id @default(cuid())
+  parentProfileId String?
+  parentProfile   ParentProfile?    @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  coachProfileId  String?
+  coachProfile    CoachProfile?     @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  bookingId       String?
+  booking         Booking?          @relation(fields: [bookingId], references: [id])
+  action          PointsActionType
+  points          Int
+  createdAt       DateTime          @default(now())
+}
+
+/**
+ * A lightweight, checkable list of drills/focus areas a coach sets up for one
+ * (coach, child, sport) pairing — visible and toggleable by both the coach and the
+ * child's parent, between-session homework rather than a per-session progress note
+ * (which already exists on Booking).
+ */
+model TrainingPlanItem {
+  id             String       @id @default(cuid())
+  coachProfileId String
+  coachProfile   CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  childId        String
+  child          Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  sport          Sport
+  label          String
+  isDone         Boolean      @default(false)
+  completedAt    DateTime?
+  order          Int          @default(0)
+  createdAt      DateTime     @default(now())
 }
 
 model CoachSport {
@@ -288,8 +392,15 @@ model Booking {
   progressNextFocus    String?
   progressNoteAddedAt  DateTime?
 
-  review            Review?
-  dispute           Dispute?
+  // Set only when this session was drawn from a prepaid SessionPackage — see the
+  // packageId branch of POST /api/bookings. Such bookings skip the normal per-session
+  // Stripe hold (stripePaymentIntentId stays null; paymentStatus starts CAPTURED).
+  packageId         String?
+  package           SessionPackage? @relation(fields: [packageId], references: [id])
+
+  review              Review?
+  dispute             Dispute?
+  pointsTransactions  PointsTransaction[]
 }
 
 model Review {

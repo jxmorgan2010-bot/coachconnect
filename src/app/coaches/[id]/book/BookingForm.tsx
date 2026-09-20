@@ -14,6 +14,7 @@ import CardSection from "./CardSection";
 type ChildOption = { id: string; firstName: string; gradeOrAge: string };
 type BookedSlot = { scheduledAt: string; durationMinutes: number };
 type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[]; isMinorCoach: boolean };
+type ActivePackage = { id: string; sport: Sport; durationMinutes: number; sessionsRemaining: number };
 
 const DURATIONS = [30, 60, 90, 120];
 
@@ -42,7 +43,7 @@ function minutesToTimeValue(minutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-export default function BookingForm(props: { coach: CoachInfo; childOptions: ChildOption[]; creditCents: number }) {
+export default function BookingForm(props: { coach: CoachInfo; childOptions: ChildOption[]; creditCents: number; activePackage?: ActivePackage | null }) {
   return (
     <Elements stripe={stripePromise}>
       <BookingFormInner {...props} />
@@ -54,10 +55,12 @@ function BookingFormInner({
   coach,
   childOptions,
   creditCents,
+  activePackage,
 }: {
   coach: CoachInfo;
   childOptions: ChildOption[];
   creditCents: number;
+  activePackage?: ActivePackage | null;
 }) {
   const router = useRouter();
   const stripe = useStripe();
@@ -71,10 +74,10 @@ function BookingFormInner({
   const [addChildLoading, setAddChildLoading] = useState(false);
 
   const [childId, setChildId] = useState(childOptions[0]?.id ?? "");
-  const [sport, setSport] = useState<Sport | "">(coach.sports[0] ?? "");
+  const [sport, setSport] = useState<Sport | "">(activePackage?.sport ?? coach.sports[0] ?? "");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [duration, setDuration] = useState(60);
+  const [duration, setDuration] = useState(activePackage?.durationMinutes ?? 60);
   const [locationText, setLocationText] = useState("");
   const [zip, setZip] = useState("");
   const [consent, setConsent] = useState(false);
@@ -98,7 +101,7 @@ function BookingFormInner({
   const breakdown = calculatePriceBreakdown(coach.hourlyRateCents, duration);
   const discountCents = Math.min(creditCents, breakdown.sessionCostCents);
   const totalDueCents = breakdown.totalChargedCents - discountCents;
-  const paymentRequired = totalDueCents >= STRIPE_MIN_CENTS;
+  const paymentRequired = !activePackage && totalDueCents >= STRIPE_MIN_CENTS;
 
   useEffect(() => {
     let cancelled = false;
@@ -204,9 +207,26 @@ function BookingFormInner({
       locationText,
       consent,
       secondAdultName: coach.isMinorCoach ? secondAdultName.trim() : undefined,
+      packageId: activePackage?.id,
     };
 
     setLoading(true);
+
+    if (activePackage) {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(basePayload),
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+        return;
+      }
+      setSuccess({ videoCallUrl: data.videoCallUrl ?? null });
+      return;
+    }
 
     const intentRes = await fetch("/api/bookings/create-intent", {
       method: "POST",
@@ -294,6 +314,12 @@ function BookingFormInner({
         You choose the location — a park, school gym, or rec center. Never the coach&apos;s call.
       </p>
 
+      {activePackage && (
+        <div className="mb-6 rounded-lg border-2 border-ink bg-accent/10 px-4 py-2.5 text-sm font-bold text-ink">
+          Booking from your package — {activePackage.sessionsRemaining} session{activePackage.sessionsRemaining === 1 ? "" : "s"} left, no charge today.
+        </div>
+      )}
+
       {showAddChild ? (
         <form onSubmit={addChild} className="card mb-6 flex flex-col gap-4 p-5">
           <p className="font-display text-lg text-ink">Who&apos;s this session for?</p>
@@ -341,7 +367,7 @@ function BookingFormInner({
 
           <div>
             <label className={labelClass} htmlFor="sport">Sport</label>
-            <select id="sport" className={inputClass} value={sport} onChange={(e) => setSport(e.target.value as Sport)}>
+            <select id="sport" className={inputClass} value={sport} disabled={!!activePackage} onChange={(e) => setSport(e.target.value as Sport)}>
               {coach.sports.map((s) => (
                 <option key={s} value={s}>{SPORT_LABELS[s]}</option>
               ))}
@@ -355,7 +381,7 @@ function BookingFormInner({
             </div>
             <div>
               <label className={labelClass} htmlFor="duration">Duration</label>
-              <select id="duration" className={inputClass} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+              <select id="duration" className={inputClass} value={duration} disabled={!!activePackage} onChange={(e) => setDuration(Number(e.target.value))}>
                 {DURATIONS.map((d) => (
                   <option key={d} value={d}>{d} minutes</option>
                 ))}
@@ -424,40 +450,46 @@ function BookingFormInner({
             </div>
           )}
 
-          <div className="rounded-lg border-2 border-ink bg-muted p-4 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Session cost</span>
-              <span className="font-bold text-ink">{formatCents(breakdown.sessionCostCents)}</span>
-            </div>
-            {discountCents > 0 && (
-              <div className="flex justify-between text-pitch">
-                <span>Referral credit applied</span>
-                <span className="font-bold">-{formatCents(discountCents)}</span>
-              </div>
-            )}
-            <div className="mt-2 flex justify-between border-t-2 border-ink pt-2 font-display text-lg text-ink">
-              <span>Card hold today</span>
-              <span>{formatCents(totalDueCents)}</span>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Your card is authorized (held), not charged, when you book. It&apos;s only captured after you mark the
-              session complete — minus a 15% platform fee to the coach&apos;s payout. Card/digital payment only.
-            </p>
-          </div>
-
-          {paymentRequired ? (
-            stripe && elements ? (
-              <CardSection zip={zip} onZipChange={setZip} />
-            ) : stripeSlowToLoad ? (
-              <p className={errorClass}>
-                Payments aren&apos;t configured — add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-                (test-mode keys from your Stripe dashboard) to .env and restart the server.
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">Loading payment form...</p>
-            )
+          {activePackage ? (
+            <p className={successClass}>Included in your package — no charge for this session.</p>
           ) : (
-            <p className={successClass}>Fully covered by your referral credit — no card needed for this booking.</p>
+            <div className="rounded-lg border-2 border-ink bg-muted p-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Session cost</span>
+                <span className="font-bold text-ink">{formatCents(breakdown.sessionCostCents)}</span>
+              </div>
+              {discountCents > 0 && (
+                <div className="flex justify-between text-pitch">
+                  <span>Referral credit applied</span>
+                  <span className="font-bold">-{formatCents(discountCents)}</span>
+                </div>
+              )}
+              <div className="mt-2 flex justify-between border-t-2 border-ink pt-2 font-display text-lg text-ink">
+                <span>Card hold today</span>
+                <span>{formatCents(totalDueCents)}</span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Your card is authorized (held), not charged, when you book. It&apos;s only captured after you mark the
+                session complete — minus a 15% platform fee to the coach&apos;s payout. Card/digital payment only.
+              </p>
+            </div>
+          )}
+
+          {!activePackage && (
+            paymentRequired ? (
+              stripe && elements ? (
+                <CardSection zip={zip} onZipChange={setZip} />
+              ) : stripeSlowToLoad ? (
+                <p className={errorClass}>
+                  Payments aren&apos;t configured — add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+                  (test-mode keys from your Stripe dashboard) to .env and restart the server.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Loading payment form...</p>
+              )
+            ) : (
+              <p className={successClass}>Fully covered by your referral credit — no card needed for this booking.</p>
+            )
           )}
 
           <label className="flex items-start gap-2 text-sm text-muted-foreground">

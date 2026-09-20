@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { reviewSchema } from "@/lib/validation";
+import { awardPoints, POINTS_REVIEW_LEFT } from "@/lib/points";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
@@ -30,14 +31,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
 
-  const review = await prisma.review.create({
-    data: {
-      bookingId: booking.id,
-      parentProfileId: booking.parentProfileId,
-      coachProfileId: booking.coachProfileId,
-      rating: parsed.data.rating,
-      comment: parsed.data.comment || null,
-    },
+  const review = await prisma.$transaction(async (tx) => {
+    const created = await tx.review.create({
+      data: {
+        bookingId: booking.id,
+        parentProfileId: booking.parentProfileId,
+        coachProfileId: booking.coachProfileId,
+        rating: parsed.data.rating,
+        comment: parsed.data.comment || null,
+      },
+    });
+    await awardPoints(tx, { parentProfileId: booking.parentProfileId, action: "REVIEW_LEFT", points: POINTS_REVIEW_LEFT, bookingId: booking.id });
+    return created;
   });
 
   return NextResponse.json({ ok: true, review });

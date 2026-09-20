@@ -4,8 +4,15 @@ import { getCurrentSession } from "@/lib/session";
 import { isCoachLive } from "@/lib/coach";
 import BookingForm from "./BookingForm";
 
-export default async function BookCoachPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BookCoachPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ packageId?: string }>;
+}) {
   const { id } = await params;
+  const { packageId } = await searchParams;
   const session = await getCurrentSession();
   if (!session?.user) redirect(`/login?callbackUrl=/coaches/${id}/book`);
   if (session.user.role !== "PARENT") redirect(`/coaches/${id}`);
@@ -22,6 +29,19 @@ export default async function BookCoachPage({ params }: { params: Promise<{ id: 
   });
   if (!parentProfile) redirect("/dashboard");
 
+  let activePackage = null;
+  if (packageId) {
+    const pkg = await prisma.sessionPackage.findUnique({ where: { id: packageId } });
+    if (pkg && pkg.parentProfileId === parentProfile.id && pkg.coachProfileId === coach.id && pkg.status === "ACTIVE") {
+      activePackage = {
+        id: pkg.id,
+        sport: pkg.sport,
+        durationMinutes: pkg.durationMinutes,
+        sessionsRemaining: pkg.totalSessions - pkg.sessionsUsed,
+      };
+    }
+  }
+
   return (
     <BookingForm
       coach={{
@@ -33,6 +53,7 @@ export default async function BookCoachPage({ params }: { params: Promise<{ id: 
       }}
       childOptions={parentProfile.children.map((c) => ({ id: c.id, firstName: c.firstName, gradeOrAge: c.gradeOrAge }))}
       creditCents={parentProfile.creditCents}
+      activePackage={activePackage}
     />
   );
 }

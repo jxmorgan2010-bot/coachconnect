@@ -5,6 +5,8 @@ import CoachCard from "@/components/CoachCard";
 import type { CoachCardData } from "@/lib/coach";
 import { hasVerifiedVideoBio } from "@/lib/coach";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
+import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
+import { getCurrentSession } from "@/lib/session";
 import { inputClass, labelClass, primaryButtonClass } from "@/lib/ui";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -14,6 +16,7 @@ type SearchParams = {
   location?: string;
   maxPrice?: string;
   day?: string;
+  excludeCoachId?: string;
 };
 
 export default async function CoachesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -22,6 +25,21 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
   const locationFilter = params.location?.trim();
   const maxPrice = params.maxPrice ? Number(params.maxPrice) : undefined;
   const day = params.day !== undefined && params.day !== "" ? Number(params.day) : undefined;
+  const excludeCoachId = params.excludeCoachId?.trim();
+
+  const session = await getCurrentSession();
+  let priorBookingCounts = new Map<string, number>();
+  if (session?.user?.role === "PARENT") {
+    const parentProfile = await prisma.parentProfile.findUnique({ where: { userId: session.user.id } });
+    if (parentProfile) {
+      const grouped = await prisma.booking.groupBy({
+        by: ["coachProfileId"],
+        where: { parentProfileId: parentProfile.id, status: { in: ["CONFIRMED", "COMPLETED"] } },
+        _count: true,
+      });
+      priorBookingCounts = new Map(grouped.map((g) => [g.coachProfileId, g._count]));
+    }
+  }
 
   // Mirrors isCoachLive()'s two branches (standard adult flow vs. minor coach flow) as a
   // DB-level filter — a plain flag+status where clause can't express "either/or" cleanly.
@@ -48,6 +66,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
           : []),
         ...(maxPrice ? [{ hourlyRateCents: { lte: Math.round(maxPrice * 100) } }] : []),
         ...(day !== undefined ? [{ availability: { some: { dayOfWeek: day } } }] : []),
+        ...(excludeCoachId ? [{ NOT: { id: excludeCoachId } }] : []),
       ],
     },
     include: {
@@ -79,9 +98,14 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
         reviewCount,
         videoVerified: hasVerifiedVideoBio(p),
         isMinorCoach: ENABLE_MINOR_COACHES && p.isMinorCoach,
+        lifetimePoints: p.lifetimePoints,
+        priorBookingCount: priorBookingCounts.get(p.id) ?? 0,
       };
     })
     .sort((a, b) => {
+      const aPinned = a.priorBookingCount >= PRIORITY_REBOOK_THRESHOLD;
+      const bPinned = b.priorBookingCount >= PRIORITY_REBOOK_THRESHOLD;
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
       if (a.hasRecommendation !== b.hasRecommendation) return a.hasRecommendation ? -1 : 1;
       const aRating = a.avgRating ?? 0;
       const bRating = b.avgRating ?? 0;
@@ -140,6 +164,12 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
             </button>
           </div>
         </form>
+
+        {excludeCoachId && (
+          <div className="mb-6 rounded-lg border-2 border-ink bg-accent/10 px-4 py-2.5 text-sm font-bold text-ink">
+            Showing other {sportFilter ? SPORT_LABELS[sportFilter] : ""} coaches — finding the right fit is normal.
+          </div>
+        )}
 
         {coaches.length === 0 ? (
           <div className="card p-10 text-center text-muted-foreground">

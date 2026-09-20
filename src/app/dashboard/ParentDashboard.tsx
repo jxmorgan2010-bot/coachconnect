@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui";
+import { formatCents } from "@/lib/money";
+import { SPORT_LABELS } from "@/lib/sports";
+import type { Sport } from "@/generated/prisma/client";
 import ReferralPanel from "./ReferralPanel";
 import RatingForm from "./RatingForm";
 import ParentTabs from "./ParentTabs";
@@ -12,26 +15,35 @@ export default async function ParentDashboard({ userId, name }: { userId: string
   });
   if (!parentProfile) return null;
 
-  const bookings = await prisma.booking.findMany({
-    where: { parentProfileId: parentProfile.id },
-    include: {
-      coachProfile: { include: { user: true } },
-      child: true,
-      review: true,
-      dispute: true,
-    },
-    orderBy: { scheduledAt: "desc" },
-  });
+  const [bookings, packages] = await Promise.all([
+    prisma.booking.findMany({
+      where: { parentProfileId: parentProfile.id },
+      include: {
+        coachProfile: { include: { user: true } },
+        child: true,
+        review: true,
+        dispute: true,
+      },
+      orderBy: { scheduledAt: "desc" },
+    }),
+    prisma.sessionPackage.findMany({
+      where: { parentProfileId: parentProfile.id, status: "ACTIVE" },
+      include: { coachProfile: { include: { user: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   const needingRating = bookings.filter((b) => b.status === "COMPLETED" && !b.review);
   const withNotes = bookings.filter((b) => b.status === "COMPLETED" && b.progressNoteAddedAt);
 
-  const notesByChild = new Map<string, { childName: string; entries: typeof withNotes }>();
+  // Grouped by child *and* sport — a kid playing two sports with the same or different
+  // coaches gets separate progress sections for each.
+  const notesByChildSport = new Map<string, { childName: string; sport: Sport; entries: typeof withNotes }>();
   for (const b of withNotes) {
-    const key = b.childId ?? "unknown";
+    const key = `${b.childId ?? "unknown"}:${b.sport}`;
     const childName = b.child?.firstName ?? "Your child";
-    if (!notesByChild.has(key)) notesByChild.set(key, { childName, entries: [] });
-    notesByChild.get(key)!.entries.push(b);
+    if (!notesByChildSport.has(key)) notesByChildSport.set(key, { childName, sport: b.sport, entries: [] });
+    notesByChildSport.get(key)!.entries.push(b);
   }
 
   return (
@@ -53,6 +65,27 @@ export default async function ParentDashboard({ userId, name }: { userId: string
         <ReferralPanel code={parentProfile.referralCode} creditCents={parentProfile.creditCents} />
       </div>
 
+      {packages.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 font-display text-2xl text-ink">My packages</h2>
+          <div className="flex flex-col gap-3">
+            {packages.map((pkg) => (
+              <div key={pkg.id} className="card flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="font-bold text-ink">{pkg.coachProfile.user.name} — {SPORT_LABELS[pkg.sport]}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {pkg.totalSessions - pkg.sessionsUsed} of {pkg.totalSessions} sessions left &middot; {formatCents(pkg.totalChargedCents)} paid
+                  </p>
+                </div>
+                <Link href={`/coaches/${pkg.coachProfileId}/book?packageId=${pkg.id}`} className={secondaryButtonClass}>
+                  Book next session
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {needingRating.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 font-display text-2xl text-ink">Rate your last session</h2>
@@ -64,13 +97,13 @@ export default async function ParentDashboard({ userId, name }: { userId: string
         </section>
       )}
 
-      {notesByChild.size > 0 && (
+      {notesByChildSport.size > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 font-display text-2xl text-ink">Progress history</h2>
           <div className="flex flex-col gap-6">
-            {Array.from(notesByChild.entries()).map(([childId, { childName, entries }]) => (
-              <div key={childId}>
-                <p className="mb-2 font-bold text-ink">{childName}</p>
+            {Array.from(notesByChildSport.entries()).map(([key, { childName, sport, entries }]) => (
+              <div key={key}>
+                <p className="mb-2 font-bold text-ink">{childName} — {SPORT_LABELS[sport]}</p>
                 <div className="flex flex-col divide-y-2 divide-line rounded-lg border-2 border-ink">
                   {entries.map((b) => (
                     <div key={b.id} className="p-3">

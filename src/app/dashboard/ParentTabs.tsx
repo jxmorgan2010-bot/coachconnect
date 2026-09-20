@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/bookings", label: "My Bookings" },
+  { href: "/dashboard/family", label: "Family" },
+  { href: "/dashboard/points", label: "Points" },
 ];
 
 export default function ParentTabs() {

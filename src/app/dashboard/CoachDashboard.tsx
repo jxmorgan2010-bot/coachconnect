@@ -4,13 +4,15 @@ import Badge from "@/components/Badge";
 import { getBackgroundCheckExpiryState } from "@/lib/coach";
 import { formatCents } from "@/lib/money";
 import { secondaryButtonClass } from "@/lib/ui";
+import { SPORT_LABELS } from "@/lib/sports";
+import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { ProgressNoteForm } from "./BookingActions";
 
 export default async function CoachDashboard({ coachProfileId }: { coachProfileId: string }) {
   const profile = await prisma.coachProfile.findUniqueOrThrow({ where: { id: coachProfileId } });
   const expiryState = getBackgroundCheckExpiryState(profile);
 
-  const [upcoming, needingNotes] = await Promise.all([
+  const [upcoming, needingNotes, taughtBookings, trainingPlanItems] = await Promise.all([
     prisma.booking.findMany({
       where: { coachProfileId, status: "CONFIRMED" },
       include: { parentProfile: { include: { user: true } }, child: true },
@@ -21,7 +23,17 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
       include: { parentProfile: { include: { user: true } }, child: true },
       orderBy: { completedAt: "desc" },
     }),
+    prisma.booking.findMany({
+      where: { coachProfileId, status: { in: ["CONFIRMED", "COMPLETED"] }, childId: { not: null } },
+      include: { child: true },
+      distinct: ["childId", "sport"],
+    }),
+    prisma.trainingPlanItem.findMany({ where: { coachProfileId }, orderBy: { order: "asc" } }),
   ]);
+
+  const trainingPairs = taughtBookings
+    .filter((b) => b.child)
+    .map((b) => ({ childId: b.childId!, childName: b.child!.firstName, sport: b.sport }));
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -29,6 +41,7 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
         <h1 className="font-display text-3xl text-ink">Your sessions</h1>
         <div className="flex gap-2">
           <Link href="/messages" className={secondaryButtonClass}>Messages</Link>
+          <Link href="/dashboard/points" className={secondaryButtonClass}>Points</Link>
           <Link href="/onboarding/coach" className={secondaryButtonClass}>Edit profile</Link>
         </div>
       </div>
@@ -112,6 +125,27 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
           </div>
         )}
       </section>
+
+      {trainingPairs.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 font-display text-2xl text-ink">Training plans</h2>
+          <div className="flex flex-col gap-4">
+            {trainingPairs.map((pair) => (
+              <div key={`${pair.childId}:${pair.sport}`} className="card p-4">
+                <p className="mb-2 font-bold text-ink">{pair.childName} — {SPORT_LABELS[pair.sport]}</p>
+                <TrainingPlanChecklist
+                  childId={pair.childId}
+                  sport={pair.sport}
+                  items={trainingPlanItems
+                    .filter((i) => i.childId === pair.childId && i.sport === pair.sport)
+                    .map((i) => ({ id: i.id, label: i.label, isDone: i.isDone }))}
+                  canAdd
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { parentRegisterSchema } from "@/lib/validation";
 import { generateReferralCode, REFERRAL_BONUS_CENTS } from "@/lib/referral";
+import { awardPoints, POINTS_REFERRAL_SIGNUP } from "@/lib/points";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
         where: { id: referrer.id },
         data: { creditCents: { increment: REFERRAL_BONUS_CENTS } },
       });
+      await awardPoints(tx, { parentProfileId: referrer.id, action: "REFERRAL_SIGNUP", points: POINTS_REFERRAL_SIGNUP });
     }
   });
 

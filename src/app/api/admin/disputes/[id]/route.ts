@@ -14,7 +14,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const action = body?.action;
   const adminNote = typeof body?.adminNote === "string" ? body.adminNote.trim() || null : null;
 
-  const dispute = await prisma.dispute.findUnique({ where: { id }, include: { booking: true } });
+  const dispute = await prisma.dispute.findUnique({ where: { id }, include: { booking: { include: { package: true } } } });
   if (!dispute) {
     return NextResponse.json({ error: "Case not found." }, { status: 404 });
   }
@@ -27,8 +27,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!Number.isFinite(refundCents) || refundCents <= 0) {
       return NextResponse.json({ error: "Enter a valid refund amount." }, { status: 400 });
     }
+    // A bundled booking never has its own PaymentIntent (see /api/packages) — the money
+    // was captured against the package's intent at purchase time, and Stripe supports
+    // multiple partial refunds against one intent, so resolve to that instead.
+    const refundIntentId = dispute.booking.stripePaymentIntentId ?? dispute.booking.package?.stripePaymentIntentId ?? null;
     try {
-      await refundCapturedPayment(dispute.booking.stripePaymentIntentId, refundCents);
+      await refundCapturedPayment(refundIntentId, refundCents);
     } catch (err) {
       console.error("Stripe refund failed", err);
       return NextResponse.json({ error: "The refund couldn't be processed with Stripe. Please try again." }, { status: 502 });
