@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Sport, SchoolLevel } from "@/generated/prisma/client";
 import { SPORTS, SPORT_LABELS } from "@/lib/sports";
+import { BAY_AREA_CITIES } from "@/lib/bayArea";
 import { inputClass, labelClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 
 export type ProfileFormValues = {
@@ -124,13 +125,18 @@ export default function ProfileForm({
       <div className="grid gap-4 sm:grid-cols-4">
         <div>
           <label className={labelClass} htmlFor="city">City</label>
-          <input
+          <select
             id="city"
             className={inputClass}
             value={values.city}
             onChange={(e) => setValues((v) => ({ ...v, city: e.target.value }))}
             required
-          />
+          >
+            <option value="" disabled>Select a Bay Area city...</option>
+            {BAY_AREA_CITIES.map((city) => (
+              <option key={city} value={city}>{city}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className={labelClass} htmlFor="state">State</label>
@@ -149,10 +155,11 @@ export default function ProfileForm({
           <input
             id="zip"
             maxLength={10}
-            placeholder="78701"
+            placeholder="94103"
             className={inputClass}
             value={values.zip}
             onChange={(e) => setValues((v) => ({ ...v, zip: e.target.value }))}
+            required
           />
         </div>
         <div>

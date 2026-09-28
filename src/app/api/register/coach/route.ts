@@ -8,10 +8,12 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = coachRegisterSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
+    const issue = parsed.error.issues[0];
+    const outOfArea = issue?.path[0] === "zip";
+    return NextResponse.json({ error: issue?.message ?? "Invalid input.", outOfArea }, { status: 400 });
   }
 
-  const { name, email, password, dateOfBirth } = parsed.data;
+  const { name, email, password, dateOfBirth, zip } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
   const eligibility = evaluateCoachAgeEligibility(dateOfBirth);
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
         create: {
           dateOfBirth,
           isMinorCoach: eligibility.isMinor,
+          zip,
         },
       },
     },

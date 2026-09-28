@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SPORTS } from "@/lib/sports";
+import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
 
 export const parentRegisterSchema = z.object({
   name: z.string().trim().min(2, "Please enter your full name."),
@@ -97,6 +98,13 @@ export const coachRegisterSchema = z.object({
   email: z.email("Please enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
   dateOfBirth: z.coerce.date().refine((d) => d.getTime() < Date.now(), "Enter a valid date of birth."),
+  // CoachConnect is Bay Area only at launch — see src/lib/bayArea.ts.
+  zip: z
+    .string()
+    .trim()
+    .min(5, "Enter a 5-digit zip code.")
+    .max(10)
+    .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
 });
 
 export const minorGuardianConsentSchema = z.object({
@@ -116,9 +124,16 @@ export const coachProfileSchema = z.object({
   schoolName: z.string().trim().min(2, "School name is required."),
   gradYear: z.coerce.number().int().min(new Date().getFullYear()).max(new Date().getFullYear() + 8),
   hourlyRateDollars: z.coerce.number().min(5, "Minimum rate is $5/hr.").max(500, "Max rate is $500/hr."),
-  city: z.string().trim().min(2, "City is required."),
+  // Bay Area only at launch — city is a fixed select (see BAY_AREA_CITIES) rather than
+  // free text so it can't drift from the list the coach search filter matches against.
+  city: z.enum(BAY_AREA_CITIES as [string, ...string[]], { error: "Select a Bay Area city." }),
   state: z.string().trim().min(2, "State is required.").max(2, "Use a 2-letter state code."),
-  zip: z.string().trim().min(5, "Enter a 5-digit zip code.").max(10).optional().or(z.literal("")),
+  zip: z
+    .string()
+    .trim()
+    .min(5, "Enter a 5-digit zip code.")
+    .max(10)
+    .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
   sports: z.array(z.enum(SPORTS as [string, ...string[]])).min(1, "Select at least one sport."),
 });
 
@@ -145,6 +160,12 @@ export const recommendationSubmitSchema = z.object({
   recommenderName: z.string().trim().min(2, "Please enter your name."),
   recommenderRole: z.string().trim().min(2, "Please enter your role (e.g. Varsity Coach)."),
   content: z.string().trim().min(20, "Please write at least a couple of sentences.").max(2000),
+});
+
+export const waitlistSchema = z.object({
+  email: z.email("Please enter a valid email address."),
+  zip: z.string().trim().min(5, "Enter a 5-digit zip code.").max(10),
+  role: z.enum(["PARENT", "COACH"]).optional(),
 });
 
 export const loginSchema = z.object({

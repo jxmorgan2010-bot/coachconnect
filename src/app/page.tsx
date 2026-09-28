@@ -6,6 +6,14 @@ import { goldButtonClass, secondaryButtonClass } from "@/lib/ui";
 export default function Home() {
   return (
     <div className="flex flex-col">
+      {/* LAUNCH-MARKET BANNER — CoachConnect is Bay Area only at launch */}
+      <div className="border-b-2 border-ink bg-ink px-4 py-2.5 text-center text-sm font-bold text-white">
+        Currently serving the Bay Area — more regions coming soon.{" "}
+        <Link href="/waitlist" className="underline decoration-gold underline-offset-2">
+          Join the waitlist
+        </Link>
+      </div>
+
       {/* HERO — full-bleed pitch green, asymmetric: headline left, pitch-diagram graphic right */}
       <section className="relative overflow-hidden border-b-2 border-ink bg-pitch text-white texture-hatch">
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-20 sm:px-6 md:grid-cols-[1.1fr_0.9fr] md:py-28">

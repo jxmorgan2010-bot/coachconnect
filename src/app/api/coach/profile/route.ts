@@ -16,14 +16,13 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
 
-  const { sports, hourlyRateDollars, zip, ...rest } = parsed.data;
+  const { sports, hourlyRateDollars, ...rest } = parsed.data;
 
   await prisma.$transaction([
     prisma.coachProfile.update({
       where: { id: profile.id },
       data: {
         ...rest,
-        zip: zip || null,
         hourlyRateCents: Math.round(hourlyRateDollars * 100),
       },
     }),

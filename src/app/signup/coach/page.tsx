@@ -15,12 +15,15 @@ export default function CoachSignupPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [zip, setZip] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [outOfArea, setOutOfArea] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setOutOfArea(false);
 
     if (password !== confirm) {
       setError("Passwords don't match.");
@@ -32,11 +35,12 @@ export default function CoachSignupPage() {
       const res = await fetch("/api/register/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, dateOfBirth }),
+        body: JSON.stringify({ name, email, password, dateOfBirth, zip }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Something went wrong.");
+        setOutOfArea(Boolean(data.outOfArea));
         setLoading(false);
         return;
       }
@@ -72,7 +76,20 @@ export default function CoachSignupPage() {
       </p>
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        {error && <p className={errorClass}>{error}</p>}
+        {error && (
+          <p className={errorClass}>
+            {error}
+            {outOfArea && (
+              <>
+                {" "}
+                <Link href="/waitlist" className="underline">
+                  Join the waitlist
+                </Link>
+                .
+              </>
+            )}
+          </p>
+        )}
 
         <div>
           <label className={labelClass} htmlFor="name">Full name</label>
@@ -95,6 +112,22 @@ export default function CoachSignupPage() {
             max={new Date().toISOString().slice(0, 10)}
             required
           />
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="zip">Zip code</label>
+          <input
+            id="zip"
+            className={inputClass}
+            placeholder="94103"
+            maxLength={10}
+            value={zip}
+            onChange={(e) => setZip(e.target.value)}
+            required
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            CoachConnect is Bay Area only at launch — this must be a Bay Area zip code.
+          </p>
         </div>
 
         <div>

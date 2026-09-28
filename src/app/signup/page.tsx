@@ -47,6 +47,13 @@ export default function SignupChooser() {
           Log in
         </Link>
       </p>
+
+      <p className="text-sm text-muted-foreground">
+        Not in the Bay Area yet?{" "}
+        <Link href="/waitlist" className="font-bold text-pitch">
+          Join the waitlist
+        </Link>
+      </p>
     </div>
   );
 }

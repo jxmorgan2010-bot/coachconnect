@@ -88,6 +88,11 @@ enum DisputeReason {
   OTHER
 }
 
+enum WaitlistRole {
+  PARENT
+  COACH
+}
+
 enum DisputeStatus {
   OPEN
   INFO_REQUESTED
@@ -449,6 +454,19 @@ model Report {
   details      String?
   status       ReportStatus     @default(OPEN)
   createdAt    DateTime         @default(now())
+}
+
+/**
+ * A parent or coach outside the Bay Area launch market who wants to be notified when
+ * CoachConnect expands to their area — see src/lib/bayArea.ts and POST /api/waitlist.
+ * Deliberately not linked to User: most submitters don't have an account.
+ */
+model WaitlistEntry {
+  id        String        @id @default(cuid())
+  email     String
+  zip       String
+  role      WaitlistRole?
+  createdAt DateTime      @default(now())
 }
 
 model Dispute {

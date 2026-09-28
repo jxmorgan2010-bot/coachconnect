@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SPORTS, SPORT_LABELS, isSport } from "@/lib/sports";
+import { BAY_AREA_CITIES, isBayAreaCity } from "@/lib/bayArea";
 import CoachCard from "@/components/CoachCard";
 import type { CoachCardData } from "@/lib/coach";
 import { hasVerifiedVideoBio } from "@/lib/coach";
@@ -22,7 +23,7 @@ type SearchParams = {
 export default async function CoachesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const sportFilter = params.sport && isSport(params.sport) ? params.sport : undefined;
-  const locationFilter = params.location?.trim();
+  const locationFilter = params.location && isBayAreaCity(params.location) ? params.location.trim() : undefined;
   const maxPrice = params.maxPrice ? Number(params.maxPrice) : undefined;
   const day = params.day !== undefined && params.day !== "" ? Number(params.day) : undefined;
   const excludeCoachId = params.excludeCoachId?.trim();
@@ -61,9 +62,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
       AND: [
         liveFilter,
         ...(sportFilter ? [{ sports: { some: { sport: sportFilter } } }] : []),
-        ...(locationFilter
-          ? [{ OR: [{ city: { contains: locationFilter } }, { state: { contains: locationFilter } }] }]
-          : []),
+        ...(locationFilter ? [{ city: locationFilter }] : []),
         ...(maxPrice ? [{ hourlyRateCents: { lte: Math.round(maxPrice * 100) } }] : []),
         ...(day !== undefined ? [{ availability: { some: { dayOfWeek: day } } }] : []),
         ...(excludeCoachId ? [{ NOT: { id: excludeCoachId } }] : []),
@@ -136,8 +135,13 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="location">City or state</label>
-            <input id="location" name="location" defaultValue={locationFilter ?? ""} placeholder="e.g. Austin or TX" className={inputClass} />
+            <label className={labelClass} htmlFor="location">City</label>
+            <select id="location" name="location" defaultValue={locationFilter ?? ""} className={inputClass}>
+              <option value="">All Bay Area cities</option>
+              {BAY_AREA_CITIES.map((city) => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
           </div>
 
           <div>
