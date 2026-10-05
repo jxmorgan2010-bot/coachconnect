@@ -62,21 +62,26 @@ export default function TrainingPlanChecklist({
   return (
     <div className="flex flex-col gap-2">
       {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No focus items yet.</p>
+        <p className="text-sm text-muted-foreground">
+          {canAdd ? "No focus items yet. Add the first drill below." : "No focus items yet. Your coach adds these."}
+        </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
           {items.map((item) => (
             <li key={item.id}>
               <button
                 type="button"
+                role="checkbox"
+                aria-checked={item.isDone}
                 onClick={() => toggle(item)}
                 disabled={pendingId === item.id}
-                className="flex w-full items-center gap-2 rounded-md border-2 border-ink px-2.5 py-1.5 text-left text-sm hover:bg-muted"
+                className="flex min-h-11 w-full items-center gap-3 rounded-md border-2 border-line bg-surface px-3 py-2 text-left text-sm hover:border-ink"
               >
                 <span
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 border-ink ${item.isDone ? "bg-pitch text-white" : "bg-surface"}`}
+                  aria-hidden
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 border-ink ${item.isDone ? "bg-pitch text-white" : "bg-surface"}`}
                 >
-                  {item.isDone && <IconCheck className="h-3 w-3" />}
+                  {item.isDone && <IconCheck className="h-3.5 w-3.5" />}
                 </span>
                 <span className={item.isDone ? "text-muted-foreground line-through" : "text-ink"}>{item.label}</span>
               </button>
@@ -86,10 +91,11 @@ export default function TrainingPlanChecklist({
       )}
 
       {canAdd && (
-        <form onSubmit={addItem} className="mt-1 flex gap-2">
-          {error && <p className={`${errorClass} w-full`}>{error}</p>}
+        <form onSubmit={addItem} className="mt-1 flex flex-wrap gap-2">
+          {error && <p role="alert" className={`${errorClass} w-full`}>{error}</p>}
           <input
-            className={inputClass}
+            aria-label="New focus item"
+            className={`${inputClass} min-w-0 flex-1`}
             placeholder="e.g. Left-hand layups"
             value={label}
             onChange={(e) => setLabel(e.target.value)}

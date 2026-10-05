@@ -14,7 +14,7 @@ export default function DisputeButton({ bookingId }: { bookingId: string }) {
   const [submitted, setSubmitted] = useState(false);
 
   if (submitted) {
-    return <p className={successClass}>Case opened — an admin will review it.</p>;
+    return <p role="status" className={successClass}>Case opened — an admin will review it.</p>;
   }
 
   if (!open) {
@@ -47,13 +47,14 @@ export default function DisputeButton({ bookingId }: { bookingId: string }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border-2 border-ink bg-danger/10 p-3">
       {error && <p className={errorClass}>{error}</p>}
-      <select className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} required>
+      <select aria-label="What happened?" className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} required>
         <option value="" disabled>What happened?</option>
         <option value="NO_SHOW">Coach didn&apos;t show up</option>
         <option value="DISSATISFIED">Not satisfied with the session</option>
         <option value="OTHER">Other issue</option>
       </select>
       <textarea
+        aria-label="Details for the admin"
         className={inputClass}
         rows={3}
         placeholder="Give admins a few details"

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/bookings", label: "My Bookings" },
+  { href: "/dashboard/bookings", label: "Bookings" },
   { href: "/dashboard/family", label: "Family" },
   { href: "/dashboard/points", label: "Points" },
 ];
@@ -14,21 +14,27 @@ export default function ParentTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="mb-8 flex flex-wrap gap-2 border-b-2 border-ink pb-4">
-      {TABS.map((tab) => {
-        const active = pathname === tab.href;
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={`rounded-md border-2 border-ink px-3 py-1.5 text-sm font-bold ${
-              active ? "bg-ink text-white" : "bg-surface text-ink hover:bg-muted"
-            }`}
-          >
-            {tab.label}
-          </Link>
-        );
-      })}
+    <nav aria-label="Parent dashboard" className="mb-8 border-b-2 border-ink">
+      <ul className="-mb-0.5 flex gap-1 overflow-x-auto sm:gap-2">
+        {TABS.map((tab) => {
+          const active = pathname === tab.href;
+          return (
+            <li key={tab.href} className="shrink-0">
+              <Link
+                href={tab.href}
+                aria-current={active ? "page" : undefined}
+                className={`flex min-h-11 items-center rounded-t-md border-2 border-b-0 px-3 text-sm font-bold sm:px-4 ${
+                  active
+                    ? "border-ink bg-ink text-white"
+                    : "border-transparent text-ink hover:border-line hover:bg-muted"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }

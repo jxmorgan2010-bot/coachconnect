@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/money";
 import { SPORT_LABELS } from "@/lib/sports";
 import Badge from "@/components/Badge";
+import DateTile from "@/components/DateTile";
+import SportPill from "@/components/SportPill";
+import { IconArrowRight } from "@/components/icons";
+import { secondaryButtonClass, quietLinkClass } from "@/lib/ui";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import ParentTabs from "../ParentTabs";
 
@@ -52,58 +56,84 @@ export default async function FamilyDashboardPage() {
   for (const item of trainingPlanItems) pairKeys.add(`${item.childId}:${item.sport}`);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="mb-1 font-display text-3xl text-ink">Family dashboard</h1>
-      <p className="mb-6 text-muted-foreground">
-        {parentProfile.children.length} kid{parentProfile.children.length === 1 ? "" : "s"} across every sport and coach, in one view.
-        Note: a session package is tied to one coach and sport, not a specific child — any of your kids can use it.
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 md:py-12">
+      <p className="eyebrow mb-2 text-pitch">Parent dashboard</p>
+      <h1 className="text-display-lg font-display text-ink">Your family</h1>
+      <p className="mt-2 mb-6 max-w-2xl text-muted-foreground">
+        Every kid, sport, and coach in one view.
       </p>
 
       <ParentTabs />
 
-      <section className="mb-8">
-        <h2 className="mb-3 font-display text-2xl text-ink">Upcoming across the family</h2>
+      {parentProfile.children.length > 0 && (
+        <ul className="mb-8 flex flex-wrap gap-2" aria-label="Your kids">
+          {parentProfile.children.map((c) => (
+            <li key={c.id} className="rounded-lg border-2 border-ink bg-surface px-3 py-1.5 text-sm">
+              <span className="font-bold text-ink">{c.firstName}</span>
+              <span className="text-muted-foreground"> · {c.gradeOrAge}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <section aria-labelledby="family-upcoming" className="mb-10">
+        <h2 id="family-upcoming" className="mb-3 font-display text-3xl text-ink">Coming up</h2>
         {upcoming.length === 0 ? (
-          <p className="text-muted-foreground">Nothing on the books yet.</p>
+          <div className="flex flex-col items-start gap-3 rounded-lg border-2 border-dashed border-line p-5">
+            <p className="text-muted-foreground">
+              {parentProfile.children.length === 0
+                ? "No kids or sessions yet. You'll add each kid the first time you book a session for them."
+                : "Nothing on the calendar right now."}
+            </p>
+            <Link href="/coaches" className={secondaryButtonClass}>Find a coach</Link>
+          </div>
         ) : (
-          <div className="flex flex-col divide-y-2 divide-line rounded-lg border-2 border-ink">
+          <ul className="flex flex-col gap-3">
             {upcoming.map((b) => (
-              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                <div>
-                  <p className="font-bold text-ink">
-                    {b.child?.firstName ?? "Session"} — {SPORT_LABELS[b.sport]} with {b.coachProfile.user.name}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {b.scheduledAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} &middot;{" "}
-                    {b.locationText}
+              <li key={b.id} className="card flex gap-4 p-4">
+                <DateTile date={b.scheduledAt} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="flex flex-wrap items-center gap-2 font-bold text-ink">
+                      <SportPill sport={b.sport} />
+                      {b.child?.firstName ?? "Session"} with {b.coachProfile.user.name}
+                    </p>
+                    <Badge variant={STATUS_VARIANT[b.status]}>{formatCents(b.priceCents - b.discountCents)}</Badge>
+                  </div>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    {b.scheduledAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · {b.locationText}
                   </p>
                 </div>
-                <Badge variant={STATUS_VARIANT[b.status]}>{formatCents(b.priceCents - b.discountCents)}</Badge>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 
       {pairKeys.size > 0 && (
-        <section>
-          <h2 className="mb-3 font-display text-2xl text-ink">Progress &amp; training plans</h2>
-          <div className="flex flex-col gap-4">
+        <section aria-labelledby="family-progress">
+          <h2 id="family-progress" className="mb-1 font-display text-3xl text-ink">Progress &amp; training plans</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            A session package belongs to one coach and sport, not one kid — any of your kids can use it.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
             {Array.from(pairKeys).map((key) => {
               const [childId, sport] = key.split(":") as [string, keyof typeof SPORT_LABELS];
               const child = parentProfile.children.find((c) => c.id === childId);
               const notes = withNotes.filter((b) => b.childId === childId && b.sport === sport);
               const items = trainingPlanItems.filter((i) => i.childId === childId && i.sport === sport);
               return (
-                <div key={key} className="card p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="font-bold text-ink">{child?.firstName ?? "Child"} — {SPORT_LABELS[sport]}</p>
-                    <Link href={`/dashboard/progress/${childId}/${sport}`} className="text-xs font-bold text-pitch underline">
-                      Full history
+                <div key={key} className="card flex flex-col gap-3 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-2 font-bold text-ink">
+                      <SportPill sport={sport} /> {child?.firstName ?? "Child"} — {SPORT_LABELS[sport]}
+                    </p>
+                    <Link href={`/dashboard/progress/${childId}/${sport}`} className={`${quietLinkClass} text-pitch`}>
+                      Full history <IconArrowRight className="h-4 w-4" />
                     </Link>
                   </div>
                   {notes[0] && (
-                    <p className="mb-3 text-sm text-muted-foreground">
+                    <p className="border-l-4 border-gold pl-3 text-sm text-muted-foreground">
                       <span className="font-bold text-ink">Latest: </span>
                       {notes[0].progressWhatWorkedOn}
                     </p>

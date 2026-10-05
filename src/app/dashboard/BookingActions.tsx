@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass } from "@/lib/ui";
+import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import { formatCents } from "@/lib/money";
 
 export function MarkCompleteButton({ bookingId }: { bookingId: string }) {
@@ -42,7 +42,7 @@ export function NoShowButton({ bookingId }: { bookingId: string }) {
   const [submitted, setSubmitted] = useState(false);
 
   if (submitted) {
-    return <p className={successClass}>We&apos;re on it — your card was never charged, and an admin is reviewing the case.</p>;
+    return <p role="status" className={successClass}>Reported. You won&apos;t be charged for this session, and an admin is reviewing the case.</p>;
   }
 
   if (!open) {
@@ -77,12 +77,13 @@ export function NoShowButton({ bookingId }: { bookingId: string }) {
       {error && <p className={errorClass}>{error}</p>}
       <p className="text-sm font-bold text-ink">Report that the coach didn&apos;t show</p>
       <p className="text-xs text-muted-foreground">
-        This cancels the session and voids the payment hold immediately — you won&apos;t be charged. Our team will
-        review the case.
+        This cancels the session right away. Any card hold is released, or the session goes back into your package.
+        Our team will review the case.
       </p>
       <textarea
         className={inputClass}
         rows={2}
+        aria-label="Details (optional)"
         placeholder="Any details? (optional)"
         value={details}
         onChange={(e) => setDetails(e.target.value)}
@@ -124,7 +125,7 @@ export function QuickRebookButton({ bookingId, coachName }: { bookingId: string;
   }
 
   if (success) {
-    return <p className={successClass}>Rebooked with {coachName} for {success} — no card needed.</p>;
+    return <p role="status" className={successClass}>Rebooked with {coachName} for {success}. You&apos;ll find it in your bookings.</p>;
   }
 
   return (
@@ -148,7 +149,7 @@ export function TipForm({ bookingId }: { bookingId: string }) {
   const [submittedCents, setSubmittedCents] = useState<number | null>(null);
 
   if (submittedCents !== null) {
-    return <p className={successClass}>Tip of {formatCents(submittedCents)} sent — 100% goes to your coach.</p>;
+    return <p role="status" className={successClass}>Tip of {formatCents(submittedCents)} sent — 100% goes to your coach.</p>;
   }
 
   if (!open) {
@@ -194,7 +195,8 @@ export function TipForm({ bookingId }: { bookingId: string }) {
           type="number"
           min={1}
           step="0.01"
-          placeholder="Custom amount"
+          aria-label="Custom tip amount in dollars"
+          placeholder="Custom amount ($)"
           className={inputClass}
           value={customDollars}
           onChange={(e) => setCustomDollars(e.target.value)}
@@ -208,7 +210,7 @@ export function TipForm({ bookingId }: { bookingId: string }) {
           Send
         </button>
       </div>
-      <button type="button" className="self-start text-xs font-bold text-muted-foreground underline" onClick={() => setOpen(false)}>
+      <button type="button" className={`${quietLinkClass} self-start text-muted-foreground`} onClick={() => setOpen(false)}>
         No thanks
       </button>
     </div>
@@ -253,12 +255,12 @@ export function ProgressNoteForm({ bookingId }: { bookingId: string }) {
     <form onSubmit={submit} className="flex w-full flex-col gap-2 rounded-lg border-2 border-ink bg-muted p-3">
       {error && <p className={errorClass}>{error}</p>}
       <div>
-        <label className={labelClass}>What did you work on?</label>
-        <textarea className={inputClass} rows={2} value={whatWorkedOn} onChange={(e) => setWhatWorkedOn(e.target.value)} required />
+        <label className={labelClass} htmlFor={`note-${bookingId}-worked`}>What did you work on?</label>
+        <textarea id={`note-${bookingId}-worked`} className={inputClass} rows={2} value={whatWorkedOn} onChange={(e) => setWhatWorkedOn(e.target.value)} required />
       </div>
       <div>
-        <label className={labelClass}>What to focus on next time (optional)</label>
-        <textarea className={inputClass} rows={2} value={nextFocus} onChange={(e) => setNextFocus(e.target.value)} />
+        <label className={labelClass} htmlFor={`note-${bookingId}-next`}>What to focus on next time (optional)</label>
+        <textarea id={`note-${bookingId}-next`} className={inputClass} rows={2} value={nextFocus} onChange={(e) => setNextFocus(e.target.value)} />
       </div>
       <div className="flex gap-2">
         <button type="submit" className={primaryButtonClass} disabled={loading}>
