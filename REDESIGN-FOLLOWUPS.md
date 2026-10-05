@@ -40,7 +40,16 @@ Nothing stops a parent or coach typing a phone number or email into chat. Copy o
 branch only claims that the app doesn't *show* contact details, which is true. If the
 product wants to promise more, messages need server-side filtering.
 
-## 4. Seed data uses Austin, TX coaches
+## 4. Booking times ignore a coach's posted availability
+
+Coaches set weekly hours in onboarding, and those hours show on their profile, but the
+booking form offers every 30-minute slot from 7am to 9pm regardless
+(`src/app/coaches/[id]/book/BookingForm.tsx`, `SLOT_START_MINUTE`/`SLOT_END_MINUTE`;
+the server-side checks in `src/lib/bookingValidation.ts` don't check availability either).
+A parent can book a coach at a time the coach never offered. Copy on this branch only
+says the hours are "shown on your public profile," which is true.
+
+## 5. Seed data uses Austin, TX coaches
 
 `prisma/seed.ts` creates coaches in Austin, TX, but the launch market is the Bay Area.
 Only affects local/dev data and screenshots.

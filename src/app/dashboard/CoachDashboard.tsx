@@ -55,7 +55,7 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
         <div className="mb-6 flex items-center gap-3 rounded-xl border-2 border-ink bg-warning/10 p-4">
           <Badge variant="warning">Renewal needed</Badge>
           <span className="text-sm text-ink">
-            Your background check expires soon.{" "}
+            Your yearly background check step is due soon.{" "}
             <Link href="/onboarding/coach" className="font-bold underline">
               Renew it now
             </Link>{" "}
@@ -67,7 +67,7 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
         <div className="mb-6 flex items-center gap-3 rounded-xl border-2 border-ink bg-danger/10 p-4">
           <Badge variant="danger">Expired</Badge>
           <span className="text-sm text-ink">
-            Your background check lapsed, so your profile is unpublished.{" "}
+            Your yearly background check step lapsed, so your profile is unpublished.{" "}
             <Link href="/onboarding/coach" className="font-bold underline">
               Renew it
             </Link>{" "}

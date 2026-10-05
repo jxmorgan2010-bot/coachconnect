@@ -31,9 +31,9 @@ export default function ConductAck({ initialAcknowledged }: { initialAcknowledge
 
   return (
     <div className="flex flex-col gap-3">
-      <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
+      <ul className="flex flex-col gap-2.5 text-sm text-ink">
         {RULES.map((rule) => (
-          <li key={rule}>{rule}</li>
+          <li key={rule} className="border-l-4 border-gold pl-3 leading-snug">{rule}</li>
         ))}
       </ul>
       {error && <p className={errorClass}>{error}</p>}
@@ -41,11 +41,11 @@ export default function ConductAck({ initialAcknowledged }: { initialAcknowledge
         <p className={successClass}>You&apos;ve acknowledged CoachConnect&apos;s conduct rules.</p>
       ) : (
         <>
-          <label className="flex items-start gap-2 text-sm text-secondary">
-            <input type="checkbox" className="mt-1" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-line bg-surface p-3 text-sm text-ink">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--pitch)]" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
             I have read and agree to follow CoachConnect&apos;s platform conduct rules.
           </label>
-          <button onClick={save} className={`${primaryButtonClass} self-start`} disabled={!checked || loading}>
+          <button onClick={save} className={`${primaryButtonClass} w-full sm:w-auto sm:self-start`} disabled={!checked || loading}>
             {loading ? "Saving..." : "Confirm agreement"}
           </button>
         </>

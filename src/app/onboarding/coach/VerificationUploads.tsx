@@ -68,9 +68,9 @@ export default function VerificationUploads({
 
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+      <div className="flex flex-col gap-3 rounded-xl border-2 border-line bg-chalk p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-secondary">School ID</h3>
+          <h3 className="font-display text-lg leading-none text-ink">School ID</h3>
           {idUploaded ? <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge> : <Badge>Not uploaded</Badge>}
         </div>
         <p className="text-xs text-muted-foreground">
@@ -78,17 +78,17 @@ export default function VerificationUploads({
           admins.
         </p>
         {idPreviewPath && (
-          <div className="relative h-32 w-full overflow-hidden rounded-lg border border-border">
+          <div className="relative h-32 w-full overflow-hidden rounded-lg border-2 border-ink">
             <Image src={`/api/private-files/${idPreviewPath}`} alt="Your uploaded school ID" fill className="object-cover" />
           </div>
         )}
         {idError && <p className={errorClass}>{idError}</p>}
-        <label className={`${secondaryButtonClass} cursor-pointer`}>
+        <label className={`${secondaryButtonClass} cursor-pointer has-[:focus-visible]:outline-solid has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}>
           {idLoading ? "Uploading..." : idUploaded ? "Re-upload ID" : "Upload school ID"}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            className="hidden"
+            className="sr-only"
             disabled={idLoading}
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -99,24 +99,24 @@ export default function VerificationUploads({
         </label>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+      <div className="flex flex-col gap-3 rounded-xl border-2 border-line bg-chalk p-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-secondary">Profile photo</h3>
+          <h3 className="font-display text-lg leading-none text-ink">Profile photo</h3>
           {photoUrl ? <Badge variant="success">Uploaded</Badge> : <Badge>Not uploaded</Badge>}
         </div>
         <p className="text-xs text-muted-foreground">Shown publicly on your coach profile. A friendly, clear photo works best.</p>
         {photoUrl && (
-          <div className="relative h-32 w-32 overflow-hidden rounded-full border border-border">
+          <div className="relative h-32 w-32 overflow-hidden rounded-full border-2 border-ink">
             <Image src={photoUrl} alt="Your profile photo" fill className="object-cover" />
           </div>
         )}
         {photoError && <p className={errorClass}>{photoError}</p>}
-        <label className={`${secondaryButtonClass} cursor-pointer`}>
+        <label className={`${secondaryButtonClass} cursor-pointer has-[:focus-visible]:outline-solid has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}>
           {photoLoading ? "Uploading..." : photoUrl ? "Change photo" : "Upload profile photo"}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            className="hidden"
+            className="sr-only"
             disabled={photoLoading}
             onChange={(e) => {
               const file = e.target.files?.[0];

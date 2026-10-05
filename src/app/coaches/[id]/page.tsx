@@ -102,7 +102,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
         profile.isSuspended
           ? "Your profile is paused pending an admin review of recent reports."
           : expiryState === "EXPIRED"
-            ? "Your background check has expired. Renew it below to go live again."
+            ? "Your yearly background check step lapsed. Renew it in onboarding to go live again."
             : "This is a preview — your profile isn't public yet.";
     } else {
       bannerMessage = "Preview only — this profile isn't currently public.";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Sport, SchoolLevel } from "@/generated/prisma/client";
-import { SPORTS, SPORT_LABELS } from "@/lib/sports";
+import { SPORTS, SPORT_LABELS, SPORT_TAG, SPORT_COLOR } from "@/lib/sports";
 import { BAY_AREA_CITIES } from "@/lib/bayArea";
 import { inputClass, labelClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 
@@ -60,26 +60,31 @@ export default function ProfileForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {error && <p className={errorClass}>{error}</p>}
-      {saved && <p className={successClass}>Profile saved.</p>}
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      {saved && <p role="status" className={successClass}>Profile saved.</p>}
 
-      <div>
-        <label className={labelClass}>Sports you coach</label>
+      <div role="group" aria-labelledby="sports-label">
+        <p id="sports-label" className={labelClass}>Sports you coach</p>
         <div className="flex flex-wrap gap-2">
-          {SPORTS.map((sport) => (
-            <button
-              type="button"
-              key={sport}
-              onClick={() => toggleSport(sport)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
-                values.sports.includes(sport)
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border text-secondary hover:border-primary"
-              }`}
-            >
-              {SPORT_LABELS[sport]}
-            </button>
-          ))}
+          {SPORTS.map((sport) => {
+            const selected = values.sports.includes(sport);
+            const c = SPORT_COLOR[sport];
+            return (
+              <button
+                type="button"
+                key={sport}
+                aria-pressed={selected}
+                onClick={() => toggleSport(sport)}
+                className={`flex min-h-11 items-center gap-2 rounded-lg border-2 px-3 text-sm font-bold ${
+                  selected ? "border-ink shadow-patch-xs" : "border-line bg-surface text-ink hover:border-ink"
+                }`}
+                style={selected ? { background: c.bg, color: c.fg } : undefined}
+              >
+                <span className="font-display tracking-wide">{SPORT_TAG[sport]}</span>
+                {SPORT_LABELS[sport]}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -122,7 +127,7 @@ export default function ProfileForm({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelClass} htmlFor="city">City</label>
           <select
@@ -191,7 +196,7 @@ export default function ProfileForm({
         />
       </div>
 
-      <button type="submit" className={`${primaryButtonClass} self-start`} disabled={loading}>
+      <button type="submit" className={`${primaryButtonClass} w-full sm:w-auto sm:self-start`} disabled={loading}>
         {loading ? "Saving..." : "Save profile"}
       </button>
     </form>
