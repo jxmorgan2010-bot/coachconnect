@@ -32,15 +32,18 @@ export default function MessageComposer({ threadId }: { threadId: string }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
-      {error && <p className={errorClass}>{error}</p>}
+      {error && <p role="alert" className={errorClass}>{error}</p>}
       <div className="flex gap-2">
         <input
-          className={inputClass}
+          aria-label="Message"
+          enterKeyHint="send"
+          autoComplete="off"
+          className={`${inputClass} min-w-0 flex-1`}
           placeholder="Write a message..."
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
-        <button type="submit" className={primaryButtonClass} disabled={loading}>
+        <button type="submit" className={`${primaryButtonClass} shrink-0`} disabled={loading}>
           {loading ? "Sending..." : "Send"}
         </button>
       </div>
