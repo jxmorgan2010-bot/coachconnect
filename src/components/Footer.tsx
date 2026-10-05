@@ -18,7 +18,7 @@ export default function Footer() {
 
   return (
     <footer className="on-dark border-t-2 border-ink bg-ink text-chalk">
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 pb-24 pt-10 sm:px-6 sm:pb-10">
         {showPromises && (
           <ul className="mb-6 grid gap-4 border-b border-white/15 pb-8 text-sm font-bold sm:grid-cols-3 sm:gap-6">
             {PROMISES.map(({ icon: Icon, text }) => (

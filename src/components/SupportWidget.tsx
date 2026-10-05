@@ -55,7 +55,12 @@ export default function SupportWidget() {
             <form onSubmit={submit} className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <p className="font-display text-lg text-ink">Need help?</p>
-                <button type="button" onClick={close} aria-label="Close" className="text-xl leading-none text-muted-foreground">
+                <button
+                  type="button"
+                  onClick={close}
+                  aria-label="Close"
+                  className="-mr-2 grid h-11 w-11 place-items-center rounded-md text-2xl leading-none text-muted-foreground hover:text-ink"
+                >
                   &times;
                 </button>
               </div>
@@ -64,6 +69,7 @@ export default function SupportWidget() {
               </p>
               {error && <p className={errorClass}>{error}</p>}
               <textarea
+                aria-label="Your message to support"
                 className={inputClass}
                 rows={4}
                 placeholder="What's going on?"
@@ -78,12 +84,13 @@ export default function SupportWidget() {
           )}
         </div>
       ) : (
+        // Icon-only on phones so it doesn't sit on top of form fields (zip, card, etc.)
         <button
           onClick={() => setOpen(true)}
-          className="press flex items-center gap-2 rounded-full border-2 border-ink bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-[4px_4px_0_var(--ink)] hover:bg-pitch-bright"
+          className="press flex h-12 w-12 items-center justify-center gap-2 rounded-full border-2 border-ink bg-primary text-sm font-bold text-primary-foreground shadow-patch-sm hover:bg-pitch-bright sm:h-auto sm:w-auto sm:px-4 sm:py-3"
         >
-          <IconMessage className="h-4 w-4" />
-          Need help?
+          <IconMessage className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden />
+          <span className="sr-only sm:not-sr-only">Need help?</span>
         </button>
       )}
     </div>
