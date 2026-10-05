@@ -4,14 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { IconFlag } from "@/components/icons";
-import { secondaryButtonClass, primaryButtonClass, inputClass, errorClass, successClass } from "@/lib/ui";
+import { secondaryButtonClass, primaryButtonClass, inputClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 
 export default function ReportButton({
   targetType,
   targetId,
+  variant = "button",
 }: {
   targetType: "COACH_PROFILE" | "PARENT_PROFILE" | "MESSAGE";
   targetId: string;
+  /** "quiet" renders the trigger as a text link, for places where it shouldn't compete with primary actions. */
+  variant?: "button" | "quiet";
 }) {
   const { status } = useSession();
   const router = useRouter();
@@ -50,7 +53,11 @@ export default function ReportButton({
 
   if (!open) {
     return (
-      <button type="button" onClick={handleOpen} className={`${secondaryButtonClass} text-danger`}>
+      <button
+        type="button"
+        onClick={handleOpen}
+        className={variant === "quiet" ? `${quietLinkClass} text-danger` : `${secondaryButtonClass} text-danger`}
+      >
         <IconFlag className="h-4 w-4" /> Report
       </button>
     );
@@ -63,8 +70,16 @@ export default function ReportButton({
       ) : (
         <form onSubmit={submit} className="flex flex-col gap-3">
           {error && <p className={errorClass}>{error}</p>}
-          <p className="font-display text-lg text-ink">Report this profile</p>
-          <select className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} required>
+          <p className="font-display text-lg text-ink">
+            {targetType === "MESSAGE" ? "Report this conversation" : "Report this profile"}
+          </p>
+          <select
+            aria-label="Reason for report"
+            className={inputClass}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            required
+          >
             <option value="" disabled>Select a reason...</option>
             <option value="Inappropriate behavior">Inappropriate behavior</option>
             <option value="Suspicious profile">Suspicious profile</option>
@@ -72,6 +87,7 @@ export default function ReportButton({
             <option value="Other safety concern">Other safety concern</option>
           </select>
           <textarea
+            aria-label="Details (optional)"
             className={inputClass}
             rows={3}
             placeholder="Add any details (optional)"

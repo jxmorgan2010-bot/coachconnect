@@ -37,7 +37,7 @@ export default function CoachPhotoPlaceholder({
       {/* Jersey lettering: outlined initials, like a number stitched on a back */}
       <span
         aria-hidden
-        className={`font-display leading-none tracking-wide ${size === "profile" ? "text-9xl" : "text-7xl"}`}
+        className="font-display text-7xl leading-none tracking-wide"
         style={{ WebkitTextStroke: `2px ${color.fg}`, color: "transparent" }}
       >
         {initials(name)}

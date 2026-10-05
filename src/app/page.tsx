@@ -70,7 +70,7 @@ export default function Home() {
               Get coached by someone who just played the game.
             </h1>
             <p className="mt-6 max-w-md text-lg text-white/85">
-              Book your kid 1-on-1 time with high school and college athletes. A person checks every coach&apos;s ID
+              Book your kid 1&#8209;on&#8209;1 time with high school and college athletes. A person checks every coach&apos;s ID
               before their profile goes live, and you pay through the app.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">

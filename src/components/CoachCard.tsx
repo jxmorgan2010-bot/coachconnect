@@ -87,7 +87,7 @@ export default function CoachCard({ coach }: { coach: CoachCardData }) {
         {(coach.videoVerified || coach.isMinorCoach || isTopCoach(coach.lifetimePoints)) && (
           <div className="flex flex-wrap gap-1.5">
             {isTopCoach(coach.lifetimePoints) && <Badge variant="accent">Top Coach</Badge>}
-            {coach.videoVerified && <Badge variant="accent">Video verified</Badge>}
+            {coach.videoVerified && <Badge variant="accent">Video intro</Badge>}
             {coach.isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}
           </div>
         )}

@@ -8,7 +8,8 @@ import { hasVerifiedVideoBio } from "@/lib/coach";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
 import { getCurrentSession } from "@/lib/session";
-import { inputClass, labelClass, primaryButtonClass } from "@/lib/ui";
+import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, goldButtonClass, quietLinkClass } from "@/lib/ui";
+import { IconArrowRight } from "@/components/icons";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -111,19 +112,35 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
       return bRating - aRating;
     });
 
+  const hasFilters = Boolean(sportFilter || locationFilter || maxPrice || day !== undefined || excludeCoachId);
+  const activeFilterLabels = [
+    sportFilter && SPORT_LABELS[sportFilter],
+    locationFilter,
+    maxPrice && `max $${maxPrice}/hr`,
+    day !== undefined && DAYS[day],
+  ].filter(Boolean) as string[];
+
   return (
     <div>
-      <div className="border-b-2 border-ink bg-pitch texture-hatch text-white">
-        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <h1 className="font-display text-4xl sm:text-5xl">Find your coach</h1>
-          <p className="mt-2 max-w-xl text-white/80">
-            Every profile below has cleared both ID verification and a background check — no exceptions.
+      <div className="on-dark texture-hatch border-b-2 border-ink bg-pitch text-white">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-14">
+          <p className="eyebrow mb-3 text-gold-bright">Bay Area</p>
+          <h1 className="text-display-xl font-display">Find your coach</h1>
+          <p className="mt-4 max-w-xl text-white/85">
+            High school and college athletes who coach 1&#8209;on&#8209;1. A person on our team has reviewed every
+            listed coach&apos;s ID.
           </p>
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <form className="card mb-8 grid gap-4 p-5 sm:grid-cols-4" method="get">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-10">
+        {/* Nothing to filter on an empty roster, so the form only shows once there's a reason to use it */}
+        {(coaches.length > 0 || hasFilters) && (
+        <form
+          className="card mb-10 grid grid-cols-2 gap-x-3 gap-y-4 p-4 sm:p-5 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end"
+          method="get"
+          aria-label="Filter coaches"
+        >
           <div>
             <label className={labelClass} htmlFor="sport">Sport</label>
             <select id="sport" name="sport" defaultValue={sportFilter ?? ""} className={inputClass}>
@@ -137,7 +154,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
           <div>
             <label className={labelClass} htmlFor="location">City</label>
             <select id="location" name="location" defaultValue={locationFilter ?? ""} className={inputClass}>
-              <option value="">All Bay Area cities</option>
+              <option value="">All cities</option>
               {BAY_AREA_CITIES.map((city) => (
                 <option key={city} value={city}>{city}</option>
               ))}
@@ -145,8 +162,17 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="maxPrice">Max price ($/hr)</label>
-            <input id="maxPrice" name="maxPrice" type="number" min={0} defaultValue={params.maxPrice ?? ""} className={inputClass} />
+            <label className={labelClass} htmlFor="maxPrice">Max $/hr</label>
+            <input
+              id="maxPrice"
+              name="maxPrice"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="Any"
+              defaultValue={params.maxPrice ?? ""}
+              className={inputClass}
+            />
           </div>
 
           <div>
@@ -159,31 +185,62 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
             </select>
           </div>
 
-          <div className="sm:col-span-4 flex items-center justify-end gap-4">
-            <Link href="/coaches" className="text-sm font-bold text-muted-foreground hover:text-ink">
-              Clear filters
-            </Link>
-            <button type="submit" className={primaryButtonClass}>
+
+          <div className="col-span-2 flex items-center justify-end gap-4 lg:col-span-1">
+            {hasFilters && (
+              <Link href="/coaches" className={`${quietLinkClass} text-muted-foreground hover:text-ink`}>
+                Clear
+              </Link>
+            )}
+            <button type="submit" className={`${primaryButtonClass} flex-1 lg:flex-none`}>
               Search
             </button>
           </div>
         </form>
+        )}
 
         {excludeCoachId && (
-          <div className="mb-6 rounded-lg border-2 border-ink bg-accent/10 px-4 py-2.5 text-sm font-bold text-ink">
-            Showing other {sportFilter ? SPORT_LABELS[sportFilter] : ""} coaches — finding the right fit is normal.
-          </div>
+          <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-4 py-2.5 text-sm font-bold text-ink">
+            Showing other {sportFilter ? `${SPORT_LABELS[sportFilter]} ` : ""}coaches — finding the right fit is normal.
+          </p>
         )}
 
         {coaches.length === 0 ? (
-          <div className="card p-10 text-center text-muted-foreground">
-            No coaches match those filters yet. Try widening your search.
-          </div>
+          hasFilters ? (
+            <div className="card-flat flex flex-col items-start gap-4 p-6 sm:p-8">
+              <h2 className="text-display-md font-display text-ink">No coaches match that search</h2>
+              <p className="max-w-lg text-muted-foreground">
+                {activeFilterLabels.length > 0
+                  ? `Your filters: ${activeFilterLabels.join(" · ")}. Try dropping one or two.`
+                  : "Nobody else fits right now. Try a broader search."}
+              </p>
+              <Link href="/coaches" className={secondaryButtonClass}>
+                See every coach
+              </Link>
+            </div>
+          ) : (
+            // The real launch state: production starts with zero live coaches.
+            <div className="card-flat flex flex-col items-start gap-4 p-6 sm:p-8">
+              <h2 className="text-display-md font-display text-ink">No coaches are listed yet</h2>
+              <p className="max-w-lg text-muted-foreground">
+                Coaches show up here as soon as an admin approves their ID. Check back soon — or if you played in
+                high school or college, you could be one of the first.
+              </p>
+              <Link href="/signup/coach" className={goldButtonClass}>
+                Build your coach profile <IconArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          )
         ) : (
           <>
-            <p className="mb-4 font-display text-lg text-ink">
-              {coaches.length} coach{coaches.length === 1 ? "" : "es"} on the roster
-            </p>
+            <h2 className="mb-5 flex items-baseline gap-3 font-display text-ink">
+              <span className="text-display-md">
+                {coaches.length} coach{coaches.length === 1 ? "" : "es"}
+              </span>
+              <span className="font-sans text-sm font-bold text-muted-foreground">
+                {activeFilterLabels.length > 0 ? activeFilterLabels.join(" · ") : "on the roster"}
+              </span>
+            </h2>
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {coaches.map((coach) => (
                 <CoachCard key={coach.id} coach={coach} />

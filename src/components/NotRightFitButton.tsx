@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { secondaryButtonClass } from "@/lib/ui";
+import { secondaryButtonClass, quietLinkClass } from "@/lib/ui";
 import type { Sport } from "@/generated/prisma/client";
 
 /**
@@ -11,18 +11,23 @@ export default function NotRightFitButton({
   coachProfileId,
   sport,
   city,
+  variant = "button",
 }: {
   coachProfileId: string;
   sport?: Sport;
   city?: string | null;
+  variant?: "button" | "quiet";
 }) {
   const params = new URLSearchParams({ excludeCoachId: coachProfileId });
   if (sport) params.set("sport", sport);
   if (city) params.set("location", city);
 
   return (
-    <Link href={`/coaches?${params.toString()}`} className={secondaryButtonClass}>
-      This isn&apos;t the right fit
+    <Link
+      href={`/coaches?${params.toString()}`}
+      className={variant === "quiet" ? `${quietLinkClass} text-ink` : secondaryButtonClass}
+    >
+      {variant === "quiet" ? "Not the right fit? See similar coaches" : "This isn’t the right fit"}
     </Link>
   );
 }
