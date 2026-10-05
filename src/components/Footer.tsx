@@ -1,25 +1,34 @@
 import { IconShieldCheck, IconMessage, IconPin } from "@/components/icons";
 
+// Only claims the app actually enforces: an admin approves each coach's ID before the
+// profile is searchable, chat stays in-app, and the parent sets the meeting place.
+// Background checks are a placeholder today, so they are deliberately not claimed here.
+const PROMISES = [
+  { icon: IconShieldCheck, text: "A person reviews every coach's ID before their profile goes live" },
+  { icon: IconMessage, text: "Parents and coaches message in the app — contact details aren't shown" },
+  { icon: IconPin, text: "The parent picks where the session happens" },
+];
+
 export default function Footer() {
   return (
-    <footer className="border-t-2 border-ink bg-ink text-chalk">
+    <footer className="on-dark border-t-2 border-ink bg-ink text-chalk">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-b border-white/15 pb-6 text-sm font-bold">
-          <span className="flex items-center gap-2">
-            <IconShieldCheck className="h-4 w-4 text-gold" /> Every coach ID-verified &amp; background-checked
-          </span>
-          <span className="flex items-center gap-2">
-            <IconMessage className="h-4 w-4 text-gold" /> In-app messaging only
-          </span>
-          <span className="flex items-center gap-2">
-            <IconPin className="h-4 w-4 text-gold" /> Sessions at public locations, parent&apos;s choice
-          </span>
-        </div>
-        <div className="flex flex-col gap-2 pt-6 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-display text-base tracking-wide text-white">
+        <ul className="grid gap-4 border-b border-white/15 pb-8 text-sm font-bold sm:grid-cols-3 sm:gap-6">
+          {PROMISES.map(({ icon: Icon, text }) => (
+            <li key={text} className="flex gap-3 border-l-4 border-gold pl-3">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+              <span>{text}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-col gap-2 pt-6 text-xs text-white/70 sm:flex-row sm:items-end sm:justify-between">
+          <p className="font-display text-2xl tracking-wide text-white">
             Coach<span className="text-gold">Connect</span>
           </p>
-          <p>&copy; {new Date().getFullYear()} CoachConnect. See something off? Use the Report button — always visible.</p>
+          <p className="max-w-md sm:text-right">
+            &copy; {new Date().getFullYear()} CoachConnect · Bay Area. See something off? Use Report on any coach
+            profile or message thread.
+          </p>
         </div>
       </div>
     </footer>

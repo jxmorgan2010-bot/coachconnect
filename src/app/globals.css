@@ -26,12 +26,22 @@
   --accent: var(--gold);
   --accent-foreground: var(--ink);
 
-  --success: var(--pitch-bright);
+  /* pitch, not pitch-bright: white on #2f8f52 is only 4.06:1, too low for small badge text */
+  --success: var(--pitch);
   --success-foreground: #ffffff;
   --warning: #a56a00;
   --warning-foreground: #ffffff;
   --danger: var(--crimson);
   --danger-foreground: #ffffff;
+
+  /* Focus ring flips per surface: ink on light grounds, bright gold on dark
+     ones (gold on chalk is only 1.7:1, so it can't be the default). */
+  --focus-ring: var(--ink);
+}
+
+/* Dark surfaces (ink/pitch bands, footer) opt in so the ring stays visible. */
+.on-dark {
+  --focus-ring: var(--gold-bright);
 }
 
 @theme inline {
@@ -46,6 +56,7 @@
   --color-pitch: var(--pitch);
   --color-pitch-bright: var(--pitch-bright);
   --color-chalk: var(--chalk);
+  --color-line: var(--line);
   --color-gold: var(--gold);
   --color-gold-bright: var(--gold-bright);
   --color-crimson: var(--crimson);
@@ -66,11 +77,43 @@
 
   --font-display: var(--font-anton);
   --font-sans: var(--font-karla);
+
+  /* Type scale. Display sizes are fluid so a 375px phone and a 1440px desktop
+     both get a headline that fills the measure without one word per line. */
+  --text-display-xl: clamp(2.75rem, 1.6rem + 5.2vw, 5.25rem);
+  --text-display-xl--line-height: 0.92;
+  --text-display-lg: clamp(2.25rem, 1.6rem + 2.8vw, 3.5rem);
+  --text-display-lg--line-height: 0.95;
+  --text-display-md: clamp(1.75rem, 1.4rem + 1.4vw, 2.5rem);
+  --text-display-md--line-height: 1;
+  --text-display-sm: 1.5rem;
+  --text-display-sm--line-height: 1.05;
+
+  /* The "patch" shadow in three weights: cards, buttons, small chips. */
+  --shadow-patch: 6px 6px 0 var(--ink);
+  --shadow-patch-sm: 4px 4px 0 var(--ink);
+  --shadow-patch-xs: 2px 2px 0 var(--ink);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Eyebrow label above a heading — only where it names something real
+   (a sport, a status, a step), never as decoration. */
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 h1, h2, h3, .font-display {
@@ -102,6 +145,15 @@ h1, h2, h3, .font-display {
 .press:active {
   transform: translate(4px, 4px);
   box-shadow: 0 0 0 var(--ink) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press {
+    transition: none;
+  }
+  .press:active {
+    transform: none;
+  }
 }
 
 /* Faint diagonal hatch, like chalked yard lines — used once or twice, not
