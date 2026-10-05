@@ -81,11 +81,11 @@
   /* Type scale. Display sizes are fluid so a 375px phone and a 1440px desktop
      both get a headline that fills the measure without one word per line. */
   --text-display-xl: clamp(2.75rem, 1.6rem + 5.2vw, 5.25rem);
-  --text-display-xl--line-height: 0.92;
+  --text-display-xl--line-height: 0.95;
   --text-display-lg: clamp(2.25rem, 1.6rem + 2.8vw, 3.5rem);
-  --text-display-lg--line-height: 0.95;
+  --text-display-lg--line-height: 1.05;
   --text-display-md: clamp(1.75rem, 1.4rem + 1.4vw, 2.5rem);
-  --text-display-md--line-height: 1;
+  --text-display-md--line-height: 1.05;
   --text-display-sm: 1.5rem;
   --text-display-sm--line-height: 1.05;
 
@@ -95,17 +95,32 @@
   --shadow-patch-xs: 2px 2px 0 var(--ink);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  line-height: 1.6;
+/* Base and component rules live in layers so Tailwind utilities can override
+   them — unlayered CSS beats every utility in Tailwind v4, which used to make
+   `leading-*` / `font-*` classes on headings silently do nothing. */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    line-height: 1.6;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Anton ships one weight; never let the browser fake a bold version of it. */
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+    line-height: 0.95;
+    font-weight: 400;
+    font-synthesis: none;
+  }
 }
 
-:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
+@layer components {
 /* Eyebrow label above a heading — only where it names something real
    (a sport, a status, a step), never as decoration. */
 .eyebrow {
@@ -114,13 +129,7 @@ body {
   letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
-}
-
-h1, h2, h3, .font-display {
-  font-family: var(--font-display);
-  letter-spacing: 0.01em;
-  line-height: 0.95;
-  font-weight: 400;
+  font-synthesis: none;
 }
 
 /* Hard, unblurred offset shadow — the recurring "patch" signature instead
@@ -176,4 +185,5 @@ h1, h2, h3, .font-display {
     transparent 2px,
     transparent 34px
   );
+}
 }

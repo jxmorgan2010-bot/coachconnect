@@ -1,3 +1,6 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { IconShieldCheck, IconMessage, IconPin } from "@/components/icons";
 
 // Only claims the app actually enforces: an admin approves each coach's ID before the
@@ -10,18 +13,23 @@ const PROMISES = [
 ];
 
 export default function Footer() {
+  // The home page has its own, fuller safeguards section right above the footer.
+  const showPromises = usePathname() !== "/";
+
   return (
     <footer className="on-dark border-t-2 border-ink bg-ink text-chalk">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <ul className="grid gap-4 border-b border-white/15 pb-8 text-sm font-bold sm:grid-cols-3 sm:gap-6">
-          {PROMISES.map(({ icon: Icon, text }) => (
-            <li key={text} className="flex gap-3 border-l-4 border-gold pl-3">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-              <span>{text}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="flex flex-col gap-2 pt-6 text-xs text-white/70 sm:flex-row sm:items-end sm:justify-between">
+        {showPromises && (
+          <ul className="mb-6 grid gap-4 border-b border-white/15 pb-8 text-sm font-bold sm:grid-cols-3 sm:gap-6">
+            {PROMISES.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex gap-3 border-l-4 border-gold pl-3">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                <span>{text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-col gap-2 text-xs text-white/70 sm:flex-row sm:items-end sm:justify-between">
           <p className="font-display text-2xl tracking-wide text-white">
             Coach<span className="text-gold">Connect</span>
           </p>

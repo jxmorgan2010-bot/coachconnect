@@ -19,9 +19,9 @@ const karla = Karla({
 });
 
 export const metadata: Metadata = {
-  title: "CoachConnect — Book Verified Student-Athlete Coaches",
+  title: "CoachConnect — 1-on-1 coaching from student athletes",
   description:
-    "Find and book individual sports coaching sessions with background-checked, ID-verified high school and college student-athletes.",
+    "Book 1-on-1 sports sessions in the Bay Area with high school and college athletes. A person reviews every coach's ID before their profile goes live, and you pay through the app.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
