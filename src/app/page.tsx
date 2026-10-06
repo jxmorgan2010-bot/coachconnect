@@ -67,7 +67,7 @@ export default function Home() {
               Bay Area · {SPORTS.length} sports · 1-on-1
             </p>
             <h1 className="text-display-xl max-w-[15ch] font-display">
-              Get coached by someone who just played the game.
+              Push past your limits with athletes who play the game.
             </h1>
             <p className="mt-6 max-w-md text-lg text-white/85">
               Book your kid 1&#8209;on&#8209;1 time with high school and college athletes. A person checks every coach&apos;s ID
