@@ -15,6 +15,7 @@ export default async function CoachOnboardingPage() {
       sports: true,
       availability: true,
       recommendations: { orderBy: { createdAt: "desc" } },
+      user: { select: { isSuspended: true } },
     },
   });
 

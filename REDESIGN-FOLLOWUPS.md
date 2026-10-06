@@ -36,6 +36,8 @@ page may claim coaches are background-checked (enforced by the copy on this bran
 
 ## 3. Contact details aren't filtered from messages
 
+**Addressed on `fix/message-moderation`:** server-side contact filter on messages and every other user-entered text others can see, with strikes, suspension and an admin Flagged attempts view.
+
 Nothing stops a parent or coach typing a phone number or email into chat. Copy on this
 branch only claims that the app doesn't *show* contact details, which is true. If the
 product wants to promise more, messages need server-side filtering.

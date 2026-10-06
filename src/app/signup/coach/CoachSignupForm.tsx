@@ -8,6 +8,7 @@ import AuthLayout from "@/components/AuthLayout";
 import { IconWhistle } from "@/components/icons";
 import { inputClass, labelClass, goldButtonClass, errorClass } from "@/lib/ui";
 import { PLATFORM_FEE_RATE } from "@/lib/money";
+import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 
 export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesEnabled: boolean }) {
   const router = useRouter();
@@ -155,6 +156,10 @@ export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesE
           </div>
         </div>
         <p id="coach-password-help" className="-mt-2 text-xs text-muted-foreground">At least 8 characters.</p>
+
+        <p className="text-xs text-muted-foreground">
+          <span className="font-bold text-ink">Community rule:</span> {CONTACT_RULE_TEXT}
+        </p>
 
         <button type="submit" className={`${goldButtonClass} mt-2 w-full text-base`} disabled={loading}>
           {loading ? "Creating account..." : "Continue to profile setup"}

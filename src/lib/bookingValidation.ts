@@ -4,6 +4,7 @@ import { calculatePriceBreakdown } from "@/lib/money";
 import { perSessionBreakdown } from "@/lib/bundles";
 import { rangesOverlap } from "@/lib/bookingConflicts";
 import { generateMockVideoCallUrl } from "@/lib/videoCall";
+import { enforceContactPolicy, rejectIfSuspended, ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactPolicy";
 import type { ParentProfile, Sport } from "@/generated/prisma/client";
 
 export class BookingValidationError extends Error {
@@ -30,6 +31,8 @@ export type BookingRequestInput = {
  * actually created (to close the race window and never trust client-supplied pricing).
  */
 export async function validateBookingRequest(parentProfile: ParentProfile, data: BookingRequestInput) {
+  await assertParentMayBook(parentProfile, data.locationText);
+
   const child = await prisma.child.findUnique({ where: { id: data.childId } });
   if (!child || child.parentProfileId !== parentProfile.id) {
     throw new BookingValidationError("Select a valid child on your account.");
@@ -37,7 +40,7 @@ export async function validateBookingRequest(parentProfile: ParentProfile, data:
 
   const coach = await prisma.coachProfile.findUnique({
     where: { id: data.coachProfileId },
-    include: { sports: true },
+    include: { sports: true, user: { select: { isSuspended: true } } },
   });
   if (!coach || !isCoachLive(coach) || !coach.hourlyRateCents) {
     throw new BookingValidationError("This coach isn't available for booking right now.");
@@ -77,6 +80,8 @@ export type PackageBookingRequestInput = {
  * locked to what the package was bought for, not taken from the request.
  */
 export async function validatePackageBookingRequest(parentProfile: ParentProfile, data: PackageBookingRequestInput) {
+  await assertParentMayBook(parentProfile, data.locationText);
+
   const child = await prisma.child.findUnique({ where: { id: data.childId } });
   if (!child || child.parentProfileId !== parentProfile.id) {
     throw new BookingValidationError("Select a valid child on your account.");
@@ -84,7 +89,7 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
 
   const pkg = await prisma.sessionPackage.findUnique({
     where: { id: data.packageId },
-    include: { coachProfile: { include: { sports: true } } },
+    include: { coachProfile: { include: { sports: true, user: { select: { isSuspended: true } } } } },
   });
   if (!pkg || pkg.parentProfileId !== parentProfile.id) {
     throw new BookingValidationError("Package not found.");
@@ -105,6 +110,28 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
   const isFirstSession = await isFirstSessionWithCoach(parentProfile.id, pkg.coachProfileId);
 
   return { child, package: pkg, coach: pkg.coachProfile, sport: pkg.sport, breakdown, isFirstSession };
+}
+
+/**
+ * Runs first in every booking path (single, package, quick rebook): a suspended parent
+ * can't book, and the meeting location — which the coach sees — goes through the same
+ * contact filter as messages. Both surface as a BookingValidationError so every route's
+ * existing error handling applies unchanged.
+ */
+async function assertParentMayBook(parentProfile: ParentProfile, locationText: string) {
+  const suspended = await rejectIfSuspended(parentProfile.userId);
+  if (suspended) {
+    throw new BookingValidationError(ACCOUNT_SUSPENDED_MESSAGE, 403);
+  }
+  const blocked = await enforceContactPolicy({
+    userId: parentProfile.userId,
+    context: "BOOKING_LOCATION",
+    fields: [locationText],
+  });
+  if (blocked) {
+    const body = (await blocked.json()) as { error: string };
+    throw new BookingValidationError(body.error, blocked.status);
+  }
 }
 
 async function assertNoConflict(coachProfileId: string, scheduledAt: Date, durationMinutes: number) {

@@ -48,7 +48,9 @@ export function getBackgroundCheckExpiryState(
 /**
  * A coach is publicly visible/searchable only once ID + background check are
  * both approved, the background check hasn't lapsed past its 12-month
- * expiry, and the coach isn't suspended pending a reports review.
+ * expiry, the coach isn't suspended pending a reports review, and their
+ * account isn't suspended under the contact-sharing policy. `user` is
+ * required so no caller can forget to load the account.
  */
 export function isCoachLive(
   profile: Pick<
@@ -60,11 +62,12 @@ export function isCoachLive(
     | "isMinorCoach"
     | "minorGuardianConsentedAt"
     | "minorBackgroundCheckNote"
-  >,
+  > & { user: { isSuspended: boolean } },
   now: Date = new Date(),
 ) {
   if (profile.idVerificationStatus !== "APPROVED") return false;
   if (profile.isSuspended) return false;
+  if (profile.user.isSuspended) return false;
 
   if (profile.isMinorCoach) {
     // Never live unless the flag is on — standard background checks don't gate a minor

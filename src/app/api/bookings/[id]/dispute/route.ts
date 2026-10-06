@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { disputeSchema } from "@/lib/validation";
 import type { DisputeReason } from "@/generated/prisma/client";
 
@@ -30,6 +31,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
+
+  // Admin-only channel: never blocked or struck (someone may be reporting a contact
+  // attempt). A match is logged to Flagged attempts so admins see it.
+  await enforceContactPolicy({ userId: session.user.id, context: "DISPUTE", fields: [parsed.data.details] });
 
   const dispute = await prisma.dispute.create({
     data: {

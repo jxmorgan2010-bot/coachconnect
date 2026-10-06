@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
 import { trainingPlanItemSchema } from "@/lib/validation";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 import type { Sport } from "@/generated/prisma/client";
 
 export async function POST(req: Request) {
@@ -25,6 +26,9 @@ export async function POST(req: Request) {
   if (!hasBooking) {
     return NextResponse.json({ error: "You haven't booked a session with this child for that sport." }, { status: 403 });
   }
+
+  const blocked = await enforceContactPolicy({ userId: coachProfile.userId, context: "TRAINING_PLAN", fields: [label] });
+  if (blocked) return blocked;
 
   const count = await prisma.trainingPlanItem.count({ where: { coachProfileId: coachProfile.id, childId, sport } });
 

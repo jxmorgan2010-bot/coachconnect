@@ -127,6 +127,35 @@ model User {
   coachProfile  CoachProfile?
   sentMessages  Message[]
   reports       Report[]
+
+  // Off-platform contact policy (see src/lib/moderation.ts). Separate from
+  // CoachProfile.isSuspended, which is the 3-reports rule — the two are lifted
+  // independently by an admin.
+  strikeCount      Int              @default(0)
+  isSuspended      Boolean          @default(false)
+  suspendedAt      DateTime?
+  suspensionReason String?
+  flaggedAttempts  FlaggedAttempt[] @relation("FlaggedAttemptUser")
+  clearedAttempts  FlaggedAttempt[] @relation("FlaggedAttemptClearedBy")
+}
+
+/// One row per piece of text that matched the contact-sharing filter.
+/// blocked=false rows are admin-only channels (reports, support, disputes) that
+/// were let through but logged. userId is null for the public recommendation form.
+model FlaggedAttempt {
+  id           String    @id @default(cuid())
+  userId       String?
+  user         User?     @relation("FlaggedAttemptUser", fields: [userId], references: [id], onDelete: Cascade)
+  context      String
+  blockedText  String
+  blocked      Boolean   @default(true)
+  strikeNumber Int?
+  createdAt    DateTime  @default(now())
+  clearedAt    DateTime?
+  clearedById  String?
+  clearedBy    User?     @relation("FlaggedAttemptClearedBy", fields: [clearedById], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model ParentProfile {

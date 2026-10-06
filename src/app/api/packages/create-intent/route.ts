@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { packagePurchaseSchema } from "@/lib/validation";
 import { isCoachLive } from "@/lib/coach";
+import { ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactPolicy";
 import { calculateBundlePricing } from "@/lib/bundles";
 import { getStripe } from "@/lib/stripe";
 
@@ -33,10 +34,14 @@ export async function POST(req: Request) {
   if (!parentProfile) {
     return NextResponse.json({ error: "Parent profile not found." }, { status: 404 });
   }
+  // Checked here, before any charge — never after the package is paid for.
+  if (parentProfile.user.isSuspended) {
+    return NextResponse.json({ error: ACCOUNT_SUSPENDED_MESSAGE, code: "ACCOUNT_SUSPENDED" }, { status: 403 });
+  }
 
   const coach = await prisma.coachProfile.findUnique({
     where: { id: data.coachProfileId },
-    include: { sports: true },
+    include: { sports: true, user: { select: { isSuspended: true } } },
   });
   if (!coach || !isCoachLive(coach) || !coach.hourlyRateCents) {
     return NextResponse.json({ error: "This coach isn't available for a package right now." }, { status: 400 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { supportRequestSchema } from "@/lib/validation";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 
 /**
  * Catch-all "get help" widget for parents (or coaches) with an issue on any
@@ -29,6 +30,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Booking not found." }, { status: 404 });
     }
   }
+
+  // Admin-only channel: never blocked or struck (someone may be reporting a contact
+  // attempt). A match is logged to Flagged attempts so admins see it.
+  await enforceContactPolicy({ userId: session.user.id, context: "SUPPORT", fields: [parsed.data.message] });
 
   await prisma.report.create({
     data: {

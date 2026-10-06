@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { reviewSchema } from "@/lib/validation";
 import { awardPoints, POINTS_REVIEW_LEFT } from "@/lib/points";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
@@ -30,6 +31,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
+
+  const blocked = await enforceContactPolicy({ userId: session.user.id, context: "REVIEW", fields: [parsed.data.comment] });
+  if (blocked) return blocked;
 
   const review = await prisma.$transaction(async (tx) => {
     const created = await tx.review.create({

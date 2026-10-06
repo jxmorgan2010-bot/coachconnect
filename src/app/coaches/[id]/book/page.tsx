@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { isCoachLive } from "@/lib/coach";
+import SuspendedBlock from "@/components/SuspendedBlock";
 import BookingForm from "./BookingForm";
 
 export default async function BookCoachPage({
@@ -25,9 +26,10 @@ export default async function BookCoachPage({
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    include: { children: { orderBy: { createdAt: "asc" } } },
+    include: { children: { orderBy: { createdAt: "asc" } }, user: { select: { isSuspended: true } } },
   });
   if (!parentProfile) redirect("/dashboard");
+  if (parentProfile.user.isSuspended) return <SuspendedBlock action="book sessions" />;
 
   let activePackage = null;
   if (packageId) {

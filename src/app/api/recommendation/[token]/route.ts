@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recommendationSubmitSchema } from "@/lib/validation";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -33,6 +34,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (recommendation.status === "SUBMITTED") {
     return NextResponse.json({ error: "This recommendation has already been submitted." }, { status: 409 });
   }
+
+  // Public form, no account: blocked and logged for admins, but no strike.
+  const blocked = await enforceContactPolicy({
+    userId: null,
+    context: "RECOMMENDATION",
+    fields: [parsed.data.recommenderName, parsed.data.recommenderRole, parsed.data.content],
+  });
+  if (blocked) return blocked;
 
   await prisma.recommendation.update({
     where: { token },

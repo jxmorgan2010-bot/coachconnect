@@ -12,7 +12,10 @@ import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { ProgressNoteForm } from "./BookingActions";
 
 export default async function CoachDashboard({ coachProfileId }: { coachProfileId: string }) {
-  const profile = await prisma.coachProfile.findUniqueOrThrow({ where: { id: coachProfileId } });
+  const profile = await prisma.coachProfile.findUniqueOrThrow({
+    where: { id: coachProfileId },
+    include: { user: { select: { isSuspended: true } } },
+  });
   const expiryState = getBackgroundCheckExpiryState(profile);
 
   const [upcoming, needingNotes, taughtBookings, trainingPlanItems] = await Promise.all([

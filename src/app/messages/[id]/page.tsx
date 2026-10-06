@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/session";
 import ReportButton from "@/components/ReportButton";
 import Link from "next/link";
 import MessageComposer from "./MessageComposer";
+import { CONTACT_RULE_TEXT, ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactRule";
 import { quietLinkClass } from "@/lib/ui";
 
 export default async function ThreadPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +28,8 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   if (!isParentSide && !isCoachSide && !isAdmin) notFound();
 
   const otherName = isParentSide ? thread.coachProfile.user.name : thread.parentProfile.user.name;
+  const viewer = await prisma.user.findUnique({ where: { id: session.user.id }, select: { isSuspended: true } });
+  const viewerSuspended = Boolean(viewer?.isSuspended);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col px-4 py-8 sm:px-6 md:py-12">
@@ -37,11 +40,8 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
         <h1 className="text-display-lg font-display text-ink">{otherName}</h1>
         <ReportButton targetType="MESSAGE" targetId={thread.id} variant="quiet" />
       </div>
-      {/* Guidance, not a guarantee — nothing filters what people type (REDESIGN-FOLLOWUPS.md #3) */}
-      <p className="mb-4 rounded-lg border-2 border-line bg-chalk px-3 py-2 text-xs text-muted-foreground">
-        Keep it in the app: don&apos;t share phone numbers, emails, or home addresses. Payment protection only covers
-        sessions booked here.
-      </p>
+      {/* The rule is enforced server-side when a message is sent (src/lib/contactPolicy.ts) */}
+      <p className="mb-4 rounded-lg border-2 border-line bg-chalk px-3 py-2 text-sm text-ink">{CONTACT_RULE_TEXT}</p>
 
       <div role="log" aria-label={`Conversation with ${otherName}`} className="card mb-4 flex flex-col gap-4 p-4 sm:p-5">
         {thread.messages.length === 0 ? (
@@ -70,7 +70,13 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
         )}
       </div>
 
-      <MessageComposer threadId={thread.id} />
+      {viewerSuspended ? (
+        <p role="status" className="rounded-lg border-2 border-danger bg-danger/10 px-3.5 py-3 text-sm font-bold text-danger">
+          {ACCOUNT_SUSPENDED_MESSAGE}
+        </p>
+      ) : (
+        <MessageComposer threadId={thread.id} />
+      )}
     </div>
   );
 }

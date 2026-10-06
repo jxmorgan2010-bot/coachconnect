@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
 import { progressNoteSchema } from "@/lib/validation";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const coachProfile = await requireCoachProfile();
@@ -23,6 +24,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
+
+  const blocked = await enforceContactPolicy({
+    userId: coachProfile.userId,
+    context: "PROGRESS_NOTE",
+    fields: [parsed.data.whatWorkedOn, parsed.data.nextFocus],
+  });
+  if (blocked) return blocked;
 
   const updated = await prisma.booking.update({
     where: { id },

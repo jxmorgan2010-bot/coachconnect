@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { REPORT_SUSPEND_THRESHOLD } from "@/lib/coach";
 
 async function resolveCoachProfileId(targetType: string, targetId: string): Promise<string | null> {
@@ -31,6 +32,10 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "Please provide a reason for the report." }, { status: 400 });
   }
+
+  // Admin-only channel: never blocked or struck (someone may be reporting a contact
+  // attempt). A match is logged to Flagged attempts so admins see it.
+  await enforceContactPolicy({ userId: session.user.id, context: "REPORT", fields: [reason, typeof body?.details === "string" ? body.details : null] });
 
   await prisma.report.create({
     data: {

@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
+import { rejectIfSuspended } from "@/lib/contactPolicy";
 
 export async function POST(req: Request) {
   const session = await getCurrentSession();
   if (!session?.user || session.user.role !== "PARENT") {
     return NextResponse.json({ error: "Only parent accounts can start a conversation." }, { status: 401 });
   }
+
+  const suspended = await rejectIfSuspended(session.user.id);
+  if (suspended) return suspended;
 
   const body = await req.json().catch(() => null);
   const coachProfileId = body?.coachProfileId;
