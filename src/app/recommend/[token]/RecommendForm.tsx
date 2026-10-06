@@ -20,7 +20,7 @@ export default function RecommendForm({
   const [loading, setLoading] = useState(false);
 
   if (submitted) {
-    return <p className={successClass}>Thanks! Your recommendation for {coachName} has been submitted.</p>;
+    return <p role="status" className={successClass}>Thanks! Your recommendation for {coachName} has been submitted.</p>;
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -42,17 +42,17 @@ export default function RecommendForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {error && <p className={errorClass}>{error}</p>}
+    <form onSubmit={onSubmit} className="card flex flex-col gap-4 p-5 sm:p-6">
+      {error && <p role="alert" className={errorClass}>{error}</p>}
       <div>
         <label className={labelClass} htmlFor="recommenderName">Your name</label>
-        <input id="recommenderName" className={inputClass} value={recommenderName} onChange={(e) => setRecommenderName(e.target.value)} required />
+        <input id="recommenderName" autoComplete="name" className={inputClass} value={recommenderName} onChange={(e) => setRecommenderName(e.target.value)} required />
       </div>
       <div>
         <label className={labelClass} htmlFor="recommenderRole">Your role</label>
         <input
           id="recommenderRole"
-          placeholder="e.g. Varsity Basketball Coach, Springfield High"
+          placeholder="e.g. Varsity basketball coach, Lowell High School"
           className={inputClass}
           value={recommenderRole}
           onChange={(e) => setRecommenderRole(e.target.value)}
@@ -70,9 +70,11 @@ export default function RecommendForm({
           onChange={(e) => setContent(e.target.value)}
           required
           minLength={20}
+          aria-describedby="content-help"
         />
+        <p id="content-help" className="mt-1.5 text-xs text-muted-foreground">At least 20 characters.</p>
       </div>
-      <button type="submit" className={primaryButtonClass} disabled={loading}>
+      <button type="submit" className={`${primaryButtonClass} w-full text-base sm:w-auto sm:self-start`} disabled={loading}>
         {loading ? "Submitting..." : "Submit recommendation"}
       </button>
     </form>
