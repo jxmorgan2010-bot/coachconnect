@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Badge from "@/components/Badge";
 import { formatCents } from "@/lib/money";
-import { inputClass, secondaryButtonClass, primaryButtonClass, errorClass } from "@/lib/ui";
+import { inputClass, labelClass, secondaryButtonClass, primaryButtonClass, errorClass } from "@/lib/ui";
 
 type DisputeData = {
   id: string;
@@ -25,6 +25,30 @@ const STATUS_VARIANT = {
   REFUNDED: "success",
   SIDED_WITH_COACH: "neutral",
   DISMISSED: "neutral",
+} as const;
+
+const STATUS_LABEL = {
+  OPEN: "Open",
+  INFO_REQUESTED: "Info requested",
+  REFUNDED: "Refunded",
+  SIDED_WITH_COACH: "Sided with coach",
+  DISMISSED: "Dismissed",
+} as const;
+
+const PAYMENT_LABEL = {
+  AUTHORIZED: "Card held, not charged",
+  CAPTURED: "Charged",
+  CANCELLED: "Hold voided",
+  REFUNDED: "Refunded",
+} as const;
+
+// Refunds only apply to captured payments; say why for every other state instead of
+// assuming a no-show voided it.
+const NO_REFUND_NOTE = {
+  AUTHORIZED: "No refund possible yet — the card is only held, so nothing has been charged.",
+  CANCELLED: "No refund needed — the card hold was voided, so the parent was never charged.",
+  REFUNDED: "This payment has already been refunded.",
+  CAPTURED: "",
 } as const;
 
 const REASON_LABEL: Record<string, string> = {
@@ -64,51 +88,62 @@ export default function DisputeRow({ dispute }: { dispute: DisputeData }) {
   const canRefund = dispute.paymentStatus === "CAPTURED";
 
   return (
-    <div className="card flex flex-col gap-2 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-bold text-ink">{dispute.parentName} vs. {dispute.coachName}</p>
-        <Badge variant={STATUS_VARIANT[status]}>{status.replaceAll("_", " ")}</Badge>
+    <div className={`${resolved ? "card-flat" : "card"} flex flex-col gap-3 p-4 sm:p-5`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="eyebrow mb-1 text-muted-foreground">{REASON_LABEL[dispute.reason] ?? dispute.reason}</p>
+          <p className="font-bold text-ink">
+            {dispute.parentName} <span className="font-normal text-muted-foreground">vs.</span> {dispute.coachName}
+          </p>
+        </div>
+        <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
       </div>
       <p className="text-sm text-muted-foreground">
-        Session {dispute.sessionDate} &middot; {formatCents(dispute.sessionPriceCents)} &middot;{" "}
-        <span className="font-bold text-ink">{REASON_LABEL[dispute.reason] ?? dispute.reason}</span>
+        Session {dispute.sessionDate} · {formatCents(dispute.sessionPriceCents)} · {PAYMENT_LABEL[dispute.paymentStatus]}
       </p>
-      <p className="text-sm text-ink">{dispute.details}</p>
+      <p className="border-l-4 border-gold pl-3 text-sm text-ink">{dispute.details}</p>
       {status === "REFUNDED" && dispute.refundCents !== null && (
         <p className="text-sm font-bold text-success">Refunded {formatCents(dispute.refundCents)}</p>
       )}
 
-      {error && <p className={errorClass}>{error}</p>}
+      {error && <p role="alert" className={errorClass}>{error}</p>}
 
       {!resolved && (
-        <div className="mt-2 flex flex-col gap-2 rounded-lg border-2 border-ink bg-muted p-3">
+        <div className="flex flex-col gap-3 rounded-lg border-2 border-line bg-chalk p-3 sm:p-4">
           {!canRefund && (
-            <p className="text-xs font-bold text-muted-foreground">
-              No refund needed — this session&apos;s payment was already voided when the no-show was reported, so
-              the parent was never charged.
-            </p>
+            <p className="text-xs font-bold text-muted-foreground">{NO_REFUND_NOTE[dispute.paymentStatus]}</p>
           )}
-          <textarea
-            className={inputClass}
-            rows={2}
-            placeholder="Internal note (optional)"
-            value={adminNote}
-            onChange={(e) => setAdminNote(e.target.value)}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            {canRefund && (
-              <>
+          <div>
+            <label className={labelClass} htmlFor={`note-${dispute.id}`}>
+              Internal note <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <textarea
+              id={`note-${dispute.id}`}
+              className={inputClass}
+              rows={2}
+              value={adminNote}
+              onChange={(e) => setAdminNote(e.target.value)}
+            />
+          </div>
+          {canRefund && (
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className={labelClass} htmlFor={`refund-${dispute.id}`}>Refund amount ($)</label>
                 <input
+                  id={`refund-${dispute.id}`}
                   type="number"
-                  className={`${inputClass} w-28`}
+                  inputMode="decimal"
+                  className={`${inputClass} w-32`}
                   value={refundCents / 100}
                   onChange={(e) => setRefundCents(Math.round(Number(e.target.value) * 100))}
                 />
-                <button onClick={() => act("refund", { refundCents })} disabled={loading} className={primaryButtonClass}>
-                  Issue refund
-                </button>
-              </>
-            )}
+              </div>
+              <button onClick={() => act("refund", { refundCents })} disabled={loading} className={primaryButtonClass}>
+                Issue refund
+              </button>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => act("side_with_coach")} disabled={loading} className={secondaryButtonClass}>
               Side with coach
             </button>
