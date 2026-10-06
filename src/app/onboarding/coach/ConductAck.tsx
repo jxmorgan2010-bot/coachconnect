@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { primaryButtonClass, errorClass, successClass } from "@/lib/ui";
+import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 
 const RULES = [
   "Sessions are always held at a public location chosen by the parent — never a private residence.",
@@ -31,6 +32,9 @@ export default function ConductAck({ initialAcknowledged }: { initialAcknowledge
 
   return (
     <div className="flex flex-col gap-3">
+      <p className="rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-3 text-sm font-bold text-ink">
+        {CONTACT_RULE_TEXT}
+      </p>
       <ul className="flex flex-col gap-2.5 text-sm text-ink">
         {RULES.map((rule) => (
           <li key={rule} className="border-l-4 border-gold pl-3 leading-snug">{rule}</li>

@@ -24,6 +24,8 @@ export default function MessageComposer({ threadId }: { threadId: string }) {
     setLoading(false);
     if (!res.ok) {
       setError(data.error ?? "Something went wrong.");
+      // Second strike: reload so the suspension banner and locked composer show.
+      if (data.code === "ACCOUNT_SUSPENDED") router.refresh();
       return;
     }
     setBody("");

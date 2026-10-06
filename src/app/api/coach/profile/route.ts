@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
 import { coachProfileSchema } from "@/lib/validation";
+import { enforceContactPolicy } from "@/lib/contactPolicy";
 import type { Sport } from "@/generated/prisma/client";
 
 export async function PATCH(req: Request) {
@@ -17,6 +18,14 @@ export async function PATCH(req: Request) {
   }
 
   const { sports, hourlyRateDollars, ...rest } = parsed.data;
+
+  // Bio and school name are shown publicly on the coach's profile.
+  const blocked = await enforceContactPolicy({
+    userId: profile.userId,
+    context: "BIO",
+    fields: [rest.bio, rest.schoolName],
+  });
+  if (blocked) return blocked;
 
   await prisma.$transaction([
     prisma.coachProfile.update({

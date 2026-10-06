@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import AuthLayout from "@/components/AuthLayout";
+import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 import { IconUsers } from "@/components/icons";
 import { inputClass, labelClass, primaryButtonClass, errorClass } from "@/lib/ui";
 import { formatCents } from "@/lib/money";
@@ -151,6 +152,10 @@ export default function ParentSignupForm({ referralBonusCents }: { referralBonus
             book a session for my child.
           </span>
         </label>
+
+        <p className="text-xs text-muted-foreground">
+          <span className="font-bold text-ink">Community rule:</span> {CONTACT_RULE_TEXT}
+        </p>
 
         <button type="submit" className={`${primaryButtonClass} mt-2 w-full text-base`} disabled={loading}>
           {loading ? "Creating account..." : "Create account"}

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { isCoachLive } from "@/lib/coach";
+import SuspendedBlock from "@/components/SuspendedBlock";
 import PackagePurchaseForm from "./PackagePurchaseForm";
 
 export default async function PackagePurchasePage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,9 +19,10 @@ export default async function PackagePurchasePage({ params }: { params: Promise<
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    include: { children: { orderBy: { createdAt: "asc" } } },
+    include: { children: { orderBy: { createdAt: "asc" } }, user: { select: { isSuspended: true } } },
   });
   if (!parentProfile) redirect("/dashboard");
+  if (parentProfile.user.isSuspended) return <SuspendedBlock action="buy a package" />;
 
   return (
     <PackagePurchaseForm

@@ -19,6 +19,7 @@ type FullProfile = CoachProfile & {
   sports: CoachSport[];
   availability: Availability[];
   recommendations: Recommendation[];
+  user: { isSuspended: boolean };
 };
 
 function Section({

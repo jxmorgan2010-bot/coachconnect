@@ -57,6 +57,8 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
   const profiles = await prisma.coachProfile.findMany({
     where: {
       isSuspended: false,
+      // Contact-sharing suspension lives on the account, not the coach profile.
+      user: { isSuspended: false },
       // Each condition lives in its own AND entry — liveFilter and the location filter
       // both use an "OR" key, which would silently overwrite each other if merged into
       // one object instead.
