@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { isCoachLive } from "@/lib/coach";
 import SuspendedBlock from "@/components/SuspendedBlock";
+import NoHoursNotice from "@/components/NoHoursNotice";
 import BookingForm from "./BookingForm";
 
 export default async function BookCoachPage({
@@ -20,9 +21,12 @@ export default async function BookCoachPage({
 
   const coach = await prisma.coachProfile.findUnique({
     where: { id },
-    include: { user: true, sports: true },
+    include: { user: true, sports: true, availability: { select: { id: true }, take: 1 } },
   });
   if (!coach || !isCoachLive(coach) || !coach.hourlyRateCents) notFound();
+  if (coach.availability.length === 0) {
+    return <NoHoursNotice coachFirstName={coach.user.name.split(" ")[0]} coachProfileId={coach.id} />;
+  }
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },

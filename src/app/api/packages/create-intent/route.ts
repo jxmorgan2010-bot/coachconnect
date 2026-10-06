@@ -41,10 +41,13 @@ export async function POST(req: Request) {
 
   const coach = await prisma.coachProfile.findUnique({
     where: { id: data.coachProfileId },
-    include: { sports: true, user: { select: { isSuspended: true } } },
+    include: { sports: true, user: { select: { isSuspended: true } }, availability: { select: { id: true }, take: 1 } },
   });
   if (!coach || !isCoachLive(coach) || !coach.hourlyRateCents) {
     return NextResponse.json({ error: "This coach isn't available for a package right now." }, { status: 400 });
+  }
+  if (coach.availability.length === 0) {
+    return NextResponse.json({ error: "This coach hasn't posted hours yet, so a package can't be booked." }, { status: 400 });
   }
   if (!coach.sports.some((s) => s.sport === data.sport)) {
     return NextResponse.json({ error: "This coach doesn't offer that sport." }, { status: 400 });

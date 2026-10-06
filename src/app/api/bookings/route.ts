@@ -10,6 +10,7 @@ import {
 } from "@/lib/bookingValidation";
 import { generateMockVideoCallUrl } from "@/lib/videoCall";
 import { rangesOverlap } from "@/lib/bookingConflicts";
+import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { getStripe } from "@/lib/stripe";
 
 export async function POST(req: Request) {
@@ -136,7 +137,7 @@ async function handlePackageBooking(
   const now = new Date();
   const booking = await prisma.$transaction(async (tx) => {
     const stillActive = await tx.booking.findMany({
-      where: { coachProfileId: pkg.coachProfileId, status: { in: ["CONFIRMED", "COMPLETED"] } },
+      where: { coachProfileId: pkg.coachProfileId, status: SLOT_HOLDING_STATUS_FILTER },
       select: { scheduledAt: true, durationMinutes: true },
     });
     if (stillActive.some((b) => rangesOverlap(data.scheduledAt, pkg.durationMinutes, b.scheduledAt, b.durationMinutes))) {

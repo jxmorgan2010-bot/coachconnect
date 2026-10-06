@@ -14,7 +14,7 @@ import { ProgressNoteForm } from "./BookingActions";
 export default async function CoachDashboard({ coachProfileId }: { coachProfileId: string }) {
   const profile = await prisma.coachProfile.findUniqueOrThrow({
     where: { id: coachProfileId },
-    include: { user: { select: { isSuspended: true } } },
+    include: { user: { select: { isSuspended: true } }, availability: { select: { id: true }, take: 1 } },
   });
   const expiryState = getBackgroundCheckExpiryState(profile);
 
@@ -108,6 +108,17 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
+        {profile.availability.length === 0 && (
+          <div className="flex flex-col gap-2 rounded-xl border-2 border-ink bg-warning/10 p-4 sm:flex-row sm:items-center sm:gap-3">
+            <Badge variant="warning">No hours posted</Badge>
+            <span className="text-sm text-ink">
+              Families can&apos;t book you until you post your weekly hours.{" "}
+              <Link href="/onboarding/coach#availability" className="font-bold underline">
+                Add your hours
+              </Link>
+            </span>
+          </div>
+        )}
         {profile.isSuspended && (
           <div className="rounded-xl border-2 border-ink bg-danger/10 p-4 text-sm font-bold text-ink">
             Your profile is paused pending an admin review of recent reports.

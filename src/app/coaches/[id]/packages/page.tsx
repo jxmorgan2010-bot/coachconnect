@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { isCoachLive } from "@/lib/coach";
 import SuspendedBlock from "@/components/SuspendedBlock";
+import NoHoursNotice from "@/components/NoHoursNotice";
 import PackagePurchaseForm from "./PackagePurchaseForm";
 
 export default async function PackagePurchasePage({ params }: { params: Promise<{ id: string }> }) {
@@ -13,9 +14,12 @@ export default async function PackagePurchasePage({ params }: { params: Promise<
 
   const profile = await prisma.coachProfile.findUnique({
     where: { id },
-    include: { user: true, sports: true },
+    include: { user: true, sports: true, availability: { select: { id: true }, take: 1 } },
   });
   if (!profile || !isCoachLive(profile) || !profile.hourlyRateCents) notFound();
+  if (profile.availability.length === 0) {
+    return <NoHoursNotice coachFirstName={profile.user.name.split(" ")[0]} coachProfileId={profile.id} />;
+  }
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
