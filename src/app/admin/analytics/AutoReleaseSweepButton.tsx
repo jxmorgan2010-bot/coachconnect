@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { primaryButtonClass, successClass } from "@/lib/ui";
+import { secondaryButtonClass, successClass } from "@/lib/ui";
 import { AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
 
 export default function AutoReleaseSweepButton() {
@@ -19,14 +19,14 @@ export default function AutoReleaseSweepButton() {
 
   return (
     <div className="flex flex-col gap-2">
-      <button onClick={run} className={primaryButtonClass} disabled={loading}>
-        {loading ? "Scanning bookings..." : "Run auto-release sweep now"}
+      <button onClick={run} className={`${secondaryButtonClass} self-start`} disabled={loading}>
+        {loading ? "Scanning bookings..." : "Run auto-release"}
       </button>
       <p className="text-xs text-muted-foreground">
         Auto-completes and captures payment for confirmed sessions the parent hasn&apos;t confirmed or disputed within{" "}
         {AUTO_RELEASE_GRACE_HOURS} hours of their scheduled end. Manual trigger for demo/testing.
       </p>
-      {result && <p className={successClass}>Auto-released {result.releasedCount} session(s).</p>}
+      {result && <p role="status" className={successClass}>Auto-released {result.releasedCount} session(s).</p>}
     </div>
   );
 }

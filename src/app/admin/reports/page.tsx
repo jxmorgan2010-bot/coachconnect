@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import AdminNav from "../AdminNav";
+import AdminHeader from "@/components/AdminHeader";
 import ReportRow from "./ReportRow";
 
 async function describeTarget(targetType: string, targetId: string): Promise<string> {
@@ -56,23 +56,51 @@ export default async function AdminReportsPage() {
     })),
   );
 
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <h1 className="mb-1 text-2xl font-extrabold text-secondary">Admin</h1>
-      <p className="mb-6 text-muted-foreground">
-        Reports on coach profiles and message threads. A coach is auto-suspended once they hit 3 open reports.
-      </p>
-      <AdminNav />
+  const open = rows.filter((r) => r.status === "OPEN");
+  const closed = rows.filter((r) => r.status !== "OPEN");
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No reports yet.</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {rows.map((r) => (
-            <ReportRow key={r.id} report={r} />
-          ))}
-        </div>
-      )}
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-12">
+      <AdminHeader title="Reports">
+        Reports on coach profiles and message threads, plus support requests. A coach is auto-suspended once they hit
+        3 open reports.
+      </AdminHeader>
+
+      <div className="flex flex-col gap-10">
+        <section aria-labelledby="open-reports">
+          <h2 id="open-reports" className="mb-3 flex items-baseline gap-2 font-display text-3xl text-ink">
+            Open <span className="font-sans text-sm font-bold text-muted-foreground">{open.length}</span>
+          </h2>
+          {open.length === 0 ? (
+            <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
+              No open reports.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {open.map((r) => (
+                <li key={r.id}>
+                  <ReportRow report={r} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {closed.length > 0 && (
+          <section aria-labelledby="closed-reports">
+            <h2 id="closed-reports" className="mb-3 flex items-baseline gap-2 font-display text-3xl text-ink">
+              Closed <span className="font-sans text-sm font-bold text-muted-foreground">{closed.length}</span>
+            </h2>
+            <ul className="flex flex-col gap-3">
+              {closed.map((r) => (
+                <li key={r.id}>
+                  <ReportRow report={r} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

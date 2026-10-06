@@ -35,16 +35,18 @@ export default function PointsRedeemForm({ pointsBalance }: { pointsBalance: num
   }
 
   if (pointsBalance < POINTS_PER_DOLLAR_REDEMPTION) {
-    return <p className="text-sm text-muted-foreground">Earn {POINTS_PER_DOLLAR_REDEMPTION} points to redeem your first dollar of credit.</p>;
+    return <p className="rounded-lg border-2 border-dashed border-line px-3 py-2 text-sm text-muted-foreground">Earn {POINTS_PER_DOLLAR_REDEMPTION} points to redeem your first dollar of credit.</p>;
   }
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
-      {error && <p className={errorClass}>{error}</p>}
-      {success !== null && <p className={successClass}>Redeemed! {formatCents(success)} in credit added.</p>}
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      {success !== null && <p role="status" className={successClass}>Redeemed! {formatCents(success)} in credit added.</p>}
       <div className="flex items-center gap-2">
         <input
           type="number"
+          aria-label="Points to redeem"
+          inputMode="numeric"
           min={POINTS_PER_DOLLAR_REDEMPTION}
           max={pointsBalance}
           step={1}
@@ -52,9 +54,9 @@ export default function PointsRedeemForm({ pointsBalance }: { pointsBalance: num
           value={points}
           onChange={(e) => setPoints(Number(e.target.value))}
         />
-        <span className="whitespace-nowrap text-sm text-muted-foreground">= {formatCents(previewCreditCents)}</span>
+        <span className="whitespace-nowrap font-display text-xl text-pitch" aria-live="polite">= {formatCents(previewCreditCents)}</span>
       </div>
-      <button type="submit" className={primaryButtonClass} disabled={loading}>
+      <button type="submit" className={`${primaryButtonClass} w-full`} disabled={loading}>
         {loading ? "Redeeming..." : "Redeem for credit"}
       </button>
     </form>

@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 
+/**
+ * Two-panel auth screen. On phones the form comes first and the colored panel
+ * follows it, so nobody scrolls past a banner to reach the fields.
+ */
 export default function AuthLayout({
   panelColor,
   panelIcon,
@@ -13,28 +17,34 @@ export default function AuthLayout({
   panelPoints: string[];
   children: ReactNode;
 }) {
-  const bg = panelColor === "pitch" ? "bg-pitch text-white" : panelColor === "gold" ? "bg-gold text-ink" : "bg-ink text-white";
-  const dot = panelColor === "gold" ? "bg-ink" : "bg-gold";
+  const bg =
+    panelColor === "pitch"
+      ? "on-dark bg-pitch text-white texture-hatch"
+      : panelColor === "gold"
+        ? "bg-gold text-ink texture-hatch-dark"
+        : "on-dark bg-ink text-white texture-hatch";
+  const rule = panelColor === "gold" ? "border-ink" : "border-gold";
 
   return (
-    <div className="grid min-h-[calc(100vh-65px)] md:grid-cols-2">
-      <div className={`${bg} texture-hatch-dark flex flex-col justify-center gap-6 border-b-2 border-ink px-8 py-14 md:border-b-0 md:border-r-2 md:px-14`}>
-        <span className="grid h-14 w-14 place-items-center rounded-lg border-2 border-ink bg-white/95 text-ink">
+    <div className="grid min-h-[calc(100vh-66px)] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <aside
+        className={`${bg} order-2 flex flex-col justify-center gap-6 border-t-2 border-ink px-6 py-10 sm:px-10 md:order-1 md:border-r-2 md:border-t-0 md:px-12 md:py-14 lg:px-16`}
+      >
+        <span className="grid h-14 w-14 place-items-center rounded-lg border-2 border-ink bg-white text-ink shadow-patch-sm">
           {panelIcon}
         </span>
-        <h2 className="font-display text-3xl leading-tight sm:text-4xl">{panelTitle}</h2>
-        <ul className="flex flex-col gap-2.5 text-sm font-medium opacity-90">
+        <h2 className="text-display-md max-w-sm font-display">{panelTitle}</h2>
+        <ul className="flex max-w-sm flex-col gap-3 text-sm font-bold">
           {panelPoints.map((point) => (
-            <li key={point} className="flex items-start gap-2.5">
-              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+            <li key={point} className={`border-l-4 ${rule} pl-3 leading-snug`}>
               {point}
             </li>
           ))}
         </ul>
-      </div>
+      </aside>
 
-      <div className="flex items-center justify-center px-4 py-14 sm:px-8">
-        <div className="w-full max-w-sm">{children}</div>
+      <div className="order-1 flex justify-center px-4 py-10 sm:px-8 md:order-2 md:items-center md:py-14">
+        <div className="w-full max-w-md">{children}</div>
       </div>
     </div>
   );

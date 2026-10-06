@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Badge from "@/components/Badge";
-import { secondaryButtonClass, errorClass } from "@/lib/ui";
+import { secondaryButtonClass, errorClass, quietLinkClass } from "@/lib/ui";
 
 export type RecommendationItem = {
   id: string;
@@ -45,8 +45,8 @@ export default function RecommendationPanel({ initial }: { initial: Recommendati
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        Optional: ask one of your own coaches to write you a recommendation. Verified recommendations show a
-        &quot;Recommended by Coach&quot; badge and boost your visibility in search.
+        Optional: ask one of your own coaches to write you a recommendation. Once it&apos;s submitted, your profile
+        shows a &quot;Recommended by a coach&quot; badge and ranks higher in search.
       </p>
       {error && <p className={errorClass}>{error}</p>}
 
@@ -57,9 +57,9 @@ export default function RecommendationPanel({ initial }: { initial: Recommendati
       {items.length > 0 && (
         <ul className="flex flex-col gap-2">
           {items.map((item) => (
-            <li key={item.id} className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm">
+            <li key={item.id} className="flex flex-col gap-1 rounded-lg border-2 border-line bg-chalk p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-secondary">
+                <span className="font-bold text-ink">
                   {item.recommenderName ?? "Awaiting response"}
                 </span>
                 <Badge variant={item.status === "SUBMITTED" ? "success" : "neutral"}>
@@ -72,7 +72,7 @@ export default function RecommendationPanel({ initial }: { initial: Recommendati
                 <button
                   type="button"
                   onClick={() => copy(item.token)}
-                  className="self-start text-xs font-semibold text-primary"
+                  className={`${quietLinkClass} self-start text-pitch`}
                 >
                   {copiedToken === item.token ? "Link copied!" : "Copy shareable link"}
                 </button>

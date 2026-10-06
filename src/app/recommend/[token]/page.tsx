@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import LinkNotFound from "@/components/LinkNotFound";
 import RecommendForm from "./RecommendForm";
 
 export default async function RecommendPage({ params }: { params: Promise<{ token: string }> }) {
@@ -10,24 +11,21 @@ export default async function RecommendPage({ params }: { params: Promise<{ toke
   });
 
   if (!recommendation) {
-    return (
-      <div className="mx-auto max-w-md px-4 py-16 text-center sm:px-6">
-        <h1 className="text-xl font-bold text-secondary">Link not found</h1>
-        <p className="mt-2 text-muted-foreground">This recommendation link is invalid or has expired.</p>
-      </div>
-    );
+    return <LinkNotFound what="recommendation" />;
   }
 
+  const coachName = recommendation.coachProfile.user.name;
+
   return (
-    <div className="mx-auto max-w-md px-4 py-16 sm:px-6">
-      <h1 className="mb-1 text-2xl font-extrabold text-secondary">
-        Recommend {recommendation.coachProfile.user.name}
-      </h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        {recommendation.coachProfile.user.name} asked you to write a short recommendation for their CoachConnect
-        profile. This will be shown publicly with a &quot;Recommended by Coach&quot; badge.
+    <div className="mx-auto max-w-xl px-4 py-10 sm:px-6 sm:py-16">
+      <p className="eyebrow mb-2 text-pitch">Coach recommendation</p>
+      <h1 className="text-display-lg font-display text-ink">Recommend {coachName}</h1>
+      <p className="mt-3 mb-6 text-muted-foreground">
+        {coachName} asked you to write a short recommendation for their CoachConnect coach profile. Your name, role,
+        and recommendation will appear on that public profile, along with a &quot;Recommended by a coach&quot;
+        badge.
       </p>
-      <RecommendForm token={token} coachName={recommendation.coachProfile.user.name} alreadySubmitted={recommendation.status === "SUBMITTED"} />
+      <RecommendForm token={token} coachName={coachName} alreadySubmitted={recommendation.status === "SUBMITTED"} />
     </div>
   );
 }

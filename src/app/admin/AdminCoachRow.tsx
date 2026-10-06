@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { IdVerificationStatus, BackgroundCheckStatus } from "@/generated/prisma/client";
 import Badge from "@/components/Badge";
 import { getBackgroundCheckExpiryState } from "@/lib/coach";
-import { secondaryButtonClass } from "@/lib/ui";
+import { secondaryButtonClass, primaryButtonClass, inputClass } from "@/lib/ui";
 
 type CoachRowData = {
   id: string;
@@ -94,13 +94,13 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
   });
 
   return (
-    <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <Link href={`/coaches/${coach.id}`} className="font-bold text-secondary hover:text-primary">
+    <div className={`${isSuspended ? "card-flat border-danger" : "card"} grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto]`}>
+      <div className="min-w-0">
+        <Link href={`/coaches/${coach.id}`} className="inline-flex min-h-11 items-center font-display text-2xl leading-tight text-ink underline-offset-4 hover:underline">
           {coach.name}
         </Link>
-        <p className="text-xs text-muted-foreground">{coach.email}</p>
-        <div className="mt-1 flex flex-wrap gap-1.5">
+        <p className="truncate text-sm text-muted-foreground">{coach.email}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
           <Badge variant={coach.profileComplete ? "success" : "neutral"}>
             {coach.profileComplete ? "Profile complete" : "Profile incomplete"}
           </Badge>
@@ -117,11 +117,11 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
         </div>
 
         {minorCoachesEnabled && coach.isMinorCoach && (
-          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
+          <div className="mt-3 flex flex-col gap-2 rounded-lg border-2 border-line bg-chalk p-3">
             <p className="text-xs text-muted-foreground">
               Guardian consent:{" "}
               {coach.minorGuardianConsentedAt ? (
-                <span className="font-bold text-secondary">
+                <span className="font-bold text-ink">
                   Signed by {coach.minorGuardianName} on{" "}
                   {new Date(coach.minorGuardianConsentedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
@@ -136,7 +136,7 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
             <textarea
               id={`minor-note-${coach.id}`}
               rows={2}
-              className="w-full rounded-md border border-border p-2 text-sm"
+              className={inputClass}
               value={minorNote}
               onChange={(e) => {
                 setMinorNote(e.target.value);
@@ -150,46 +150,60 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {coach.hasIdPhoto && (
-          <a
-            href={`/api/admin/coaches/${coach.id}/id-photo`}
-            className={secondaryButtonClass}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View ID
-          </a>
-        )}
-        {idStatus !== "APPROVED" && (
-          <button onClick={() => setId("APPROVED")} disabled={loading || !coach.hasIdPhoto} className={secondaryButtonClass}>
-            Approve ID
-          </button>
-        )}
-        {idStatus !== "REJECTED" && (
-          <button onClick={() => setId("REJECTED")} disabled={loading} className={`${secondaryButtonClass} text-danger`}>
-            Reject ID
-          </button>
-        )}
-        {bgcStatus !== "CLEAR" && (
-          <button onClick={() => setBgc("CLEAR")} disabled={loading} className={secondaryButtonClass}>
-            Mark BG Clear
-          </button>
-        )}
-        {(expiryState === "RENEWAL_NEEDED" || expiryState === "EXPIRED") && (
-          <button onClick={() => setBgc("CLEAR")} disabled={loading} className={secondaryButtonClass}>
-            Renew (+12mo)
-          </button>
-        )}
-        {bgcStatus !== "FLAGGED" && (
-          <button onClick={() => setBgc("FLAGGED")} disabled={loading} className={`${secondaryButtonClass} text-danger`}>
-            Flag BG
-          </button>
-        )}
+      {/* Actions grouped by what they act on */}
+      <div className="flex flex-col gap-3 border-t-2 border-line pt-4 lg:min-w-[22rem] lg:border-l-2 lg:border-t-0 lg:pl-5 lg:pt-0">
+        <div role="group" aria-label={`ID actions for ${coach.name}`} className="flex flex-wrap items-center gap-2">
+          <span className="eyebrow w-24 shrink-0 text-muted-foreground">ID</span>
+          {coach.hasIdPhoto ? (
+            <a
+              href={`/api/admin/coaches/${coach.id}/id-photo`}
+              className={secondaryButtonClass}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View ID
+            </a>
+          ) : (
+            <span className="text-sm text-muted-foreground">Not uploaded</span>
+          )}
+          {idStatus !== "APPROVED" && (
+            <button onClick={() => setId("APPROVED")} disabled={loading || !coach.hasIdPhoto} className={primaryButtonClass}>
+              Approve
+            </button>
+          )}
+          {idStatus !== "REJECTED" && (
+            <button onClick={() => setId("REJECTED")} disabled={loading} className={`${secondaryButtonClass} text-danger`}>
+              Reject
+            </button>
+          )}
+        </div>
+
+        <div role="group" aria-label={`Background check actions for ${coach.name}`} className="flex flex-wrap items-center gap-2">
+          <span className="eyebrow w-24 shrink-0 text-muted-foreground">Background</span>
+          {bgcStatus !== "CLEAR" && (
+            <button onClick={() => setBgc("CLEAR")} disabled={loading} className={secondaryButtonClass}>
+              Mark clear
+            </button>
+          )}
+          {(expiryState === "RENEWAL_NEEDED" || expiryState === "EXPIRED") && (
+            <button onClick={() => setBgc("CLEAR")} disabled={loading} className={secondaryButtonClass}>
+              Renew (+12mo)
+            </button>
+          )}
+          {bgcStatus !== "FLAGGED" && (
+            <button onClick={() => setBgc("FLAGGED")} disabled={loading} className={`${secondaryButtonClass} text-danger`}>
+              Flag
+            </button>
+          )}
+        </div>
+
         {isSuspended && (
-          <button onClick={unsuspend} disabled={loading} className={secondaryButtonClass}>
-            Unsuspend
-          </button>
+          <div role="group" aria-label={`Account actions for ${coach.name}`} className="flex flex-wrap items-center gap-2">
+            <span className="eyebrow w-24 shrink-0 text-muted-foreground">Account</span>
+            <button onClick={unsuspend} disabled={loading} className={secondaryButtonClass}>
+              Unsuspend
+            </button>
+          </div>
         )}
       </div>
     </div>

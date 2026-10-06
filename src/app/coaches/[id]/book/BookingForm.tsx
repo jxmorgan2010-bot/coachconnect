@@ -284,12 +284,16 @@ function BookingFormInner({
 
   if (success) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 sm:px-6">
-        <div className="card p-6">
-          <p className={successClass}>Session booked with {coach.name}!</p>
+      <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 sm:py-16">
+        <div className="card p-6 sm:p-8">
+          <p className="eyebrow mb-3 text-pitch">Booked</p>
+          <h1 className="text-display-md font-display text-ink">You&apos;re on {coach.name}&apos;s calendar</h1>
+          <p className="mt-3 text-muted-foreground">
+            You&apos;ll find the time, place, and payment details on your dashboard.
+          </p>
           {success.videoCallUrl ? (
-            <div className="mt-4 rounded-lg border-2 border-ink bg-muted p-4">
-              <p className="font-display text-lg text-ink">First session? Hop on a quick video call first.</p>
+            <div className="mt-5 rounded-lg border-2 border-ink bg-muted p-4">
+              <p className="font-display text-lg leading-tight text-ink">First session? Hop on a quick video call first.</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Meeting a new coach in person for the first time? We recommend a short video call beforehand.
                 (Mock link — placeholder for a real video provider.)
@@ -299,7 +303,7 @@ function BookingFormInner({
               </code>
             </div>
           ) : null}
-          <button onClick={() => router.push("/dashboard")} className={`${primaryButtonClass} mt-4`}>
+          <button onClick={() => router.push("/dashboard")} className={`${primaryButtonClass} mt-6 w-full sm:w-auto`}>
             Go to my dashboard
           </button>
         </div>
@@ -307,204 +311,251 @@ function BookingFormInner({
     );
   }
 
+  const sectionClass = "flex flex-col gap-4 border-t-2 border-line pt-6 first-of-type:border-t-0 first-of-type:pt-0";
+  // float takes the legend out of the fieldset border so it lays out like a normal heading
+  const legendClass = "float-left mb-1 flex w-full items-baseline gap-2.5 font-display text-2xl leading-none text-ink";
+  const stepClass = "font-display text-base text-pitch";
+
   return (
-    <div className="mx-auto max-w-lg px-4 py-12 sm:px-6">
-      <h1 className="mb-1 font-display text-3xl text-ink">Book {coach.name}</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        You choose the location — a park, school gym, or rec center. Never the coach&apos;s call.
+    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+      <p className="eyebrow mb-2 text-pitch">Book a session</p>
+      <h1 className="text-display-lg font-display text-ink">Book {coach.name}</h1>
+      <p className="mt-2 text-muted-foreground">
+        {formatCents(coach.hourlyRateCents).replace(".00", "")}/hr · You choose where you meet — a park, school gym,
+        or rec center.
       </p>
 
       {activePackage && (
-        <div className="mb-6 rounded-lg border-2 border-ink bg-accent/10 px-4 py-2.5 text-sm font-bold text-ink">
+        <p className="mt-5 rounded-lg border-2 border-ink bg-accent/15 px-4 py-3 text-sm font-bold text-ink">
           Booking from your package — {activePackage.sessionsRemaining} session{activePackage.sessionsRemaining === 1 ? "" : "s"} left, no charge today.
-        </div>
+        </p>
       )}
 
-      {showAddChild ? (
-        <form onSubmit={addChild} className="card mb-6 flex flex-col gap-4 p-5">
-          <p className="font-display text-lg text-ink">Who&apos;s this session for?</p>
-          {addChildError && <p className={errorClass}>{addChildError}</p>}
-          <div>
-            <label className={labelClass} htmlFor="childName">Child&apos;s first name</label>
-            <input id="childName" className={inputClass} value={newChildName} onChange={(e) => setNewChildName(e.target.value)} required />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="childGrade">Grade or age</label>
-            <input id="childGrade" className={inputClass} placeholder="e.g. 5th grade or age 10" value={newChildGrade} onChange={(e) => setNewChildGrade(e.target.value)} required />
-          </div>
-          <div className="flex gap-3">
-            <button type="submit" className={primaryButtonClass} disabled={addChildLoading}>
-              {addChildLoading ? "Adding..." : "Add child"}
-            </button>
-            {childList.length > 0 && (
-              <button type="button" className={secondaryButtonClass} onClick={() => setShowAddChild(false)}>
-                Cancel
+      <div className="mt-6">
+        {showAddChild ? (
+          <form onSubmit={addChild} className="card flex flex-col gap-4 p-5 sm:p-6">
+            <h2 className="font-display text-2xl leading-none text-ink">Who&apos;s this session for?</h2>
+            {addChildError && <p role="alert" className={errorClass}>{addChildError}</p>}
+            <div>
+              <label className={labelClass} htmlFor="childName">Child&apos;s first name</label>
+              <input id="childName" className={inputClass} value={newChildName} onChange={(e) => setNewChildName(e.target.value)} required />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="childGrade">Grade or age</label>
+              <input id="childGrade" className={inputClass} placeholder="e.g. 5th grade or age 10" value={newChildGrade} onChange={(e) => setNewChildGrade(e.target.value)} required />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" className={primaryButtonClass} disabled={addChildLoading}>
+                {addChildLoading ? "Adding..." : "Add child"}
               </button>
-            )}
-          </div>
-        </form>
-      ) : (
-        <form onSubmit={onSubmit} className="card flex flex-col gap-4 p-5">
-          {error && (
-            <p ref={errorRef} className={errorClass}>
-              {error}
-            </p>
-          )}
-
-          <div>
-            <label className={labelClass} htmlFor="child">Child</label>
-            <div className="flex gap-2">
-              <select id="child" className={inputClass} value={childId} onChange={(e) => setChildId(e.target.value)}>
-                {childList.map((c) => (
-                  <option key={c.id} value={c.id}>{c.firstName} ({c.gradeOrAge})</option>
-                ))}
-              </select>
-              <button type="button" className={secondaryButtonClass} onClick={() => setShowAddChild(true)}>
-                + Add
-              </button>
+              {childList.length > 0 && (
+                <button type="button" className={secondaryButtonClass} onClick={() => setShowAddChild(false)}>
+                  Cancel
+                </button>
+              )}
             </div>
-          </div>
-
-          <div>
-            <label className={labelClass} htmlFor="sport">Sport</label>
-            <select id="sport" className={inputClass} value={sport} disabled={!!activePackage} onChange={(e) => setSport(e.target.value as Sport)}>
-              {coach.sports.map((s) => (
-                <option key={s} value={s}>{SPORT_LABELS[s]}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass} htmlFor="date">Date</label>
-              <input id="date" type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} required />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="duration">Duration</label>
-              <select id="duration" className={inputClass} value={duration} disabled={!!activePackage} onChange={(e) => setDuration(Number(e.target.value))}>
-                {DURATIONS.map((d) => (
-                  <option key={d} value={d}>{d} minutes</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Time</label>
-            {!date ? (
-              <p className="text-sm text-muted-foreground">Pick a date to see open times.</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {timeSlots.map((slot) => (
-                  <button
-                    key={slot.value}
-                    type="button"
-                    disabled={slot.disabled}
-                    onClick={() => setTime(slot.value)}
-                    className={`rounded-lg border-2 border-ink px-2 py-2 text-xs font-bold ${
-                      slot.disabled
-                        ? "cursor-not-allowed bg-muted text-muted-foreground opacity-50 line-through"
-                        : time === slot.value
-                          ? "bg-ink text-white"
-                          : "bg-surface text-ink hover:bg-muted"
-                    }`}
-                  >
-                    {slot.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            {date && bookedRangesForDate.length > 0 && (
-              <p className="mt-2 text-xs text-muted-foreground">Greyed-out times are already booked with this coach.</p>
-            )}
-          </div>
-
-          <div>
-            <label className={labelClass} htmlFor="location">Location</label>
-            <input
-              id="location"
-              className={inputClass}
-              placeholder="e.g. Zilker Park courts, or Northside Rec Center gym"
-              value={locationText}
-              onChange={(e) => setLocationText(e.target.value)}
-              required
-            />
-            <p className="mt-1 text-xs text-muted-foreground">Always a public spot — you pick it, not the coach.</p>
-          </div>
-
-          {coach.isMinorCoach && (
-            <div>
-              <label className={labelClass} htmlFor="secondAdultName">Second adult present</label>
-              <input
-                id="secondAdultName"
-                className={inputClass}
-                placeholder="Name of the additional adult who'll be at the session"
-                value={secondAdultName}
-                onChange={(e) => setSecondAdultName(e.target.value)}
-                required
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                This coach is under 18. CoachConnect requires a second adult — beyond you, the booking parent — to
-                be present at every session with a minor coach.
+          </form>
+        ) : (
+          <form onSubmit={onSubmit} className="card flex flex-col gap-6 p-5 sm:p-6">
+            {error && (
+              <p ref={errorRef} role="alert" className={errorClass}>
+                {error}
               </p>
-            </div>
-          )}
+            )}
 
-          {activePackage ? (
-            <p className={successClass}>Included in your package — no charge for this session.</p>
-          ) : (
-            <div className="rounded-lg border-2 border-ink bg-muted p-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Session cost</span>
-                <span className="font-bold text-ink">{formatCents(breakdown.sessionCostCents)}</span>
+            {/* The four steps really are a sequence, so they're numbered */}
+            <fieldset className={sectionClass}>
+              <legend className={legendClass}>
+                <span className={stepClass} aria-hidden>01</span> Who and what
+              </legend>
+              <div>
+                <label className={labelClass} htmlFor="child">Child</label>
+                <div className="flex gap-2">
+                  <select id="child" className={inputClass} value={childId} onChange={(e) => setChildId(e.target.value)}>
+                    {childList.map((c) => (
+                      <option key={c.id} value={c.id}>{c.firstName} ({c.gradeOrAge})</option>
+                    ))}
+                  </select>
+                  <button type="button" className={`${secondaryButtonClass} shrink-0 px-4`} onClick={() => setShowAddChild(true)}>
+                    + Add child
+                  </button>
+                </div>
               </div>
-              {discountCents > 0 && (
-                <div className="flex justify-between text-pitch">
-                  <span>Referral credit applied</span>
-                  <span className="font-bold">-{formatCents(discountCents)}</span>
+
+              <div>
+                <label className={labelClass} htmlFor="sport">Sport</label>
+                <select id="sport" className={inputClass} value={sport} disabled={!!activePackage} onChange={(e) => setSport(e.target.value as Sport)}>
+                  {coach.sports.map((s) => (
+                    <option key={s} value={s}>{SPORT_LABELS[s]}</option>
+                  ))}
+                </select>
+              </div>
+            </fieldset>
+
+            <fieldset className={sectionClass}>
+              <legend className={legendClass}>
+                <span className={stepClass} aria-hidden>02</span> When
+              </legend>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label className={labelClass} htmlFor="date">Date</label>
+                  <input id="date" type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} required />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="duration">Length</label>
+                  <select id="duration" className={inputClass} value={duration} disabled={!!activePackage} onChange={(e) => setDuration(Number(e.target.value))}>
+                    {DURATIONS.map((d) => (
+                      <option key={d} value={d}>{d} minutes</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div role="group" aria-labelledby="time-label">
+                <p id="time-label" className={labelClass}>Start time</p>
+                {!date ? (
+                  <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
+                    Pick a date to see open times.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                    {timeSlots.map((slot) => (
+                      <button
+                        key={slot.value}
+                        type="button"
+                        disabled={slot.disabled}
+                        aria-pressed={time === slot.value}
+                        onClick={() => setTime(slot.value)}
+                        className={`min-h-11 rounded-lg border-2 px-1 text-sm font-bold ${
+                          slot.disabled
+                            ? "cursor-not-allowed border-line bg-muted text-muted-foreground line-through"
+                            : time === slot.value
+                              ? "border-ink bg-ink text-white shadow-patch-xs"
+                              : "border-ink bg-surface text-ink hover:bg-gold-bright/40"
+                        }`}
+                      >
+                        {slot.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {date && bookedRangesForDate.length > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">Crossed-out times are already booked with this coach.</p>
+                )}
+              </div>
+            </fieldset>
+
+            <fieldset className={sectionClass}>
+              <legend className={legendClass}>
+                <span className={stepClass} aria-hidden>03</span> Where
+              </legend>
+              <div>
+                <label className={labelClass} htmlFor="location">Location</label>
+                <input
+                  id="location"
+                  className={inputClass}
+                  placeholder="e.g. Golden Gate Park tennis courts"
+                  value={locationText}
+                  onChange={(e) => setLocationText(e.target.value)}
+                  aria-describedby="location-help"
+                  required
+                />
+                <p id="location-help" className="mt-1.5 text-xs text-muted-foreground">
+                  Pick a public spot like a park, school gym, or rec center. You choose — not the coach.
+                </p>
+              </div>
+
+              {coach.isMinorCoach && (
+                <div>
+                  <label className={labelClass} htmlFor="secondAdultName">Second adult present</label>
+                  <input
+                    id="secondAdultName"
+                    className={inputClass}
+                    placeholder="Name of the additional adult who'll be at the session"
+                    value={secondAdultName}
+                    onChange={(e) => setSecondAdultName(e.target.value)}
+                    aria-describedby="second-adult-help"
+                    required
+                  />
+                  <p id="second-adult-help" className="mt-1.5 text-xs text-muted-foreground">
+                    This coach is under 18. CoachConnect requires a second adult — beyond you, the booking parent — to
+                    be present at every session with a minor coach.
+                  </p>
                 </div>
               )}
-              <div className="mt-2 flex justify-between border-t-2 border-ink pt-2 font-display text-lg text-ink">
-                <span>Card hold today</span>
-                <span>{formatCents(totalDueCents)}</span>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Your card is authorized (held), not charged, when you book. It&apos;s only captured after you mark the
-                session complete — minus a 15% platform fee to the coach&apos;s payout. Card/digital payment only.
-              </p>
-            </div>
-          )}
+            </fieldset>
 
-          {!activePackage && (
-            paymentRequired ? (
-              stripe && elements ? (
-                <CardSection zip={zip} onZipChange={setZip} />
-              ) : stripeSlowToLoad ? (
-                <p className={errorClass}>
-                  Payments aren&apos;t configured — add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-                  (test-mode keys from your Stripe dashboard) to .env and restart the server.
-                </p>
+            <fieldset className={sectionClass}>
+              <legend className={legendClass}>
+                <span className={stepClass} aria-hidden>04</span> {activePackage ? "Confirm" : "Pay"}
+              </legend>
+
+              {activePackage ? (
+                <p className={successClass}>Included in your package — no charge for this session.</p>
               ) : (
-                <p className="text-sm text-muted-foreground">Loading payment form...</p>
-              )
-            ) : (
-              <p className={successClass}>Fully covered by your referral credit — no card needed for this booking.</p>
-            )
-          )}
+                // Receipt: dashed rules, totals in display type
+                <div className="rounded-lg border-2 border-ink bg-chalk p-4 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Session cost ({duration} min)</span>
+                    <span className="font-bold text-ink">{formatCents(breakdown.sessionCostCents)}</span>
+                  </div>
+                  {discountCents > 0 && (
+                    <div className="mt-1 flex justify-between gap-4 text-pitch">
+                      <span>Referral credit applied</span>
+                      <span className="font-bold">-{formatCents(discountCents)}</span>
+                    </div>
+                  )}
+                  <div className="mt-3 flex items-baseline justify-between gap-4 border-t-2 border-dashed border-ink pt-3 text-ink">
+                    <span className="font-display text-lg leading-none">Card hold today</span>
+                    <span className="font-display text-2xl leading-none">{formatCents(totalDueCents)}</span>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                    Your card is authorized (held), not charged, when you book. It&apos;s only captured after you mark the
+                    session complete — minus a 15% platform fee to the coach&apos;s payout. Card/digital payment only.
+                  </p>
+                </div>
+              )}
 
-          <label className="flex items-start gap-2 text-sm text-muted-foreground">
-            <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} required />
-            I&apos;m the parent/guardian booking this session and I consent to my child meeting with this coach at
-            the location above.
-          </label>
+              {!activePackage && (
+                paymentRequired ? (
+                  stripe && elements ? (
+                    <CardSection zip={zip} onZipChange={setZip} />
+                  ) : stripeSlowToLoad ? (
+                    <p className={errorClass}>
+                      Payments aren&apos;t configured — add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+                      (test-mode keys from your Stripe dashboard) to .env and restart the server.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Loading payment form...</p>
+                  )
+                ) : (
+                  <p className={successClass}>Fully covered by your referral credit — no card needed for this booking.</p>
+                )
+              )}
 
-          {error && <p className={errorClass}>{error}</p>}
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-line bg-surface p-3 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--pitch)]"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                  required
+                />
+                <span>
+                  I&apos;m the parent/guardian booking this session and I consent to my child meeting with this coach at
+                  the location above.
+                </span>
+              </label>
+            </fieldset>
 
-          <button type="submit" className={primaryButtonClass} disabled={loading}>
-            {loading ? "Booking..." : paymentRequired ? `Book & hold ${formatCents(totalDueCents)}` : "Book session"}
-          </button>
-        </form>
-      )}
+            {error && <p className={errorClass}>{error}</p>}
+
+            <button type="submit" className={`${primaryButtonClass} w-full text-base`} disabled={loading}>
+              {loading ? "Booking..." : paymentRequired ? `Book & hold ${formatCents(totalDueCents)}` : "Book session"}
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

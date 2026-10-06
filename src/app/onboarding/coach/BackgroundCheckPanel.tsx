@@ -8,9 +8,9 @@ import { primaryButtonClass, errorClass } from "@/lib/ui";
 
 const STATUS_META: Record<BackgroundCheckStatus, { label: string; variant: "success" | "warning" | "danger" | "neutral" }> = {
   NOT_STARTED: { label: "Not started", variant: "neutral" },
-  PENDING: { label: "Pending...", variant: "warning" },
-  CLEAR: { label: "Clear", variant: "success" },
-  FLAGGED: { label: "Flagged — under admin review", variant: "danger" },
+  PENDING: { label: "In progress", variant: "warning" },
+  CLEAR: { label: "Step complete", variant: "success" },
+  FLAGGED: { label: "Needs a follow-up from our team", variant: "danger" },
 };
 
 export default function BackgroundCheckPanel({
@@ -46,9 +46,11 @@ export default function BackgroundCheckPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">
-        We run a mock Checkr-style background check. Your profile can&apos;t go live until this comes back clear and
-        an admin reviews it alongside your ID. Checks are valid for 12 months.
+      {/* Process wording only — the check is a placeholder, so nothing here may read as a real
+          verification outcome (see REDESIGN-FOLLOWUPS.md #2). */}
+      <p className="text-sm text-ink/85">
+        <span className="font-bold text-ink">Background check:</span> required before your profile goes live.
+        During our early beta, our team reviews each coach personally. You&apos;ll renew this step once a year.
       </p>
       {error && <p className={errorClass}>{error}</p>}
       <div className="flex flex-wrap items-center gap-3">
@@ -56,8 +58,8 @@ export default function BackgroundCheckPanel({
         {status === "CLEAR" && expiry && (
           <span className="text-sm text-muted-foreground">
             {expiryState === "EXPIRED"
-              ? `Expired ${expiry.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-              : `Valid through ${expiry.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+              ? `Lapsed ${expiry.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+              : `Renew by ${expiry.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
           </span>
         )}
         {(status === "NOT_STARTED" || status === "FLAGGED" || expiryState === "RENEWAL_NEEDED" || expiryState === "EXPIRED") && (
@@ -65,13 +67,13 @@ export default function BackgroundCheckPanel({
             {loading
               ? "Submitting..."
               : status === "FLAGGED"
-                ? "Run check again"
+                ? "Start the step again"
                 : status === "CLEAR"
                   ? "Renew background check"
                   : "Start background check"}
           </button>
         )}
-        {loading && status === "PENDING" && <span className="text-sm text-muted-foreground">Checking records...</span>}
+        {loading && status === "PENDING" && <span className="text-sm text-muted-foreground">Working on it...</span>}
       </div>
     </div>
   );

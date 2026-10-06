@@ -43,16 +43,16 @@ export default function MinorConsentForm({
   }
 
   if (submitted) {
-    return <p className={successClass}>Thanks — your consent has been recorded for {coachName}&apos;s profile.</p>;
+    return <p role="status" className={successClass}>Thanks — your consent has been recorded for {coachName}&apos;s profile.</p>;
   }
 
   return (
-    <form onSubmit={onSubmit} className="card flex flex-col gap-4 p-5">
-      {error && <p className={errorClass}>{error}</p>}
+    <form onSubmit={onSubmit} className="card flex flex-col gap-4 p-5 sm:p-6">
+      {error && <p role="alert" className={errorClass}>{error}</p>}
 
       <div>
         <label className={labelClass} htmlFor="guardianName">Your full name</label>
-        <input id="guardianName" className={inputClass} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} required />
+        <input id="guardianName" autoComplete="name" className={inputClass} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} required />
       </div>
       <div>
         <label className={labelClass} htmlFor="guardianRelationship">Your relationship to {coachName}</label>
@@ -67,16 +67,16 @@ export default function MinorConsentForm({
       </div>
       <div>
         <label className={labelClass} htmlFor="guardianEmail">Your email</label>
-        <input id="guardianEmail" type="email" className={inputClass} value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} required />
+        <input id="guardianEmail" type="email" autoComplete="email" className={inputClass} value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} required />
       </div>
 
-      <label className="flex items-start gap-2 text-sm text-muted-foreground">
-        <input type="checkbox" className="mt-1" checked={consented} onChange={(e) => setConsented(e.target.checked)} required />
+      <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-line bg-surface p-3 text-sm text-ink">
+        <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--pitch)]" checked={consented} onChange={(e) => setConsented(e.target.checked)} required />
         I am the parent/legal guardian named above, and I consent to {coachName} creating and holding a coach
         profile on CoachConnect.
       </label>
 
-      <button type="submit" className={primaryButtonClass} disabled={loading}>
+      <button type="submit" className={`${primaryButtonClass} w-full text-base`} disabled={loading}>
         {loading ? "Submitting..." : "Sign consent"}
       </button>
     </form>

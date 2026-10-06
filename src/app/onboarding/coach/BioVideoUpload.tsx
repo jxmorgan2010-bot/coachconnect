@@ -88,12 +88,12 @@ function ClipUploader({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+    <div className="flex flex-col gap-3 rounded-xl border-2 border-line bg-chalk p-4">
       {/* Hidden probe element used only to read the file's duration client-side before upload. */}
       <video ref={videoProbeRef} className="hidden" muted />
 
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-secondary">{meta.title}</h3>
+        <h3 className="font-display text-lg leading-none text-ink">{meta.title}</h3>
         {url ? <Badge variant="success">Uploaded{seconds ? ` · ${seconds}s` : ""}</Badge> : <Badge>Not uploaded</Badge>}
       </div>
       <p className="text-xs text-muted-foreground">{meta.instructions}</p>
@@ -103,12 +103,12 @@ function ClipUploader({
         <video controls className="h-32 w-full rounded-lg border-2 border-ink object-cover" src={url} />
       )}
 
-      <label className={`${secondaryButtonClass} w-fit cursor-pointer`}>
+      <label className={`${secondaryButtonClass} w-fit cursor-pointer has-[:focus-visible]:outline-solid has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}>
         {loading ? "Uploading..." : url ? "Re-record / replace" : "Upload clip"}
         <input
           type="file"
           accept="video/mp4,video/webm,video/quicktime"
-          className="hidden"
+          className="sr-only"
           disabled={loading}
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -132,11 +132,11 @@ export default function BioVideoUpload({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        Optional: record a short bio video in three separate clips (60 seconds each, max). Upload all three to earn
-        a &quot;Video verified&quot; badge on your profile — it&apos;s purely a trust boost, not required to go
+        Optional: record a short bio video in three separate clips (60 seconds each, max). Upload all three to add
+        a &quot;Video intro&quot; badge to your profile — it&apos;s not required to go
         live. You can re-record any single clip later without redoing the others.
       </p>
-      {allUploaded && <Badge variant="success">Video verified — all three clips uploaded</Badge>}
+      {allUploaded && <Badge variant="success">All three clips uploaded — your profile shows a &quot;Video intro&quot; badge</Badge>}
 
       <div className="grid gap-4 sm:grid-cols-3">
         {(["intro", "coaching", "playing"] as const).map((clipType) => (

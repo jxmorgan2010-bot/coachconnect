@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { primaryButtonClass, successClass } from "@/lib/ui";
+import { secondaryButtonClass, successClass } from "@/lib/ui";
 
 export default function ReminderSweepButton() {
   const [loading, setLoading] = useState(false);
@@ -18,15 +18,15 @@ export default function ReminderSweepButton() {
 
   return (
     <div className="flex flex-col gap-2">
-      <button onClick={run} className={primaryButtonClass} disabled={loading}>
-        {loading ? "Scanning bookings..." : "Run reminder sweep now"}
+      <button onClick={run} className={`${secondaryButtonClass} self-start`} disabled={loading}>
+        {loading ? "Scanning bookings..." : "Send due reminders"}
       </button>
       <p className="text-xs text-muted-foreground">
         In production, a real scheduler (e.g. Vercel Cron) would hit this on a timer — this button is a manual
         trigger for demo/testing. Reminders log to the server console (mock email).
       </p>
       {result && (
-        <p className={successClass}>
+        <p role="status" className={successClass}>
           Sent {result.sent24h} 24-hour and {result.sent1h} 1-hour reminder(s).
         </p>
       )}

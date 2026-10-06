@@ -2,7 +2,9 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import ReportButton from "@/components/ReportButton";
+import Link from "next/link";
 import MessageComposer from "./MessageComposer";
+import { quietLinkClass } from "@/lib/ui";
 
 export default async function ThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,32 +29,40 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   const otherName = isParentSide ? thread.coachProfile.user.name : thread.parentProfile.user.name;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col px-4 py-10 sm:px-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="font-display text-3xl text-ink">{otherName}</h1>
-        <ReportButton targetType="MESSAGE" targetId={thread.id} />
+    <div className="mx-auto flex max-w-3xl flex-col px-4 py-8 sm:px-6 md:py-12">
+      <Link href="/messages" className={`${quietLinkClass} -ml-1 mb-1 self-start text-pitch`}>
+        ← All messages
+      </Link>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-display-lg font-display text-ink">{otherName}</h1>
+        <ReportButton targetType="MESSAGE" targetId={thread.id} variant="quiet" />
       </div>
-      <p className="mb-4 text-xs text-muted-foreground">
-        Messages here never reveal phone numbers, emails, or addresses. Keep it in the app.
+      {/* Guidance, not a guarantee — nothing filters what people type (REDESIGN-FOLLOWUPS.md #3) */}
+      <p className="mb-4 rounded-lg border-2 border-line bg-chalk px-3 py-2 text-xs text-muted-foreground">
+        Keep it in the app: don&apos;t share phone numbers, emails, or home addresses. Payment protection only covers
+        sessions booked here.
       </p>
 
-      <div className="card mb-4 flex flex-col gap-3 p-4">
+      <div role="log" aria-label={`Conversation with ${otherName}`} className="card mb-4 flex flex-col gap-4 p-4 sm:p-5">
         {thread.messages.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">No messages yet — say hello.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">No messages yet — say hello.</p>
         ) : (
           thread.messages.map((m) => {
             const mine = m.senderId === session.user.id;
             return (
               <div key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
                 <div
-                  className={`max-w-[80%] rounded-lg border-2 border-ink px-3 py-2 text-sm ${
-                    mine ? "bg-pitch text-white" : "bg-muted text-ink"
+                  className={`max-w-[85%] whitespace-pre-line break-words rounded-xl border-2 border-ink px-3.5 py-2.5 text-[15px] leading-snug ${
+                    mine ? "rounded-br-sm bg-pitch text-white" : "rounded-bl-sm bg-muted text-ink"
                   }`}
                 >
                   {m.body}
                 </div>
-                <span className="mt-1 text-[10px] text-muted-foreground">
-                  {m.sender.name} &middot; {m.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                <span className="mt-1 text-xs text-muted-foreground">
+                  {mine ? "You" : m.sender.name} &middot;{" "}
+                  <time dateTime={m.createdAt.toISOString()}>
+                    {m.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </time>
                 </span>
               </div>
             );

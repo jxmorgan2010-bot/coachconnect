@@ -3,7 +3,7 @@ import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isCoachLive, getBackgroundCheckExpiryState } from "@/lib/coach";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
-import AdminNav from "./AdminNav";
+import AdminHeader from "@/components/AdminHeader";
 import AdminCoachRow from "./AdminCoachRow";
 import type { CoachProfile } from "@/generated/prisma/client";
 
@@ -42,51 +42,39 @@ export default async function AdminPage() {
   );
   const live = profiles.filter((p) => !p.isSuspended && isCoachLive(p) && getBackgroundCheckExpiryState(p) !== "RENEWAL_NEEDED");
 
+  const sections = [
+    { id: "suspended", title: "Suspended — 3+ reports", rows: suspended, hideWhenEmpty: true, empty: "" },
+    { id: "expiring", title: "Background check step due within 30 days", rows: expiringSoon, hideWhenEmpty: true, empty: "" },
+    { id: "pending", title: "Pending review", rows: pending, hideWhenEmpty: false, empty: "Nothing waiting on you." },
+    { id: "live", title: "Live coaches", rows: live, hideWhenEmpty: false, empty: "No live coaches yet." },
+  ].filter((s) => !s.hideWhenEmpty || s.rows.length > 0);
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <h1 className="mb-1 text-2xl font-extrabold text-secondary">Admin</h1>
-      <p className="mb-6 text-muted-foreground">
-        A coach profile only becomes searchable once ID verification is approved AND the background check is
-        clear.
-      </p>
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-12">
+      <AdminHeader title="Verifications">
+        A coach only becomes searchable once their ID is approved <span className="font-bold text-ink">and</span>{" "}
+        their background check step is marked clear. That check is currently a mock, not a real screening.
+      </AdminHeader>
 
-      <AdminNav />
-
-      {suspended.length > 0 && (
-        <>
-          <h2 className="mb-3 text-lg font-bold text-secondary">Suspended — 3+ reports ({suspended.length})</h2>
-          <div className="mb-10 flex flex-col gap-3">
-            {suspended.map((p) => (
-              <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {expiringSoon.length > 0 && (
-        <>
-          <h2 className="mb-3 text-lg font-bold text-secondary">Background check expiring within 30 days ({expiringSoon.length})</h2>
-          <div className="mb-10 flex flex-col gap-3">
-            {expiringSoon.map((p) => (
-              <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
-            ))}
-          </div>
-        </>
-      )}
-
-      <h2 className="mb-3 text-lg font-bold text-secondary">Pending review ({pending.length})</h2>
-      <div className="mb-10 flex flex-col gap-3">
-        {pending.length === 0 && <p className="text-sm text-muted-foreground">Nothing pending.</p>}
-        {pending.map((p) => (
-          <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
-        ))}
-      </div>
-
-      <h2 className="mb-3 text-lg font-bold text-secondary">Live coaches ({live.length})</h2>
-      <div className="flex flex-col gap-3">
-        {live.length === 0 && <p className="text-sm text-muted-foreground">No live coaches yet.</p>}
-        {live.map((p) => (
-          <AdminCoachRow key={p.id} coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
+      <div className="flex flex-col gap-10">
+        {sections.map((s) => (
+          <section key={s.id} aria-labelledby={`sec-${s.id}`}>
+            <h2 id={`sec-${s.id}`} className="mb-3 flex items-baseline gap-2 font-display text-3xl text-ink">
+              {s.title}
+              <span className="font-sans text-sm font-bold text-muted-foreground">{s.rows.length}</span>
+            </h2>
+            {s.rows.length === 0 ? (
+              <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">{s.empty}</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {s.rows.map((p) => (
+                  <li key={p.id}>
+                    <AdminCoachRow coach={toRow(p)} minorCoachesEnabled={ENABLE_MINOR_COACHES} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         ))}
       </div>
     </div>

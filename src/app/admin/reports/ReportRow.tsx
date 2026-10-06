@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Badge from "@/components/Badge";
-import { secondaryButtonClass } from "@/lib/ui";
+import { secondaryButtonClass, primaryButtonClass } from "@/lib/ui";
 
 type ReportData = {
   id: string;
@@ -16,6 +16,13 @@ type ReportData = {
 };
 
 const STATUS_VARIANT = { OPEN: "warning", REVIEWED: "success", DISMISSED: "neutral" } as const;
+const STATUS_LABEL = { OPEN: "Open", REVIEWED: "Reviewed", DISMISSED: "Dismissed" } as const;
+const TYPE_LABEL: Record<string, string> = {
+  COACH_PROFILE: "Coach profile",
+  PARENT_PROFILE: "Parent profile",
+  MESSAGE: "Message thread",
+  SUPPORT_REQUEST: "Support request",
+};
 
 export default function ReportRow({ report }: { report: ReportData }) {
   const [status, setStatus] = useState(report.status);
@@ -33,18 +40,24 @@ export default function ReportRow({ report }: { report: ReportData }) {
   }
 
   return (
-    <div className="card flex flex-col gap-2 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-bold text-ink">{report.target}</p>
-        <Badge variant={STATUS_VARIANT[status]}>{status}</Badge>
+    <div className={`${status === "OPEN" ? "card" : "card-flat"} flex flex-col gap-3 p-4 sm:p-5`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="eyebrow mb-1 text-muted-foreground">{TYPE_LABEL[report.targetType] ?? report.targetType}</p>
+          <p className="font-bold text-ink">{report.target}</p>
+        </div>
+        <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
       </div>
       <p className="text-sm text-ink">
-        <span className="font-bold">{report.reason}</span> — reported by {report.reporterName} on {report.createdAt}
+        <span className="font-bold">{report.reason}</span>
+        <span className="text-muted-foreground"> · reported by {report.reporterName} on {report.createdAt}</span>
       </p>
-      {report.details && <p className="text-sm text-muted-foreground">{report.details}</p>}
+      {report.details && (
+        <p className="border-l-4 border-gold pl-3 text-sm text-muted-foreground">{report.details}</p>
+      )}
       {status === "OPEN" && (
-        <div className="flex gap-2">
-          <button onClick={() => updateStatus("REVIEWED")} disabled={loading} className={secondaryButtonClass}>
+        <div className="flex flex-wrap gap-2 border-t-2 border-line pt-3">
+          <button onClick={() => updateStatus("REVIEWED")} disabled={loading} className={primaryButtonClass}>
             Mark reviewed
           </button>
           <button onClick={() => updateStatus("DISMISSED")} disabled={loading} className={secondaryButtonClass}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { primaryButtonClass, secondaryButtonClass, errorClass, successClass, labelClass } from "@/lib/ui";
+import { primaryButtonClass, secondaryButtonClass, errorClass, successClass, labelClass, inputClass, quietLinkClass } from "@/lib/ui";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -56,43 +56,71 @@ export default function AvailabilityForm({ initial }: { initial: Slot[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && <p className={errorClass}>{error}</p>}
-      {saved && <p className={successClass}>Availability saved.</p>}
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      {saved && <p role="status" className={successClass}>Availability saved.</p>}
 
-      <label className={labelClass}>Weekly availability</label>
-      <div className="flex flex-col gap-3">
-        {slots.map((slot, i) => (
-          <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
-            <select
-              className="rounded-lg border border-border px-2 py-1.5 text-sm"
-              value={slot.dayOfWeek}
-              onChange={(e) => updateSlot(i, { dayOfWeek: Number(e.target.value) })}
+      <p className="text-sm text-muted-foreground">
+        Add the times you usually coach each week. They&apos;re shown on your public profile.
+      </p>
+
+      {slots.length === 0 ? (
+        <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
+          No time slots yet. Add at least one so families can book you.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {slots.map((slot, i) => (
+            <li
+              key={i}
+              className="grid grid-cols-1 items-end gap-3 rounded-lg border-2 border-line bg-chalk p-3 min-[440px]:grid-cols-2 sm:grid-cols-[1.3fr_1fr_1fr_auto]"
             >
-              {DAYS.map((d, idx) => (
-                <option key={d} value={idx}>{d}</option>
-              ))}
-            </select>
-            <input
-              type="time"
-              className="rounded-lg border border-border px-2 py-1.5 text-sm"
-              value={toTimeString(slot.startMinute)}
-              onChange={(e) => updateSlot(i, { startMinute: fromTimeString(e.target.value) })}
-            />
-            <span className="text-sm text-muted-foreground">to</span>
-            <input
-              type="time"
-              className="rounded-lg border border-border px-2 py-1.5 text-sm"
-              value={toTimeString(slot.endMinute)}
-              onChange={(e) => updateSlot(i, { endMinute: fromTimeString(e.target.value) })}
-            />
-            <button type="button" onClick={() => removeSlot(i)} className="ml-auto text-sm font-semibold text-danger">
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
+              <div className="min-[440px]:col-span-2 sm:col-span-1">
+                <label className={labelClass} htmlFor={`slot-${i}-day`}>Day</label>
+                <select
+                  id={`slot-${i}-day`}
+                  className={inputClass}
+                  value={slot.dayOfWeek}
+                  onChange={(e) => updateSlot(i, { dayOfWeek: Number(e.target.value) })}
+                >
+                  {DAYS.map((d, idx) => (
+                    <option key={d} value={idx}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass} htmlFor={`slot-${i}-start`}>From</label>
+                <input
+                  id={`slot-${i}-start`}
+                  type="time"
+                  className={inputClass}
+                  value={toTimeString(slot.startMinute)}
+                  onChange={(e) => updateSlot(i, { startMinute: fromTimeString(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor={`slot-${i}-end`}>To</label>
+                <input
+                  id={`slot-${i}-end`}
+                  type="time"
+                  className={inputClass}
+                  value={toTimeString(slot.endMinute)}
+                  onChange={(e) => updateSlot(i, { endMinute: fromTimeString(e.target.value) })}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeSlot(i)}
+                aria-label={`Remove ${DAYS[slot.dayOfWeek]} slot`}
+                className={`${quietLinkClass} justify-center px-2 text-danger min-[440px]:col-span-2 sm:col-span-1`}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <button type="button" onClick={addSlot} className={secondaryButtonClass}>
           + Add time slot
         </button>

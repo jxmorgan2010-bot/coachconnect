@@ -97,10 +97,17 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
 
   if (success) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 sm:px-6">
-        <div className="card p-6">
-          <p className={successClass}>Package purchased! You can now book any of your 5 sessions with {coach.name} on the calendar, no further charge.</p>
-          <button onClick={() => router.push("/dashboard")} className={`${primaryButtonClass} mt-4`}>
+      <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 sm:py-16">
+        <div className="card p-6 sm:p-8">
+          <p className="eyebrow mb-3 text-pitch">Package purchased</p>
+          <h1 className="text-display-md font-display text-ink">
+            {pricing.sessionCount} sessions with {coach.name}, paid in full
+          </h1>
+          <p className={`${successClass} mt-4`}>
+            Book any of your {pricing.sessionCount} sessions on the calendar whenever you&apos;re ready — no further
+            charge.
+          </p>
+          <button onClick={() => router.push("/dashboard")} className={`${primaryButtonClass} mt-6 w-full sm:w-auto`}>
             Go to my dashboard
           </button>
         </div>
@@ -109,48 +116,54 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-12 sm:px-6">
-      <h1 className="mb-1 font-display text-3xl text-ink">Buy a session package with {coach.name}</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Pay for 5 sessions upfront at a discount. Each one still gets scheduled individually on the calendar whenever
-        you&apos;re ready.
+    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+      <p className="eyebrow mb-2 text-pitch">Session package</p>
+      <h1 className="text-display-lg font-display text-ink">
+        {pricing.sessionCount} sessions with {coach.name}
+      </h1>
+      <p className="mt-2 max-w-lg text-muted-foreground">
+        Pay for {pricing.sessionCount} sessions upfront and save {pricing.discountPercent}%. You still schedule each one
+        on the calendar whenever you&apos;re ready.
       </p>
 
-      <form onSubmit={onSubmit} className="card flex flex-col gap-4 p-5">
-        {error && <p className={errorClass}>{error}</p>}
+      <form onSubmit={onSubmit} className="card mt-6 flex flex-col gap-5 p-5 sm:p-6">
+        {error && <p role="alert" className={errorClass}>{error}</p>}
 
-        <div>
-          <label className={labelClass} htmlFor="sport">Sport</label>
-          <select id="sport" className={inputClass} value={sport} onChange={(e) => setSport(e.target.value as Sport)}>
-            {coach.sports.map((s) => (
-              <option key={s} value={s}>{SPORT_LABELS[s]}</option>
-            ))}
-          </select>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className={labelClass} htmlFor="sport">Sport</label>
+            <select id="sport" className={inputClass} value={sport} onChange={(e) => setSport(e.target.value as Sport)}>
+              {coach.sports.map((s) => (
+                <option key={s} value={s}>{SPORT_LABELS[s]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="duration">Session length</label>
+            <select id="duration" className={inputClass} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+              {DURATIONS.map((d) => (
+                <option key={d} value={d}>{d} minutes</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div>
-          <label className={labelClass} htmlFor="duration">Session length</label>
-          <select id="duration" className={inputClass} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-            {DURATIONS.map((d) => (
-              <option key={d} value={d}>{d} minutes</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="rounded-lg border-2 border-ink bg-muted p-4 text-sm">
-          <div className="flex justify-between">
+        {/* Same receipt treatment as the single-session booking form */}
+        <div className="rounded-lg border-2 border-ink bg-chalk p-4 text-sm">
+          <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">{pricing.sessionCount} sessions at {formatCents(pricing.pricePerSessionCents)} each</span>
             <span className="font-bold text-ink">{formatCents(pricing.fullPriceCents)}</span>
           </div>
-          <div className="flex justify-between text-pitch">
+          <div className="mt-1 flex justify-between gap-4 text-pitch">
             <span>Package discount ({pricing.discountPercent}% off)</span>
             <span className="font-bold">-{formatCents(pricing.savingsCents)}</span>
           </div>
-          <div className="mt-2 flex justify-between border-t-2 border-ink pt-2 font-display text-lg text-ink">
-            <span>Charged today</span>
-            <span>{formatCents(pricing.totalChargedCents)}</span>
+          <div className="mt-3 flex items-baseline justify-between gap-4 border-t-2 border-dashed border-ink pt-3 text-ink">
+            <span className="font-display text-lg leading-none">Charged today</span>
+            <span className="font-display text-2xl leading-none">{formatCents(pricing.totalChargedCents)}</span>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             Unlike a single session, this charges your card in full today — not a hold. Sessions you book against it
             need no further charge.
           </p>
@@ -162,7 +175,7 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
           <p className="text-sm text-muted-foreground">Loading payment form...</p>
         )}
 
-        <button type="submit" className={primaryButtonClass} disabled={loading}>
+        <button type="submit" className={`${primaryButtonClass} w-full text-base`} disabled={loading}>
           {loading ? "Purchasing..." : `Buy package — ${formatCents(pricing.totalChargedCents)}`}
         </button>
       </form>
