@@ -44,6 +44,8 @@ product wants to promise more, messages need server-side filtering.
 
 ## 4. Booking times ignore a coach's posted availability
 
+**Addressed on `fix/booking-hours`:** the form only offers times inside posted Pacific hours that fit the session, and every server booking path enforces the same rule.
+
 Coaches set weekly hours in onboarding, and those hours show on their profile, but the
 booking form offers every 30-minute slot from 7am to 9pm regardless
 (`src/app/coaches/[id]/book/BookingForm.tsx`, `SLOT_START_MINUTE`/`SLOT_END_MINUTE`;

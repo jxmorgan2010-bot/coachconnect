@@ -7,21 +7,20 @@ import { Elements, useStripe, useElements, CardNumberElement } from "@stripe/rea
 import type { Sport } from "@/generated/prisma/client";
 import { SPORT_LABELS } from "@/lib/sports";
 import { calculatePriceBreakdown, formatCents } from "@/lib/money";
-import { rangesOverlap } from "@/lib/bookingConflicts";
-import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass } from "@/lib/ui";
+import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import CardSection from "./CardSection";
 
 type ChildOption = { id: string; firstName: string; gradeOrAge: string };
-type BookedSlot = { scheduledAt: string; durationMinutes: number };
+type OpenDay = { date: string; slots: { startsAt: string; label: string }[] };
 type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[]; isMinorCoach: boolean };
 type ActivePackage = { id: string; sport: Sport; durationMinutes: number; sessionsRemaining: number };
 
 const DURATIONS = [30, 60, 90, 120];
 
-// Candidate start times shown on the picker: every 30 minutes, 7am to 9pm.
-const SLOT_START_MINUTE = 7 * 60;
-const SLOT_END_MINUTE = 21 * 60;
-const SLOT_STEP_MINUTES = 30;
+// Open times come from the server (/api/coaches/[id]/open-slots), computed with the same
+// rules the server enforces when the booking is created: coach's posted Pacific hours,
+// whole session fits, in the future, no overlap with any non-cancelled booking.
+const SLOT_PAGE_DAYS = 28;
 
 // Stripe's practical minimum charge in USD — must match the server's STRIPE_MIN_CENTS.
 const STRIPE_MIN_CENTS = 50;
@@ -29,18 +28,21 @@ const STRIPE_MIN_CENTS = 50;
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
-function minutesToLabel(minutes: number): string {
-  const h24 = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  const ampm = h24 >= 12 ? "PM" : "AM";
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+/** Calendar-date arithmetic on "YYYY-MM-DD" strings, timezone-free. */
+function shiftDate(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
-function minutesToTimeValue(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+/** "Sat, Oct 17" for a Pacific calendar date, without any timezone shifting. */
+function dayLabel(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 export default function BookingForm(props: { coach: CoachInfo; childOptions: ChildOption[]; creditCents: number; activePackage?: ActivePackage | null }) {
@@ -76,6 +78,7 @@ function BookingFormInner({
   const [childId, setChildId] = useState(childOptions[0]?.id ?? "");
   const [sport, setSport] = useState<Sport | "">(activePackage?.sport ?? coach.sports[0] ?? "");
   const [date, setDate] = useState("");
+  // The exact UTC instant of the chosen slot, as returned by the server.
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState(activePackage?.durationMinutes ?? 60);
   const [locationText, setLocationText] = useState("");
@@ -85,7 +88,12 @@ function BookingFormInner({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<{ videoCallUrl: string | null } | null>(null);
-  const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
+  const [openDays, setOpenDays] = useState<OpenDay[]>([]);
+  const [slotsFrom, setSlotsFrom] = useState<string | null>(null);
+  const [nextFrom, setNextFrom] = useState<string | null>(null);
+  // Which request the shown days belong to; "loading" is simply "not the current one yet".
+  const [loadedSlotsKey, setLoadedSlotsKey] = useState<string | null>(null);
+  const [slotsVersion, setSlotsVersion] = useState(0);
   const [stripeSlowToLoad, setStripeSlowToLoad] = useState(false);
   const errorRef = useRef<HTMLParagraphElement>(null);
 
@@ -103,48 +111,46 @@ function BookingFormInner({
   const totalDueCents = breakdown.totalChargedCents - discountCents;
   const paymentRequired = !activePackage && totalDueCents >= STRIPE_MIN_CENTS;
 
+  const slotsKey = `${duration}|${slotsFrom ?? ""}|${slotsVersion}`;
+  const slotsLoading = loadedSlotsKey !== slotsKey;
+
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/coaches/${coach.id}/booked-times`)
-      .then((res) => (res.ok ? res.json() : { slots: [] }))
+    const key = `${duration}|${slotsFrom ?? ""}|${slotsVersion}`;
+    const params = new URLSearchParams({ duration: String(duration), days: String(SLOT_PAGE_DAYS) });
+    if (slotsFrom) params.set("from", slotsFrom);
+    fetch(`/api/coaches/${coach.id}/open-slots?${params}`)
+      .then((res) => (res.ok ? res.json() : { days: [], nextFrom: null }))
       .then((data) => {
-        if (!cancelled) setBookedSlots(data.slots ?? []);
+        if (cancelled) return;
+        setOpenDays(data.days ?? []);
+        setNextFrom(data.nextFrom ?? null);
+        setLoadedSlotsKey(key);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setLoadedSlotsKey(key);
+      });
     return () => {
       cancelled = true;
     };
-  }, [coach.id]);
+  }, [coach.id, duration, slotsFrom, slotsVersion]);
 
-  // Booked ranges that fall on the selected date, converted to local Date objects.
-  const bookedRangesForDate = useMemo(() => {
-    if (!date) return [];
-    return bookedSlots
-      .map((s) => ({ start: new Date(s.scheduledAt), durationMinutes: s.durationMinutes }))
-      .filter((s) => {
-        const y = s.start.getFullYear();
-        const m = String(s.start.getMonth() + 1).padStart(2, "0");
-        const d = String(s.start.getDate()).padStart(2, "0");
-        return `${y}-${m}-${d}` === date;
-      });
-  }, [bookedSlots, date]);
+  const daySlots = useMemo(() => openDays.find((d) => d.date === date)?.slots ?? [], [openDays, date]);
 
-  const timeSlots = useMemo(() => {
-    if (!date) return [];
-    const now = new Date();
-    const isToday = date === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const slots: { value: string; label: string; disabled: boolean }[] = [];
-    for (let m = SLOT_START_MINUTE; m <= SLOT_END_MINUTE; m += SLOT_STEP_MINUTES) {
-      const slotStart = new Date(`${date}T${minutesToTimeValue(m)}`);
-      const inPast = isToday && slotStart.getTime() <= now.getTime();
-      const booked = bookedRangesForDate.some((b) => rangesOverlap(slotStart, duration, b.start, b.durationMinutes));
-      slots.push({ value: minutesToTimeValue(m), label: minutesToLabel(m), disabled: inPast || booked });
+  // True once the chosen time is no longer offered (duration changed, or someone else took it).
+  const timeNoLongerValid = Boolean(time) && !daySlots.some((s) => s.startsAt === time);
+
+  function refreshSlotsIfTimeRejected(status: number) {
+    if (status === 409 || status === 400) {
+      setSlotsVersion((v) => v + 1);
+      if (status === 409) setTime("");
     }
-    return slots;
-  }, [date, duration, bookedRangesForDate]);
+  }
 
-  // True once the chosen time is no longer a valid, available slot (e.g. duration changed after picking it).
-  const timeNoLongerValid = Boolean(time) && !timeSlots.some((s) => s.value === time && !s.disabled);
+  function pickDay(next: string) {
+    setDate(next);
+    setTime("");
+  }
 
   async function addChild(e: React.FormEvent) {
     e.preventDefault();
@@ -176,7 +182,7 @@ function BookingFormInner({
       setError("Add or select a child for this session.");
       return;
     }
-    if (!date || !time) {
+    if (!time) {
       setError("Pick a date and time.");
       return;
     }
@@ -197,7 +203,7 @@ function BookingFormInner({
       return;
     }
 
-    const scheduledAt = new Date(`${date}T${time}`);
+    const scheduledAt = new Date(time);
     const basePayload = {
       coachProfileId: coach.id,
       childId,
@@ -222,6 +228,7 @@ function BookingFormInner({
       setLoading(false);
       if (!res.ok) {
         setError(data.error ?? "Something went wrong.");
+        refreshSlotsIfTimeRejected(res.status);
         return;
       }
       setSuccess({ videoCallUrl: data.videoCallUrl ?? null });
@@ -237,6 +244,7 @@ function BookingFormInner({
     if (!intentRes.ok) {
       setLoading(false);
       setError(intentData.error ?? "Something went wrong.");
+      refreshSlotsIfTimeRejected(intentRes.status);
       return;
     }
 
@@ -277,6 +285,7 @@ function BookingFormInner({
     setLoading(false);
     if (!res.ok) {
       setError(data.error ?? "Something went wrong.");
+      refreshSlotsIfTimeRejected(res.status);
       return;
     }
     setSuccess({ videoCallUrl: data.videoCallUrl ?? null });
@@ -396,42 +405,109 @@ function BookingFormInner({
               <legend className={legendClass}>
                 <span className={stepClass} aria-hidden>02</span> When
               </legend>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className={labelClass} htmlFor="date">Date</label>
-                  <input id="date" type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass} htmlFor="duration">Length</label>
-                  <select id="duration" className={inputClass} value={duration} disabled={!!activePackage} onChange={(e) => setDuration(Number(e.target.value))}>
-                    {DURATIONS.map((d) => (
-                      <option key={d} value={d}>{d} minutes</option>
+              <div className="sm:max-w-xs">
+                <label className={labelClass} htmlFor="duration">Length</label>
+                <select
+                  id="duration"
+                  className={inputClass}
+                  value={duration}
+                  disabled={!!activePackage}
+                  onChange={(e) => {
+                    setDuration(Number(e.target.value));
+                    setTime("");
+                  }}
+                >
+                  {DURATIONS.map((d) => (
+                    <option key={d} value={d}>{d} minutes</option>
+                  ))}
+                </select>
+              </div>
+
+              <div role="group" aria-labelledby="day-label">
+                <p id="day-label" className={labelClass}>Day</p>
+                {slotsLoading ? (
+                  <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground" aria-live="polite">
+                    Loading open times...
+                  </p>
+                ) : openDays.length === 0 ? (
+                  <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
+                    No open times for a {duration}-minute session in these four weeks.
+                    {duration > 30 ? " A shorter session may fit, or try later dates." : " Try later dates, or message the coach."}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {openDays.map((d) => (
+                      <button
+                        key={d.date}
+                        type="button"
+                        aria-pressed={date === d.date}
+                        onClick={() => pickDay(d.date)}
+                        className={`min-h-11 rounded-lg border-2 px-3 text-sm font-bold ${
+                          date === d.date
+                            ? "border-ink bg-ink text-white shadow-patch-xs"
+                            : "border-ink bg-surface text-ink hover:bg-gold-bright/40"
+                        }`}
+                      >
+                        {dayLabel(d.date)}
+                        <span className={`ml-1.5 text-xs font-normal ${date === d.date ? "text-white/80" : "text-muted-foreground"}`}>
+                          {d.slots.length} open
+                        </span>
+                      </button>
                     ))}
-                  </select>
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap gap-x-5">
+                  {slotsFrom && (
+                    <button
+                      type="button"
+                      className={`${quietLinkClass} text-pitch`}
+                      onClick={() => {
+                        setSlotsFrom(shiftDate(slotsFrom, -SLOT_PAGE_DAYS));
+                        pickDay("");
+                      }}
+                    >
+                      ← Earlier dates
+                    </button>
+                  )}
+                  {nextFrom && !slotsLoading && (
+                    <button
+                      type="button"
+                      className={`${quietLinkClass} text-pitch`}
+                      onClick={() => {
+                        setSlotsFrom(nextFrom);
+                        pickDay("");
+                      }}
+                    >
+                      Later dates →
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div role="group" aria-labelledby="time-label">
-                <p id="time-label" className={labelClass}>Start time</p>
+                <p id="time-label" className={labelClass}>
+                  Start time <span className="font-normal text-muted-foreground">(Pacific time)</span>
+                </p>
                 {!date ? (
                   <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
-                    Pick a date to see open times.
+                    Pick a day to see open times.
+                  </p>
+                ) : daySlots.length === 0 ? (
+                  <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
+                    That day just filled up. Pick another day.
                   </p>
                 ) : (
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                    {timeSlots.map((slot) => (
+                    {daySlots.map((slot) => (
                       <button
-                        key={slot.value}
+                        key={slot.startsAt}
                         type="button"
-                        disabled={slot.disabled}
-                        aria-pressed={time === slot.value}
-                        onClick={() => setTime(slot.value)}
+                        aria-pressed={time === slot.startsAt}
+                        onClick={() => setTime(slot.startsAt)}
                         className={`min-h-11 rounded-lg border-2 px-1 text-sm font-bold ${
-                          slot.disabled
-                            ? "cursor-not-allowed border-line bg-muted text-muted-foreground line-through"
-                            : time === slot.value
-                              ? "border-ink bg-ink text-white shadow-patch-xs"
-                              : "border-ink bg-surface text-ink hover:bg-gold-bright/40"
+                          time === slot.startsAt
+                            ? "border-ink bg-ink text-white shadow-patch-xs"
+                            : "border-ink bg-surface text-ink hover:bg-gold-bright/40"
                         }`}
                       >
                         {slot.label}
@@ -439,9 +515,12 @@ function BookingFormInner({
                     ))}
                   </div>
                 )}
-                {date && bookedRangesForDate.length > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">Crossed-out times are already booked with this coach.</p>
+                {timeNoLongerValid && (
+                  <p className="mt-2 text-sm font-bold text-danger">That time isn&apos;t available anymore. Pick another.</p>
                 )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Only times inside {coach.name.split(" ")[0]}&apos;s posted hours that fit the whole session are shown.
+                </p>
               </div>
             </fieldset>
 

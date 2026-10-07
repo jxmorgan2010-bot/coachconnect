@@ -16,6 +16,7 @@ import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { SPORT_COLOR } from "@/lib/sports";
 import { BUNDLE_SESSION_COUNT, BUNDLE_DISCOUNT_PERCENT } from "@/lib/bundles";
 import CoachPhotoPlaceholder from "@/components/CoachPhotoPlaceholder";
+import NoHoursNotice from "@/components/NoHoursNotice";
 import { getCoachSessionsCompleted, getCoachAverageResponseMinutes, formatResponseTime, getSiblingsCoachedForFamily, getPriorBookingCount } from "@/lib/stats";
 import { isTopCoach } from "@/lib/points";
 import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
@@ -186,7 +187,9 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
             )}
 
             <div className="flex flex-col gap-3">
-              {live ? (
+              {live && profile.availability.length === 0 ? (
+                <NoHoursNotice coachFirstName={firstName} coachProfileId={profile.id} compact />
+              ) : live ? (
                 <>
                   <Link href={`/coaches/${profile.id}/book`} className={`${primaryButtonClass} w-full`}>
                     Book a session

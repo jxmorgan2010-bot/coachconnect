@@ -3,6 +3,7 @@ import { isCoachLive } from "@/lib/coach";
 import { calculatePriceBreakdown } from "@/lib/money";
 import { perSessionBreakdown } from "@/lib/bundles";
 import { rangesOverlap } from "@/lib/bookingConflicts";
+import { checkSlot, SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { generateMockVideoCallUrl } from "@/lib/videoCall";
 import { enforceContactPolicy, rejectIfSuspended, ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactPolicy";
 import type { ParentProfile, Sport } from "@/generated/prisma/client";
@@ -54,7 +55,7 @@ export async function validateBookingRequest(parentProfile: ParentProfile, data:
     throw new BookingValidationError("This coach is under 18 — enter the name of a second adult who'll be present.");
   }
 
-  await assertNoConflict(coach.id, data.scheduledAt, data.durationMinutes);
+  await assertSlotOpen(coach.id, data.scheduledAt, data.durationMinutes);
 
   const breakdown = calculatePriceBreakdown(coach.hourlyRateCents, data.durationMinutes);
   const discountCents = Math.min(parentProfile.creditCents, breakdown.sessionCostCents);
@@ -104,7 +105,7 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
     throw new BookingValidationError("This coach is under 18 — enter the name of a second adult who'll be present.");
   }
 
-  await assertNoConflict(pkg.coachProfileId, data.scheduledAt, pkg.durationMinutes);
+  await assertSlotOpen(pkg.coachProfileId, data.scheduledAt, pkg.durationMinutes);
 
   const breakdown = perSessionBreakdown(pkg.pricePerSessionCents, pkg.discountPercent);
   const isFirstSession = await isFirstSessionWithCoach(parentProfile.id, pkg.coachProfileId);
@@ -134,16 +135,26 @@ async function assertParentMayBook(parentProfile: ParentProfile, locationText: s
   }
 }
 
-async function assertNoConflict(coachProfileId: string, scheduledAt: Date, durationMinutes: number) {
-  const activeBookings = await prisma.booking.findMany({
-    where: { coachProfileId, status: { in: ["CONFIRMED", "COMPLETED"] } },
-    select: { scheduledAt: true, durationMinutes: true },
-  });
-  const hasConflict = activeBookings.some((b) =>
-    rangesOverlap(scheduledAt, durationMinutes, b.scheduledAt, b.durationMinutes),
-  );
-  if (hasConflict) {
-    throw new BookingValidationError("That time was just booked by someone else. Pick another time.", 409);
+/**
+ * The one server-side gate on *when* a session can be booked, shared by every path
+ * (single booking, package draw-down, quick rebook): inside the coach's posted Pacific
+ * hours with the full session fitting, on the 30-minute grid, in the future, and not
+ * overlapping any non-cancelled booking for this coach — whichever family made it.
+ */
+async function assertSlotOpen(coachProfileId: string, scheduledAt: Date, durationMinutes: number) {
+  const [windows, busy] = await Promise.all([
+    prisma.availability.findMany({
+      where: { coachProfileId },
+      select: { dayOfWeek: true, startMinute: true, endMinute: true },
+    }),
+    prisma.booking.findMany({
+      where: { coachProfileId, status: SLOT_HOLDING_STATUS_FILTER },
+      select: { scheduledAt: true, durationMinutes: true },
+    }),
+  ]);
+  const result = checkSlot({ scheduledAt, durationMinutes, windows, busy, now: new Date() });
+  if (!result.ok) {
+    throw new BookingValidationError(result.message, result.reason === "conflict" ? 409 : 400);
   }
 }
 
@@ -180,7 +191,7 @@ type CreateConfirmedBookingInput = {
 export async function createConfirmedBooking(input: CreateConfirmedBookingInput) {
   return prisma.$transaction(async (tx) => {
     const stillActive = await tx.booking.findMany({
-      where: { coachProfileId: input.coachProfileId, status: { in: ["CONFIRMED", "COMPLETED"] } },
+      where: { coachProfileId: input.coachProfileId, status: SLOT_HOLDING_STATUS_FILTER },
       select: { scheduledAt: true, durationMinutes: true },
     });
     if (stillActive.some((b) => rangesOverlap(input.scheduledAt, input.durationMinutes, b.scheduledAt, b.durationMinutes))) {
