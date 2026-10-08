@@ -195,7 +195,7 @@ function BookingFormInner({
       return;
     }
     if (coach.isMinorCoach && secondAdultName.trim().length < 2) {
-      setError("This coach is under 18 — enter the name of a second adult who'll be present.");
+      setError("This coach is under 18, so you and a second adult both need to be at the session. Enter the second adult's name.");
       return;
     }
     if (paymentRequired && zip.trim().length < 5) {
@@ -545,21 +545,25 @@ function BookingFormInner({
               </div>
 
               {coach.isMinorCoach && (
-                <div>
-                  <label className={labelClass} htmlFor="secondAdultName">Second adult present</label>
+                <div className="rounded-lg border-2 border-ink bg-accent/10 p-4">
+                  <p className="font-display text-lg leading-tight text-ink">Two adults at this session</p>
+                  <p id="second-adult-help" className="mt-1 text-sm text-ink">
+                    {coach.name.split(" ")[0]} is under 18, so for every session:
+                  </p>
+                  <ul className="mt-1 list-disc pl-5 text-sm text-ink">
+                    <li>you, the parent booking, stay for the whole session, and</li>
+                    <li>one more adult (18 or older) is there too.</li>
+                  </ul>
+                  <label className={`${labelClass} mt-3`} htmlFor="secondAdultName">Second adult&apos;s full name</label>
                   <input
                     id="secondAdultName"
                     className={inputClass}
-                    placeholder="Name of the additional adult who'll be at the session"
+                    placeholder="Someone other than you"
                     value={secondAdultName}
                     onChange={(e) => setSecondAdultName(e.target.value)}
                     aria-describedby="second-adult-help"
                     required
                   />
-                  <p id="second-adult-help" className="mt-1.5 text-xs text-muted-foreground">
-                    This coach is under 18. CoachConnect requires a second adult — beyond you, the booking parent — to
-                    be present at every session with a minor coach.
-                  </p>
                 </div>
               )}
             </fieldset>

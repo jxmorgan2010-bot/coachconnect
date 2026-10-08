@@ -171,7 +171,11 @@ export default async function MyBookingsPage() {
 
                           <div className="flex flex-wrap items-start gap-3">
                             {b.tippedAt ? null : <TipForm bookingId={b.id} />}
-                            <QuickRebookButton bookingId={b.id} coachName={b.coachProfile.user.name} />
+                            <QuickRebookButton
+                              bookingId={b.id}
+                              coachName={b.coachProfile.user.name}
+                              secondAdultName={b.coachProfile.isMinorCoach ? b.secondAdultName : null}
+                            />
                           </div>
 
                           {b.dispute ? (
@@ -189,6 +193,12 @@ export default async function MyBookingsPage() {
                           {b.dispute ? (
                             <p className="text-sm font-bold text-warning">
                               Case open: {b.dispute.status.replaceAll("_", " ").toLowerCase()} — {b.dispute.details}
+                            </p>
+                          ) : b.cancelledAt ? (
+                            // Platform-cancelled (cancelReason is admin-facing; parents get the plain version)
+                            <p className="text-sm text-muted-foreground">
+                              CoachConnect cancelled this session because the coach is no longer available.{" "}
+                              {b.packageId ? "The session went back into your package." : "You won't be charged for it."}
                             </p>
                           ) : (
                             <p className="text-sm text-muted-foreground">This session was cancelled.</p>

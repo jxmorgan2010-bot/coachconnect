@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
+import { minorMediaUploadBlockedMessage } from "@/lib/minorConsent";
 import { saveBioVideoClip, BIO_VIDEO_CLIP_TYPES, type BioVideoClipType } from "@/lib/storage";
 
 const MAX_DURATION_SECONDS = 60;
@@ -15,6 +16,12 @@ export async function POST(req: Request) {
   const profile = await requireCoachProfile();
   if (!profile) {
     return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  }
+
+  // A parent/guardian consents to processing a minor's ID and photos before any upload.
+  const blockedForMinor = await minorMediaUploadBlockedMessage(profile);
+  if (blockedForMinor) {
+    return NextResponse.json({ error: blockedForMinor }, { status: 403 });
   }
 
   const form = await req.formData().catch(() => null);

@@ -245,19 +245,30 @@ model CoachProfile {
   isMinorCoach  Boolean   @default(false)
 
   // Consent from the coach's OWN parent/guardian (distinct from a booking family's consent).
-  // The coach requests consent, which generates minorConsentToken; the guardian fills out
-  // and signs the rest themselves at /minor-consent/[token], mirroring the Recommendation
-  // token-link pattern below rather than letting the coach self-attest on their behalf.
-  minorConsentToken         String?   @unique
+  // The full record of every consent link and signature lives in MinorConsent. These four
+  // fields cache the consent currently in effect: set in the same transaction that records
+  // a signature and cleared in the one that records a revocation (src/lib/minorConsent.ts),
+  // so isCoachLive() and the coach search query can read them without a join. Admin
+  // approval checks MinorConsent itself, never this cache.
   minorGuardianName         String?
   minorGuardianRelationship String?
   minorGuardianEmail        String?
   minorGuardianConsentedAt  DateTime?
+  // Unused since feature/minor-coach-consent: it held a raw, non-expiring token. Links are
+  // now MinorConsent rows that store only a hash. Kept because columns are never dropped.
+  minorConsentToken         String?   @unique
+  minorConsents             MinorConsent[]
 
   // Standard automated background checks may not apply to minor coaches. This is an
   // admin-only free-text note recording whatever alternative verification was actually
   // done — manual for now, pending legal confirmation of what's required.
   minorBackgroundCheckNote String?
+
+  // Every coach: how an admin confirmed this person's age and identity (free text, e.g.
+  // "School ID checked against DOB; spoke with parent by phone"), when, and which admin.
+  ageIdentityVerificationMethod String?
+  ageIdentityVerifiedAt         DateTime?
+  ageIdentityVerifiedById       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -371,6 +382,50 @@ model Availability {
   endMinute      Int
 }
 
+/**
+ * One parent/guardian consent link for a minor coach and, once signed, the signature
+ * record. Requesting a new link supersedes the pending one, so a coach can have many rows;
+ * at most one is ever completed and unrevoked. Only SHA-256 hashes of the consent and
+ * revoke tokens are stored — the raw tokens exist only in the link that was sent.
+ * No cascade on delete: these are consent records and shouldn't vanish with a profile.
+ */
+model MinorConsent {
+  id             String       @id @default(cuid())
+  coachProfileId String
+  coachProfile   CoachProfile @relation(fields: [coachProfileId], references: [id])
+
+  // As entered by the teen. The link goes to guardianEmail, which is also the parent email
+  // on the signature record.
+  guardianName  String
+  guardianEmail String
+
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  supersededAt DateTime?
+
+  // Signature record — all set together when the parent signs.
+  completedAt           DateTime?
+  consentTextVersion    String?
+  acknowledgedKeys      String? // JSON array of the acknowledgment keys ticked
+  signerLegalName       String?
+  signerRelationship    String?
+  typedSignature        String?
+  confirmedAdult        Boolean   @default(false)
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  signerIp              String?
+  signerUserAgent       String?
+
+  // Issued when the parent signs and never expires. Reissuing replaces the hash.
+  revokeTokenHash String?   @unique
+  revokedAt       DateTime?
+  revokeIp        String?
+  revokeUserAgent String?
+
+  @@index([coachProfileId, createdAt])
+}
+
 model Recommendation {
   id             String                @id @default(cuid())
   coachProfileId String
@@ -403,6 +458,10 @@ model Booking {
   parentalConsent   Boolean       @default(false)
   createdAt         DateTime      @default(now())
   completedAt       DateTime?
+  // Set when the platform cancels a booking itself (today: a minor coach's guardian
+  // revoking consent). A no-show cancellation leaves these null; its Dispute says why.
+  cancelledAt       DateTime?
+  cancelReason      String?
 
   paymentStatus     PaymentStatus @default(AUTHORIZED)
   capturedAt        DateTime?

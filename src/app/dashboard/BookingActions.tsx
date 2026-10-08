@@ -100,7 +100,16 @@ export function NoShowButton({ bookingId }: { bookingId: string }) {
   );
 }
 
-export function QuickRebookButton({ bookingId, coachName }: { bookingId: string; coachName: string }) {
+export function QuickRebookButton({
+  bookingId,
+  coachName,
+  secondAdultName = null,
+}: {
+  bookingId: string;
+  coachName: string;
+  /** Set when the coach is a minor: quick rebook reuses the same second adult, so say who. */
+  secondAdultName?: string | null;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,9 +140,15 @@ export function QuickRebookButton({ bookingId, coachName }: { bookingId: string;
   return (
     <div className="flex flex-col items-start gap-1">
       {error && <p className={errorClass}>{error}</p>}
-      <button onClick={onClick} className={secondaryButtonClass} disabled={loading}>
+      <button onClick={onClick} className={secondaryButtonClass} disabled={loading} aria-describedby={secondAdultName ? `rebook-adult-${bookingId}` : undefined}>
         {loading ? "Rebooking..." : `Quick rebook with ${coachName}`}
       </button>
+      {secondAdultName && (
+        <p id={`rebook-adult-${bookingId}`} className="max-w-xs text-xs text-muted-foreground">
+          {coachName.split(" ")[0]} is under 18: you and {secondAdultName} both need to be there, same as last time.
+          To bring a different adult, use the regular booking form.
+        </p>
+      )}
     </div>
   );
 }

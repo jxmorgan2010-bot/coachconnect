@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { coachRegisterSchema } from "@/lib/validation";
 import { evaluateCoachAgeEligibility } from "@/lib/coach";
+import { calendarDateToStoredDate } from "@/lib/age";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -16,9 +17,11 @@ export async function POST(req: Request) {
   const { name, email, password, dateOfBirth, zip } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
+  // Nothing is stored for an applicant who isn't eligible. UNDER_18_NOT_ACCEPTED (the
+  // Minor Coach tier is off) is a notice, not a failure — signup shows it as one.
   const eligibility = evaluateCoachAgeEligibility(dateOfBirth);
   if (!eligibility.ok) {
-    return NextResponse.json({ error: eligibility.reason }, { status: 400 });
+    return NextResponse.json({ error: eligibility.reason, code: eligibility.code }, { status: 422 });
   }
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -36,7 +39,7 @@ export async function POST(req: Request) {
       role: "COACH",
       coachProfile: {
         create: {
-          dateOfBirth,
+          dateOfBirth: calendarDateToStoredDate(dateOfBirth),
           isMinorCoach: eligibility.isMinor,
           zip,
         },
@@ -44,5 +47,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, isMinorCoach: eligibility.isMinor });
 }

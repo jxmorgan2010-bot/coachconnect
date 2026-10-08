@@ -35,6 +35,7 @@ export default async function PackagePurchasePage({ params }: { params: Promise<
         name: profile.user.name,
         hourlyRateCents: profile.hourlyRateCents,
         sports: profile.sports.map((s) => s.sport),
+        isMinorCoach: profile.isMinorCoach,
       }}
     />
   );

@@ -12,7 +12,7 @@ import BackgroundCheckPanel from "./BackgroundCheckPanel";
 import RecommendationPanel from "./RecommendationPanel";
 import ConductAck from "./ConductAck";
 import BioVideoUpload from "./BioVideoUpload";
-import MinorGuardianConsentForm from "./MinorGuardianConsentForm";
+import MinorGuardianConsentForm, { type MinorConsentSummary } from "./MinorGuardianConsentForm";
 import MinorBackgroundNotice from "./MinorBackgroundNotice";
 
 type FullProfile = CoachProfile & {
@@ -21,6 +21,17 @@ type FullProfile = CoachProfile & {
   recommendations: Recommendation[];
   user: { isSuspended: boolean };
 };
+
+/** Shown in place of the upload controls until a minor's parent/guardian has signed. */
+function UploadsLockedNotice({ what }: { what: string }) {
+  return (
+    <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
+      You can upload {what} once your parent or guardian signs the consent form (see{" "}
+      <a href="#guardian-consent" className="font-bold text-pitch underline-offset-4 hover:underline">Parent/guardian consent</a>
+      ). Their consent covers how we handle your school ID and photos.
+    </p>
+  );
+}
 
 function Section({
   id,
@@ -63,9 +74,14 @@ function Section({
 export default function CoachOnboardingClient({
   profile,
   minorCoachesEnabled,
+  minorConsent,
+  coachEmail,
 }: {
   profile: FullProfile;
   minorCoachesEnabled: boolean;
+  /** Null unless this is a minor coach and the tier is on. */
+  minorConsent: MinorConsentSummary | null;
+  coachEmail: string;
 }) {
   const isMinorCoach = minorCoachesEnabled && profile.isMinorCoach;
   const [profileValues, setProfileValues] = useState<ProfileFormValues>({
@@ -103,7 +119,9 @@ export default function CoachOnboardingClient({
   // checklist and progress bar can't drift from the sections themselves.
   const idDone = profile.idVerificationStatus === "APPROVED" && Boolean(profile.profilePhotoUrl);
   const backgroundDone = expiryState === "VALID" || expiryState === "RENEWAL_NEEDED";
-  const consentDone = Boolean(profile.minorGuardianConsentedAt);
+  const consentDone = minorConsent?.status === "COMPLETED";
+  // A minor can't upload their ID, photos or videos until a parent has consented (the server enforces this too).
+  const mediaLocked = isMinorCoach && !consentDone;
   const minorBackgroundDone = Boolean(profile.minorBackgroundCheckNote);
   const videoDone = Boolean(profile.introClipUrl && profile.coachingClipUrl && profile.playingClipUrl);
   const recommendationDone = profile.recommendations.some((r) => r.status === "SUBMITTED");
@@ -111,13 +129,17 @@ export default function CoachOnboardingClient({
   const steps: { id: string; title: string; done: boolean; optional?: boolean }[] = [
     { id: "profile", title: "Profile & sports", done: profileComplete },
     { id: "availability", title: "Availability", done: initialSlots.length > 0 },
-    { id: "identity", title: "ID & profile photo", done: idDone },
+    // Minors: consent comes first, because it covers the ID and photo uploads that follow.
     ...(isMinorCoach
       ? [
           { id: "guardian-consent", title: "Parent/guardian consent", done: consentDone },
+          { id: "identity", title: "ID & profile photo", done: idDone },
           { id: "minor-background", title: "Background verification", done: minorBackgroundDone },
         ]
-      : [{ id: "background-check", title: "Background check", done: backgroundDone }]),
+      : [
+          { id: "identity", title: "ID & profile photo", done: idDone },
+          { id: "background-check", title: "Background check", done: backgroundDone },
+        ]),
     { id: "bio-video", title: "Bio video", done: videoDone, optional: true },
     { id: "recommendation", title: "Recommendation", done: recommendationDone, optional: true },
     { id: "conduct", title: "Conduct rules", done: profile.conductAcknowledged },
@@ -172,8 +194,9 @@ export default function CoachOnboardingClient({
           <div className="flex flex-col gap-2 rounded-xl border-2 border-ink bg-accent/10 p-4 sm:flex-row sm:items-center sm:gap-3">
             <Badge variant="accent">Minor Coach</Badge>
             <span className="text-sm text-ink">
-              You&apos;re in the under-18 coach flow: your parent/guardian must sign a consent form, and our team
-              manually confirms background verification before your profile can go live.
+              {minorConsent?.status === "REVOKED"
+                ? "Your parent or guardian withdrew their consent, so your profile is hidden from families."
+                : "You're in the under-18 coach flow. Start with parent/guardian consent: until it's signed you can't upload your ID or photos, and our team can't review your profile."}
             </span>
           </div>
         )}
@@ -246,27 +269,26 @@ export default function CoachOnboardingClient({
             <AvailabilityForm initial={initialSlots} />
           </Section>
 
+          {isMinorCoach && minorConsent && (
+            <Section id="guardian-consent" step={stepNumber("guardian-consent")} title="Parent/guardian consent" done={consentDone}>
+              <MinorGuardianConsentForm initial={minorConsent} coachEmail={coachEmail} />
+            </Section>
+          )}
+
           <Section id="identity" step={stepNumber("identity")} title="ID & profile photo" done={idDone}>
-            <VerificationUploads
-              hasIdPhoto={Boolean(profile.idPhotoPath)}
-              idPhotoPath={profile.idPhotoPath}
-              idStatus={profile.idVerificationStatus}
-              profilePhotoUrl={profile.profilePhotoUrl}
-            />
+            {mediaLocked ? (
+              <UploadsLockedNotice what="your school ID and profile photo" />
+            ) : (
+              <VerificationUploads
+                hasIdPhoto={Boolean(profile.idPhotoPath)}
+                idPhotoPath={profile.idPhotoPath}
+                idStatus={profile.idVerificationStatus}
+                profilePhotoUrl={profile.profilePhotoUrl}
+              />
+            )}
           </Section>
 
-          {isMinorCoach ? (
-            <Section id="guardian-consent" step={stepNumber("guardian-consent")} title="Parent/guardian consent" done={consentDone}>
-              <MinorGuardianConsentForm
-                initial={{
-                  token: profile.minorConsentToken,
-                  guardianName: profile.minorGuardianName,
-                  guardianRelationship: profile.minorGuardianRelationship,
-                  consentedAt: profile.minorGuardianConsentedAt ? profile.minorGuardianConsentedAt.toISOString() : null,
-                }}
-              />
-            </Section>
-          ) : (
+          {!isMinorCoach && (
             <Section id="background-check" step={stepNumber("background-check")} title="Background check" done={backgroundDone}>
               <BackgroundCheckPanel
                 initialStatus={profile.backgroundCheckStatus}
@@ -282,13 +304,17 @@ export default function CoachOnboardingClient({
           )}
 
           <Section id="bio-video" step={stepNumber("bio-video")} title="Bio video" optional done={videoDone}>
-            <BioVideoUpload
-              initial={{
-                intro: { url: profile.introClipUrl, seconds: profile.introClipSeconds },
-                coaching: { url: profile.coachingClipUrl, seconds: profile.coachingClipSeconds },
-                playing: { url: profile.playingClipUrl, seconds: profile.playingClipSeconds },
-              }}
-            />
+            {mediaLocked ? (
+              <UploadsLockedNotice what="bio videos" />
+            ) : (
+              <BioVideoUpload
+                initial={{
+                  intro: { url: profile.introClipUrl, seconds: profile.introClipSeconds },
+                  coaching: { url: profile.coachingClipUrl, seconds: profile.coachingClipSeconds },
+                  playing: { url: profile.playingClipUrl, seconds: profile.playingClipSeconds },
+                }}
+              />
+            )}
           </Section>
 
           <Section id="recommendation" step={stepNumber("recommendation")} title="Recommendation" optional done={recommendationDone}>
