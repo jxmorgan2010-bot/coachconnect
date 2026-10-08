@@ -21,6 +21,7 @@ import {
   lookupConsentToken,
   completeConsent,
   revokeConsent,
+  recheckBookingsAfterRevocation,
   setIdVerificationStatus,
   minorMediaUploadBlockedMessage,
   coachConsentStatus,
@@ -304,4 +305,119 @@ test("revoking consent unpublishes the profile and cancels upcoming sessions", a
 
 test("a revoke link that doesn't exist is a 404", async () => {
   await rejectsWith(revokeConsent("not-a-real-token", meta), 404);
+});
+
+// --- Revocation race: bookings written after the first cleanup pass -----------------
+
+async function liveConsentedMinor() {
+  const { profile } = await makeCoach();
+  const { token } = await createConsentRequest({ coachProfileId: profile.id, guardianName: "Pat", guardianEmail: "pat@example.test" });
+  const { revokeToken } = await completeConsent(token, signature(), meta);
+  await setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true });
+  await prisma.coachProfile.update({ where: { id: profile.id }, data: { minorBackgroundCheckNote: "Checked" } });
+  return { profile, revokeToken };
+}
+
+function bookingData(parentProfileId: string, coachProfileId: string, daysAhead: number, extra: Record<string, unknown> = {}) {
+  return {
+    parentProfileId,
+    coachProfileId,
+    sport: "SOCCER" as const,
+    durationMinutes: 60,
+    locationText: "Dolores Park",
+    priceCents: 4000,
+    platformFeeCents: 600,
+    status: "CONFIRMED" as const,
+    secondAdultName: "Jordan Lee",
+    scheduledAt: new Date(Date.now() + daysAhead * DAY),
+    ...extra,
+  };
+}
+
+test("race: a booking written while the first pass is voiding holds is cancelled by the immediate re-check", async () => {
+  const { profile, revokeToken } = await liveConsentedMinor();
+  const parent = await makeParent(0);
+  const existing = await prisma.booking.create({ data: bookingData(parent.id, profile.id, 3, { stripePaymentIntentId: `pi_a_${randomUUID()}` }) });
+
+  // The in-flight booking commits during the first pass (here: while its first hold is being voided).
+  const racingPi = `pi_race_${randomUUID()}`;
+  let racing: { id: string } | null = null;
+  const voided: (string | null)[] = [];
+  const voidHold = async (id: string | null) => {
+    voided.push(id);
+    if (!racing) {
+      racing = await prisma.booking.create({ data: bookingData(parent.id, profile.id, 6, { stripePaymentIntentId: racingPi, discountCents: 300 }) });
+    }
+  };
+
+  const result = await revokeConsent(revokeToken, meta, { voidHold });
+  assert.ok(racing, "the racing booking was written mid-revocation");
+  const racingId = (racing as { id: string }).id;
+  assert.deepEqual(new Set(result.cancelledBookingIds), new Set([existing.id, racingId]));
+  assert.ok(voided.includes(racingPi), "the racing booking's hold was voided");
+  const after = await prisma.booking.findUniqueOrThrow({ where: { id: racingId } });
+  assert.equal(after.status, "CANCELLED");
+  assert.equal(after.paymentStatus, "CANCELLED");
+  assert.equal(after.cancelReason, REVOKED_CANCEL_REASON);
+  assert.equal((await prisma.parentProfile.findUniqueOrThrow({ where: { id: parent.id } })).creditCents, 300, "referral credit returned");
+});
+
+test("race: bookings written after revocation returns are cancelled by the delayed re-check, once", async () => {
+  const { profile, revokeToken } = await liveConsentedMinor();
+  const result = await revokeConsent(revokeToken, meta, { voidHold: async () => {} });
+  assert.ok(result.revokedAt);
+  assert.deepEqual(result.cancelledBookingIds, []);
+
+  // Late arrivals: a card booking and a package booking that were still in flight.
+  const parent = await makeParent(0);
+  const pkg = await prisma.sessionPackage.create({
+    data: { parentProfileId: parent.id, coachProfileId: profile.id, sport: "SOCCER", durationMinutes: 60, totalSessions: 5, sessionsUsed: 1, pricePerSessionCents: 3600, discountPercent: 10, totalChargedCents: 18000, stripePaymentIntentId: `pi_pkg_${randomUUID()}` },
+  });
+  const latePi = `pi_late_${randomUUID()}`;
+  const lateCard = await prisma.booking.create({ data: bookingData(parent.id, profile.id, 2, { stripePaymentIntentId: latePi, discountCents: 250 }) });
+  const latePkg = await prisma.booking.create({ data: bookingData(parent.id, profile.id, 4, { packageId: pkg.id, paymentStatus: "CAPTURED", discountCents: 400 }) });
+  assert.equal((await prisma.booking.findUniqueOrThrow({ where: { id: lateCard.id } })).status, "CONFIRMED", "missed by revokeConsent itself");
+
+  const voided: (string | null)[] = [];
+  const late = await recheckBookingsAfterRevocation(profile.id, result.revokedAt!, { voidHold: async (id) => void voided.push(id) });
+  assert.deepEqual(new Set(late.cancelledBookingIds), new Set([lateCard.id, latePkg.id]));
+  assert.deepEqual([...voided], [latePi]);
+  const card = await prisma.booking.findUniqueOrThrow({ where: { id: lateCard.id } });
+  assert.equal(card.status, "CANCELLED");
+  assert.equal(card.paymentStatus, "CANCELLED");
+  const fromPkg = await prisma.booking.findUniqueOrThrow({ where: { id: latePkg.id } });
+  assert.equal(fromPkg.status, "CANCELLED");
+  assert.equal(fromPkg.paymentStatus, "REFUNDED");
+  const pkgAfter = await prisma.sessionPackage.findUniqueOrThrow({ where: { id: pkg.id } });
+  assert.equal(pkgAfter.sessionsUsed, 0);
+  assert.equal(pkgAfter.sessionsRefunded, 1);
+  assert.equal((await prisma.parentProfile.findUniqueOrThrow({ where: { id: parent.id } })).creditCents, 250, "card booking's credit returned, package discount isn't credit");
+
+  // Running it again changes nothing.
+  const again = await recheckBookingsAfterRevocation(profile.id, result.revokedAt!, { voidHold: async (id) => void voided.push(id) });
+  assert.deepEqual(again.cancelledBookingIds, []);
+  assert.deepEqual([...voided], [latePi]);
+  assert.equal((await prisma.parentProfile.findUniqueOrThrow({ where: { id: parent.id } })).creditCents, 250);
+});
+
+test("race: the re-check leaves alone started sessions, bookings outside its window, and anything after consent is signed again", async () => {
+  const { profile, revokeToken } = await liveConsentedMinor();
+  const { revokedAt } = await revokeConsent(revokeToken, meta, { voidHold: async () => {} });
+  const parent = await makeParent(0);
+  const started = await prisma.booking.create({ data: bookingData(parent.id, profile.id, -0.01) });
+  const outsideWindow = await prisma.booking.create({
+    data: bookingData(parent.id, profile.id, 3, { createdAt: new Date(revokedAt!.getTime() - 10 * 60 * 1000) }),
+  });
+  const noVoid = async () => assert.fail("nothing should be voided");
+  assert.deepEqual((await recheckBookingsAfterRevocation(profile.id, revokedAt!, { voidHold: noVoid })).cancelledBookingIds, []);
+  for (const id of [started.id, outsideWindow.id]) {
+    assert.equal((await prisma.booking.findUniqueOrThrow({ where: { id } })).status, "CONFIRMED");
+  }
+
+  // The parent signs a new consent; a delayed re-check from the old revocation must not touch new bookings.
+  const { token } = await createConsentRequest({ coachProfileId: profile.id, guardianName: "Pat", guardianEmail: "pat@example.test" });
+  await completeConsent(token, signature(), meta);
+  const newBooking = await prisma.booking.create({ data: bookingData(parent.id, profile.id, 5) });
+  assert.deepEqual((await recheckBookingsAfterRevocation(profile.id, revokedAt!, { voidHold: noVoid })).cancelledBookingIds, []);
+  assert.equal((await prisma.booking.findUniqueOrThrow({ where: { id: newBooking.id } })).status, "CONFIRMED");
 });

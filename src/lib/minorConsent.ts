@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { cancelPaymentIntent } from "@/lib/payment";
 import { sendMockEmail } from "@/lib/mockEmail";
 import { MINOR_CONSENT_TEXT_VERSION, REQUIRED_ACKNOWLEDGMENT_KEYS } from "@/lib/legal/minorConsentText";
-import type { MinorConsent } from "@/generated/prisma/client";
+import type { Booking, CoachProfile, MinorConsent, ParentProfile, User } from "@/generated/prisma/client";
 
 /**
  * Parent/guardian consent for Minor Coaches (see the MinorConsent model).
@@ -15,7 +15,8 @@ import type { MinorConsent } from "@/generated/prisma/client";
  * - Requesting a new link supersedes the pending one.
  * - Signing records the signature and issues a revoke link that never expires.
  * - Revoking unpublishes the profile (consent cache cleared, ID approval back to PENDING)
- *   and cancels the coach's upcoming sessions, releasing card holds.
+ *   and cancels the coach's upcoming sessions, releasing card holds. Bookings that were
+ *   mid-flight when consent was withdrawn are caught by recheckBookingsAfterRevocation.
  *
  * CoachProfile.minorGuardian* is a cache of the consent in effect, written in the same
  * transaction as the MinorConsent row it mirrors. Decisions that matter (admin approval,
@@ -270,6 +271,7 @@ export function lookupRevokeToken(revokeToken: string) {
 export type RevocationResult = {
   alreadyRevoked: boolean;
   coachProfileId: string;
+  revokedAt: Date | null;
   cancelledBookingIds: string[];
   /** Cancelled bookings whose card hold couldn't be voided — shown to admins for follow-up. */
   holdsNotVoided: string[];
@@ -310,9 +312,15 @@ export async function revokeConsent(
     return true;
   });
 
-  if (!revokedNow) return { alreadyRevoked: true, coachProfileId, cancelledBookingIds: [], holdsNotVoided: [] };
+  if (!revokedNow) return { alreadyRevoked: true, coachProfileId, revokedAt: null, cancelledBookingIds: [], holdsNotVoided: [] };
 
-  const { cancelledBookingIds, holdsNotVoided } = await cancelUpcomingSessionsForCoach(coachProfileId, { now, voidHold });
+  const first = await cancelUpcomingSessionsForCoach(coachProfileId, { now, voidHold });
+  // A booking that passed validation just before the revocation committed can land while
+  // the first pass is still voiding holds; catch it now. The revoke route runs this once
+  // more a little later for bookings whose Stripe call was still in flight.
+  const recheck = await recheckBookingsAfterRevocation(coachProfileId, now, { now, voidHold });
+  const cancelledBookingIds = [...first.cancelledBookingIds, ...recheck.cancelledBookingIds];
+  const holdsNotVoided = [...first.holdsNotVoided, ...recheck.holdsNotVoided];
 
   const coach = consent.coachProfile.user;
   sendMockEmail(
@@ -326,7 +334,7 @@ export async function revokeConsent(
     `Your parent or guardian withdrew their consent, so your profile is hidden from families and your upcoming sessions were cancelled. If they change their mind, you can send them a new consent request from your onboarding page.`,
   );
 
-  return { alreadyRevoked: false, coachProfileId, cancelledBookingIds, holdsNotVoided };
+  return { alreadyRevoked: false, coachProfileId, revokedAt: now, cancelledBookingIds, holdsNotVoided };
 }
 
 /**
@@ -345,13 +353,63 @@ export async function cancelUpcomingSessionsForCoach(
 ) {
   const upcoming = await prisma.booking.findMany({
     where: { coachProfileId, status: { in: ["CONFIRMED", "PENDING_CONSENT"] }, scheduledAt: { gt: now } },
-    include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } } },
+    include: BOOKING_NOTICE_INCLUDE,
   });
+  return cancelBookingsAfterRevocation(upcoming, { now, voidHold });
+}
 
+/** How far before the revocation the re-check looks, by booking creation time. */
+export const REVOCATION_RECHECK_WINDOW_MS = 5 * 60 * 1000;
+/** How long after the revocation response the revoke route runs its second re-check. */
+export const REVOCATION_RECHECK_DELAY_MS = 30 * 1000;
+
+/**
+ * Closes the race between a revocation and a booking already in flight: that booking
+ * passed the "is this coach live?" check before the revocation committed, so the first
+ * pass may not have seen it. Looks again at this coach's bookings created from
+ * REVOCATION_RECHECK_WINDOW_MS before the revocation onward and handles any that are
+ * still upcoming exactly like the first pass. Safe to run any number of times.
+ *
+ * Does nothing if the coach has a signed, unrevoked consent again by the time it runs,
+ * so it can never cancel bookings made under a new consent.
+ */
+export async function recheckBookingsAfterRevocation(
+  coachProfileId: string,
+  revokedAt: Date,
+  { now = new Date(), voidHold = cancelPaymentIntent }: { now?: Date; voidHold?: (id: string | null) => Promise<unknown> } = {},
+) {
+  if (await getActiveConsent(coachProfileId)) return { cancelledBookingIds: [], holdsNotVoided: [] };
+  const recent = await prisma.booking.findMany({
+    where: {
+      coachProfileId,
+      status: { in: ["CONFIRMED", "PENDING_CONSENT"] },
+      scheduledAt: { gt: now },
+      createdAt: { gte: new Date(revokedAt.getTime() - REVOCATION_RECHECK_WINDOW_MS) },
+    },
+    include: BOOKING_NOTICE_INCLUDE,
+  });
+  return cancelBookingsAfterRevocation(recent, { now, voidHold });
+}
+
+const BOOKING_NOTICE_INCLUDE = {
+  parentProfile: { include: { user: true } },
+  coachProfile: { include: { user: true } },
+} as const;
+
+type BookingWithPeople = Booking & {
+  parentProfile: ParentProfile & { user: User };
+  coachProfile: CoachProfile & { user: User };
+};
+
+/** The per-booking handling shared by the first pass and the re-checks. */
+async function cancelBookingsAfterRevocation(
+  bookings: BookingWithPeople[],
+  { now, voidHold }: { now: Date; voidHold: (id: string | null) => Promise<unknown> },
+) {
   const cancelledBookingIds: string[] = [];
   const holdsNotVoided: string[] = [];
 
-  for (const b of upcoming) {
+  for (const b of bookings) {
     const cancelled = await prisma.$transaction(async (tx) => {
       const { count } = await tx.booking.updateMany({
         where: { id: b.id, status: b.status },
