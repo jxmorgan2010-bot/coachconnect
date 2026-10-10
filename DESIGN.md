@@ -174,7 +174,7 @@ the code runs.
 - [ ] Do cards have frosted-glass + soft-glow styling?
 - [ ] Does it break or look unstyled on mobile?
 - [ ] Does any copy claim something untrue?
-- [ ] Did any non-UI file change?
+- [ ] For redesign/UI-only tasks: did any non-UI file change?
 - [ ] Did any protected-area file change, and was it allowed by the task?
 - [ ] Did .env or flags.ts change? (They shouldn't.)
 
