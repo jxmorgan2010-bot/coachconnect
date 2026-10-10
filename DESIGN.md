@@ -156,6 +156,11 @@ the code runs.
    place.
 6. Report back what you checked and what you changed. If a check couldn't be run, say so.
 
+### Required checks
+
+- `npm run build`, `tsc`, and lint must pass.
+- After touching booking or payment UI or logic, run the booking flow with a Stripe test card, including the package path and the quick-rebook path.
+
 ### Vibe-code checklist (every item must be NO)
 
 - [ ] Is purple/violet the dominant color?
@@ -170,6 +175,8 @@ the code runs.
 - [ ] Does it break or look unstyled on mobile?
 - [ ] Does any copy claim something untrue?
 - [ ] Did any non-UI file change?
+- [ ] Did any protected-area file change, and was it allowed by the task?
+- [ ] Did .env or flags.ts change? (They shouldn't.)
 
 ---
 
@@ -203,7 +210,7 @@ These apply to all work in this project unless a task prompt explicitly says oth
 - No stock photos or AI-generated people. Coach photos are user-uploaded; use designed placeholders for missing photos.
 
 ### Stack
-- Work within the existing Tailwind and shadcn setup. Put colors, fonts and spacing in shared tokens (globals.css or the Tailwind config), not hardcoded per page. Load fonts with next/font.
+- Tailwind CSS v4 through `@tailwindcss/postcss`: there is no `tailwind.config` file and no shadcn or other component library. Tokens (colors, fonts, type sizes, shadows) live in `src/app/globals.css` under `:root` and `@theme inline`, with shared classes such as `.eyebrow` in its `@layer components`. Components are hand-built in `src/components/`, and shared input and button class strings are in `src/lib/ui.ts`. Put colors, fonts and spacing in these shared tokens, not hardcoded per page. Load fonts with next/font (Anton display and Karla body, in `src/app/layout.tsx`).
 
 ### Protected areas (only change when the task prompt explicitly allows it)
 - prisma/schema.prisma and anything that changes the database structure.
@@ -248,8 +255,3 @@ When a task is described as a redesign, restyle or UI-only change:
 - Every task gets its own new branch with a descriptive name (fix/..., feature/..., docs/...). Never commit to master.
 - Push the branch and open a pull request. Don't merge.
 - Finish every task with a summary: what changed (list files), what was tested and how, and anything uncertain. Tick only the PR checkboxes you actually verified.
-
-### Verification (add to section 9)
-- `npm run build`, `tsc`, and lint must pass.
-- After touching booking or payment UI or logic, run the booking flow with a Stripe test card, including the package path and the quick-rebook path.
-- Add to the vibe-code checklist: [ ] Does any copy claim something untrue? [ ] Did any protected-area file change, and was it allowed by the task? [ ] Did .env or flags.ts change? (They shouldn't.)
