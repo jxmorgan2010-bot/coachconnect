@@ -6,11 +6,18 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import AuthLayout from "@/components/AuthLayout";
 import { IconWhistle } from "@/components/icons";
-import { inputClass, labelClass, goldButtonClass, errorClass } from "@/lib/ui";
+import { inputClass, labelClass, goldButtonClass, errorClass, quietLinkClass } from "@/lib/ui";
 import { PLATFORM_FEE_RATE } from "@/lib/money";
 import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 
-export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesEnabled: boolean }) {
+export default function CoachSignupForm({
+  minorCoachesEnabled,
+  todayPacific,
+}: {
+  minorCoachesEnabled: boolean;
+  /** "YYYY-MM-DD" — the latest date of birth the date picker allows. */
+  todayPacific: string;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -20,6 +27,8 @@ export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesE
   const [zip, setZip] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [outOfArea, setOutOfArea] = useState(false);
+  // Under 18 while the Minor Coach tier is off: a notice, not an error.
+  const [notAcceptedYet, setNotAcceptedYet] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -40,6 +49,11 @@ export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesE
         body: JSON.stringify({ name, email, password, dateOfBirth, zip }),
       });
       const data = await res.json();
+      if (data.code === "UNDER_18_NOT_ACCEPTED") {
+        setNotAcceptedYet(data.error);
+        setLoading(false);
+        return;
+      }
       if (!res.ok) {
         setError(data.error ?? "Something went wrong.");
         setOutOfArea(Boolean(data.outOfArea));
@@ -77,12 +91,30 @@ export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesE
         Next you&apos;ll build your profile and finish verification before families can find you.
       </p>
       {/* Signup rejects under-18s while the Minor Coach tier is off — say so before they fill anything in */}
-      {!minorCoachesEnabled && (
+      {!minorCoachesEnabled ? (
         <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm font-bold text-ink">
           You need to be 18 or older to coach on CoachConnect for now.
         </p>
+      ) : (
+        <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm text-ink">
+          <span className="font-bold">Under 18?</span> You can apply from 15 years and 6 months old. A parent or
+          guardian will need to sign a consent form before your profile is reviewed.
+        </p>
       )}
 
+      {notAcceptedYet ? (
+        <div role="status" className="flex flex-col items-start gap-4 rounded-xl border-2 border-ink bg-chalk p-5">
+          <p className="font-display text-2xl leading-tight text-ink">Not quite yet</p>
+          <p className="text-sm text-ink">{notAcceptedYet}</p>
+          <p className="text-sm text-muted-foreground">We haven&apos;t saved anything you entered.</p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/" className={goldButtonClass}>Back to CoachConnect</Link>
+            <button type="button" onClick={() => setNotAcceptedYet(null)} className={`${quietLinkClass} px-2 text-pitch`}>
+              Wrong date of birth? Fix it
+            </button>
+          </div>
+        </div>
+      ) : (
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         {error && (
           <p role="alert" className={errorClass}>
@@ -119,7 +151,7 @@ export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesE
               className={inputClass}
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
-              max={new Date().toISOString().slice(0, 10)}
+              max={todayPacific}
               required
             />
           </div>
@@ -165,6 +197,7 @@ export default function CoachSignupForm({ minorCoachesEnabled }: { minorCoachesE
           {loading ? "Creating account..." : "Continue to profile setup"}
         </button>
       </form>
+      )}
 
       <p className="mt-6 border-t-2 border-line pt-5 text-sm text-muted-foreground">
         Already have an account?{" "}

@@ -50,10 +50,7 @@ export async function validateBookingRequest(parentProfile: ParentProfile, data:
     throw new BookingValidationError("This coach doesn't offer that sport.");
   }
 
-  // Sessions with a minor coach require a second adult present beyond the booking parent.
-  if (coach.isMinorCoach && !data.secondAdultName?.trim()) {
-    throw new BookingValidationError("This coach is under 18 — enter the name of a second adult who'll be present.");
-  }
+  await assertSecondAdultNamed(coach, parentProfile, data.secondAdultName);
 
   await assertSlotOpen(coach.id, data.scheduledAt, data.durationMinutes);
 
@@ -101,9 +98,7 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
   if (!isCoachLive(pkg.coachProfile)) {
     throw new BookingValidationError("This coach isn't available for booking right now.");
   }
-  if (pkg.coachProfile.isMinorCoach && !data.secondAdultName?.trim()) {
-    throw new BookingValidationError("This coach is under 18 — enter the name of a second adult who'll be present.");
-  }
+  await assertSecondAdultNamed(pkg.coachProfile, parentProfile, data.secondAdultName);
 
   await assertSlotOpen(pkg.coachProfileId, data.scheduledAt, pkg.durationMinutes);
 
@@ -132,6 +127,26 @@ async function assertParentMayBook(parentProfile: ParentProfile, locationText: s
   if (blocked) {
     const body = (await blocked.json()) as { error: string };
     throw new BookingValidationError(body.error, blocked.status);
+  }
+}
+
+export const SECOND_ADULT_REQUIRED_MESSAGE =
+  "This coach is under 18, so you and a second adult both need to be at the session. Enter the second adult's name.";
+
+/**
+ * Sessions with a minor coach need the booking parent present plus a second adult. Runs in
+ * every booking path (single, package, quick rebook): the second adult must be named, and
+ * can't be the booking parent themselves.
+ */
+async function assertSecondAdultNamed(coach: { isMinorCoach: boolean }, parentProfile: ParentProfile, secondAdultName?: string) {
+  if (!coach.isMinorCoach) return;
+  const name = secondAdultName?.trim().replace(/\s+/g, " ") ?? "";
+  if (name.length < 2) {
+    throw new BookingValidationError(SECOND_ADULT_REQUIRED_MESSAGE);
+  }
+  const parentUser = await prisma.user.findUnique({ where: { id: parentProfile.userId }, select: { name: true } });
+  if (parentUser && parentUser.name.trim().replace(/\s+/g, " ").toLowerCase() === name.toLowerCase()) {
+    throw new BookingValidationError("The second adult has to be someone other than you. You'll both need to be at the session.");
   }
 }
 

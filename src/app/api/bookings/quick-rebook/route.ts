@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { quickRebookSchema } from "@/lib/validation";
-import { validateBookingRequest, createConfirmedBooking, BookingValidationError } from "@/lib/bookingValidation";
+import {
+  validateBookingRequest,
+  createConfirmedBooking,
+  BookingValidationError,
+  SECOND_ADULT_REQUIRED_MESSAGE,
+} from "@/lib/bookingValidation";
 import { nextOccurrenceOf } from "@/lib/rebook";
 import { chargeOffSessionHold, cancelPaymentIntent } from "@/lib/payment";
 import { awardPoints, POINTS_QUICK_REBOOK } from "@/lib/points";
@@ -54,7 +59,12 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     if (err instanceof BookingValidationError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      // Quick rebook has no field to name a second adult — point at the form that does.
+      const message =
+        err.message === SECOND_ADULT_REQUIRED_MESSAGE
+          ? "This coach is under 18, so each session needs a second adult named. Use the regular booking form to add one."
+          : err.message;
+      return NextResponse.json({ error: message }, { status: err.status });
     }
     throw err;
   }

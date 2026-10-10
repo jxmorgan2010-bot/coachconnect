@@ -281,8 +281,9 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
             <section className="rounded-lg border-2 border-ink bg-accent/10 p-4">
               <h2 className="mb-1 font-display text-xl text-ink">Minor Coach</h2>
               <p className="text-sm text-muted-foreground">
-                {firstName} is under 18. Their parent/guardian has signed a consent form, and CoachConnect requires a
-                second adult — beyond the booking parent — to be present at every session with them.
+                {firstName} is under 18, and their parent or guardian has signed a consent form. Every session with{" "}
+                {firstName} needs two adults there: you, the parent booking, plus one more adult. You&apos;ll name the
+                second adult when you book.
               </p>
             </section>
           )}

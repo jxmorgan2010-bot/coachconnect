@@ -16,7 +16,7 @@ const DURATIONS = [30, 60, 90, 120];
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
-type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[] };
+type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[]; isMinorCoach: boolean };
 
 export default function PackagePurchaseForm(props: { coach: CoachInfo }) {
   return (
@@ -125,6 +125,12 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
         Pay for {pricing.sessionCount} sessions upfront and save {pricing.discountPercent}%. You still schedule each one
         on the calendar whenever you&apos;re ready.
       </p>
+      {coach.isMinorCoach && (
+        <p className="mt-4 max-w-lg rounded-lg border-2 border-ink bg-accent/10 px-3.5 py-2.5 text-sm text-ink">
+          <span className="font-bold">{coach.name.split(" ")[0]} is under 18.</span> Every session in this package needs
+          you plus a second adult there. You&apos;ll name the second adult each time you schedule a session.
+        </p>
+      )}
 
       <form onSubmit={onSubmit} className="card mt-6 flex flex-col gap-5 p-5 sm:p-6">
         {error && <p role="alert" className={errorClass}>{error}</p>}

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SPORTS } from "@/lib/sports";
 import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
+import { parseCalendarDate, compareCalendarDates, todayInPacific } from "@/lib/age";
 
 export const parentRegisterSchema = z.object({
   name: z.string().trim().min(2, "Please enter your full name."),
@@ -97,7 +98,17 @@ export const coachRegisterSchema = z.object({
   name: z.string().trim().min(2, "Please enter your full name."),
   email: z.email("Please enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
-  dateOfBirth: z.coerce.date().refine((d) => d.getTime() < Date.now(), "Enter a valid date of birth."),
+  // A calendar date ("YYYY-MM-DD"), compared against today in Pacific time — see src/lib/age.ts.
+  dateOfBirth: z
+    .string()
+    .transform((value, ctx) => {
+      const date = parseCalendarDate(value);
+      if (!date || date.year < 1900 || compareCalendarDates(date, todayInPacific()) >= 0) {
+        ctx.addIssue({ code: "custom", message: "Enter a valid date of birth." });
+        return z.NEVER;
+      }
+      return date;
+    }),
   // CoachConnect is Bay Area only at launch — see src/lib/bayArea.ts.
   zip: z
     .string()
@@ -107,11 +118,35 @@ export const coachRegisterSchema = z.object({
     .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
 });
 
-export const minorGuardianConsentSchema = z.object({
-  guardianName: z.string().trim().min(2, "Enter your full name."),
-  guardianRelationship: z.string().trim().min(2, "Enter your relationship to the coach (e.g. Parent, Legal guardian)."),
-  guardianEmail: z.email("Enter a valid email address."),
-  consented: z.literal(true, { error: "Check the box to confirm your consent." }),
+/** The teen names the parent/guardian who should receive the consent link. */
+export const minorConsentRequestSchema = z.object({
+  guardianName: z.string().trim().min(2, "Enter your parent or guardian's full name.").max(120),
+  guardianEmail: z.string().trim().pipe(z.email("Enter a valid email address for your parent or guardian.").max(254)),
+});
+
+export const GUARDIAN_RELATIONSHIPS = ["Parent", "Legal guardian"] as const;
+
+/** What the parent/guardian submits on the consent page. Acknowledgments are checked against the current text in src/lib/minorConsent.ts. */
+export const minorConsentSignSchema = z.object({
+  consentTextVersion: z.string().min(1),
+  acknowledgedKeys: z.array(z.string()).max(50),
+  signerLegalName: z.string().trim().min(2, "Enter your full legal name.").max(120),
+  signerRelationship: z.enum(GUARDIAN_RELATIONSHIPS, { error: "Choose your relationship to the coach." }),
+  emergencyContactName: z.string().trim().min(2, "Enter an emergency contact name.").max(120),
+  emergencyContactPhone: z
+    .string()
+    .trim()
+    .max(30)
+    .refine((v) => {
+      const digits = v.replace(/\D/g, "").length;
+      return digits >= 10 && digits <= 15;
+    }, "Enter an emergency contact phone number, including area code."),
+  confirmedAdult: z.literal(true, { error: "Confirm that you're 18 or older." }),
+  typedSignature: z.string().trim().min(2, "Type your full legal name to sign.").max(120),
+});
+
+export const ageIdentityVerificationSchema = z.object({
+  method: z.string().trim().min(3, "Describe how age and identity were verified.").max(2000),
 });
 
 export const minorVerificationNoteSchema = z.object({

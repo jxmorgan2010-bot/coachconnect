@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { ENABLE_MINOR_COACHES } from "@/lib/flags";
+import { setIdVerificationStatus, MinorConsentError } from "@/lib/minorConsent";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
@@ -15,10 +16,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid status." }, { status: 400 });
   }
 
-  await prisma.coachProfile.update({
-    where: { id },
-    data: { idVerificationStatus: status },
-  });
+  // Approving a minor coach requires completed, unrevoked guardian consent — enforced in
+  // setIdVerificationStatus, not just by hiding the button.
+  try {
+    await setIdVerificationStatus(id, status, { minorCoachesEnabled: ENABLE_MINOR_COACHES });
+  } catch (err) {
+    if (err instanceof MinorConsentError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
 
   return NextResponse.json({ ok: true });
 }

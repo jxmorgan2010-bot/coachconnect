@@ -1,5 +1,6 @@
 import type { CoachProfile, Sport, SchoolLevel } from "@/generated/prisma/client";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
+import { coachAgeBand, describeCalendarDate, todayInPacific, type CalendarDate } from "@/lib/age";
 
 export type CoachCardData = {
   id: string;
@@ -71,8 +72,9 @@ export function isCoachLive(
 
   if (profile.isMinorCoach) {
     // Never live unless the flag is on — standard background checks don't gate a minor
-    // coach (see MIN_MINOR_COACH_AGE docs below); guardian consent + an admin-recorded
-    // alternative verification note stand in for it instead.
+    // coach; guardian consent + an admin-recorded alternative verification note stand in
+    // for it instead. minorGuardianConsentedAt is cleared when consent is revoked (see
+    // src/lib/minorConsent.ts), which unpublishes the profile.
     if (!ENABLE_MINOR_COACHES) return false;
     return Boolean(profile.minorGuardianConsentedAt) && Boolean(profile.minorBackgroundCheckNote);
   }
@@ -88,33 +90,37 @@ export function hasVerifiedVideoBio(
   return Boolean(profile.introClipUrl && profile.coachingClipUrl && profile.playingClipUrl);
 }
 
-/** Minimum age to be routed into the Minor Coach flow at all — reject anyone younger. */
-export const MIN_MINOR_COACH_AGE = 15.5;
-export const MIN_ADULT_COACH_AGE = 18;
-
-export function getAgeInYears(dateOfBirth: Date, now: Date = new Date()): number {
-  const msPerYear = 1000 * 60 * 60 * 24 * 365.25;
-  return (now.getTime() - dateOfBirth.getTime()) / msPerYear;
-}
-
 export type CoachAgeEligibility =
   | { ok: true; isMinor: boolean }
-  | { ok: false; reason: string };
+  | { ok: false; code: "UNDER_18_NOT_ACCEPTED" | "TOO_YOUNG"; reason: string };
 
 /**
  * Decides whether a date of birth clears the bar to sign up as a coach at all, and if so,
- * whether they land in the standard 18+ flow or the Minor Coach flow. The Minor Coach
- * branch only ever applies when ENABLE_MINOR_COACHES is on — otherwise anyone under 18 is
- * rejected outright, same as if the tier didn't exist.
+ * whether they land in the standard 18+ flow or the Minor Coach flow (calendar-date rules
+ * in src/lib/age.ts). The Minor Coach branch only applies when ENABLE_MINOR_COACHES is on;
+ * otherwise anyone under 18 gets UNDER_18_NOT_ACCEPTED, which signup shows as a friendly
+ * notice rather than an error. Both inputs default to the real values and are parameters
+ * only so tests can pin them.
  */
-export function evaluateCoachAgeEligibility(dateOfBirth: Date, now: Date = new Date()): CoachAgeEligibility {
-  const age = getAgeInYears(dateOfBirth, now);
-  if (age >= MIN_ADULT_COACH_AGE) return { ok: true, isMinor: false };
-  if (age < MIN_MINOR_COACH_AGE) {
-    return { ok: false, reason: "Coaches must be at least 15.5 years old." };
+export function evaluateCoachAgeEligibility(
+  birth: CalendarDate,
+  { today = todayInPacific(), minorCoachesEnabled = ENABLE_MINOR_COACHES }: { today?: CalendarDate; minorCoachesEnabled?: boolean } = {},
+): CoachAgeEligibility {
+  const age = coachAgeBand(birth, today);
+  if (age.band === "ADULT") return { ok: true, isMinor: false };
+  if (!minorCoachesEnabled) {
+    return {
+      ok: false,
+      code: "UNDER_18_NOT_ACCEPTED",
+      reason: `Thanks for wanting to coach! CoachConnect isn't accepting coaches under 18 yet. You can sign up any time after your 18th birthday on ${describeCalendarDate(age.adultOn)}.`,
+    };
   }
-  if (!ENABLE_MINOR_COACHES) {
-    return { ok: false, reason: "CoachConnect isn't accepting coaches under 18 yet. Please check back later." };
+  if (age.band === "TOO_YOUNG") {
+    return {
+      ok: false,
+      code: "TOO_YOUNG",
+      reason: `Coaches need to be at least 15 years and 6 months old. You can sign up on or after ${describeCalendarDate(age.eligibleOn)}.`,
+    };
   }
   return { ok: true, isMinor: true };
 }
