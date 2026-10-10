@@ -97,7 +97,7 @@ export default function CoachSignupForm({
         </p>
       ) : (
         <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm text-ink">
-          <span className="font-bold">Under 18?</span> You can apply from 15 years and 6 months old. A parent or
+          <span className="font-bold">Under 18?</span> You can apply from age 16. A parent or
           guardian will need to sign a consent form before your profile is reviewed.
         </p>
       )}

@@ -28,19 +28,19 @@ test("parseCalendarDate accepts real dates only", () => {
   assert.equal(parseCalendarDate(""), null);
 });
 
-test("15 years 4 months is rejected (tier on)", () => {
-  const r = evaluateCoachAgeEligibility(d("2011-06-07"), { today: d("2026-10-07"), ...ON });
+test("15 years 11 months is rejected (tier on)", () => {
+  const r = evaluateCoachAgeEligibility(d("2010-11-07"), { today: d("2026-10-07"), ...ON });
   assert.equal(r.ok, false);
   assert.equal(!r.ok && r.code, "TOO_YOUNG");
-  assert.match(!r.ok ? r.reason : "", /15 years and 6 months/);
-  assert.match(!r.ok ? r.reason : "", /December 7, 2026/);
+  assert.match(!r.ok ? r.reason : "", /at least 16 years old/);
+  assert.match(!r.ok ? r.reason : "", /November 7, 2026/);
 });
 
-test("exactly 15 years 6 months is accepted into the Minor Coach flow; the day before is not", () => {
-  const birth = d("2011-04-07");
-  assert.deepEqual(evaluateCoachAgeEligibility(birth, { today: d("2026-10-07"), ...ON }), { ok: true, isMinor: true });
+test("the day before the 16th birthday is rejected; the 16th birthday is accepted into the Minor Coach flow", () => {
+  const birth = d("2010-10-07");
   const dayBefore = evaluateCoachAgeEligibility(birth, { today: d("2026-10-06"), ...ON });
   assert.equal(!dayBefore.ok && dayBefore.code, "TOO_YOUNG");
+  assert.deepEqual(evaluateCoachAgeEligibility(birth, { today: d("2026-10-07"), ...ON }), { ok: true, isMinor: true });
 });
 
 test("the day before the 18th birthday is a minor; the 18th birthday is the adult flow", () => {
@@ -65,24 +65,28 @@ test("Feb 29 birthday: 18th birthday falls on Mar 1 in a non-leap year", () => {
   assert.equal(ageInWholeYears(birth, d("2026-03-01")), 18);
 });
 
-test("Feb 29 birthday: 15y6m lands on Aug 29, which always exists", () => {
+test("Feb 29 birthday: the 16th birthday is Feb 29 again (16 years on is a leap year)", () => {
   const birth = d("2012-02-29");
-  assert.deepEqual(dateReachingAge(birth, MIN_COACH_AGE), d("2027-08-29"));
-  assert.equal(coachAgeBand(birth, d("2027-08-28")).band, "TOO_YOUNG");
-  assert.equal(coachAgeBand(birth, d("2027-08-29")).band, "MINOR");
+  assert.deepEqual(dateReachingAge(birth, MIN_COACH_AGE), d("2028-02-29"));
+  assert.equal(!evaluateCoachAgeEligibility(birth, { today: d("2028-02-28"), ...ON }).ok, true);
+  assert.deepEqual(evaluateCoachAgeEligibility(birth, { today: d("2028-02-29"), ...ON }), { ok: true, isMinor: true });
+  assert.equal(coachAgeBand(birth, d("2028-02-28")).band, "TOO_YOUNG");
+  // ...except across a skipped century leap year: 2100 has no Feb 29, so it's Mar 1.
+  assert.deepEqual(dateReachingAge(d("2084-02-29"), MIN_COACH_AGE), d("2100-03-01"));
 });
 
+// dateReachingAge also takes months; the age rules don't use them today, but the helper should stay right.
+const SIX_MONTHS = { years: 0, months: 6 };
+
 test("Aug 31 + 6 months rolls to Mar 1 (no Feb 31), in leap and non-leap years", () => {
-  assert.deepEqual(dateReachingAge(d("2010-08-31"), MIN_COACH_AGE), d("2026-03-01"));
-  assert.equal(coachAgeBand(d("2010-08-31"), d("2026-02-28")).band, "TOO_YOUNG");
-  assert.equal(coachAgeBand(d("2010-08-31"), d("2026-03-01")).band, "MINOR");
-  assert.deepEqual(dateReachingAge(d("2012-08-31"), MIN_COACH_AGE), d("2028-03-01")); // 2028 is a leap year: no Feb 31 either
-  assert.deepEqual(dateReachingAge(d("2012-08-29"), MIN_COACH_AGE), d("2028-02-29"));
+  assert.deepEqual(dateReachingAge(d("2010-08-31"), SIX_MONTHS), d("2011-03-01"));
+  assert.deepEqual(dateReachingAge(d("2011-08-31"), SIX_MONTHS), d("2012-03-01")); // 2012 is a leap year: no Feb 31 either
+  assert.deepEqual(dateReachingAge(d("2011-08-29"), SIX_MONTHS), d("2012-02-29"));
 });
 
 test("month arithmetic crosses the year boundary", () => {
-  assert.deepEqual(dateReachingAge(d("2010-09-15"), MIN_COACH_AGE), d("2026-03-15"));
-  assert.deepEqual(dateReachingAge(d("2010-07-31"), MIN_COACH_AGE), d("2026-01-31"));
+  assert.deepEqual(dateReachingAge(d("2010-09-15"), SIX_MONTHS), d("2011-03-15"));
+  assert.deepEqual(dateReachingAge(d("2010-07-31"), SIX_MONTHS), d("2011-01-31"));
 });
 
 test("under 18 with the tier off gets the friendly not-yet message, never TOO_YOUNG", () => {
