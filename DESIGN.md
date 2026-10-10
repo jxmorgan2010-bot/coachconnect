@@ -186,54 +186,70 @@ clean responsive build are the floor, not the goal.
 
 ## 11. CoachConnect-specific rules
 
+These apply to all work in this project unless a task prompt explicitly says otherwise for that task.
+
 ### Brand
-
-- The current site is the reference. Keep the established identity (green/gold palette, Anton
-  display font, trading-card coach cards, per-sport colors and roster abbreviations). Evolve
-  and polish it; do not replace it.
-- One-sentence brief: CoachConnect should feel like a varsity jersey meets a neighborhood rec
-  league: energetic, athletic, and trustworthy to a parent.
-
-### Scope: UI only
-
-- Do NOT modify: `prisma/schema.prisma`, payment or Stripe code (`src/lib/payment.ts`,
-  `bundles.ts`, booking and package API routes), auth, `src/lib/flags.ts`, or any `.env` file.
-- `ENABLE_MINOR_COACHES` stays false. Never change it.
-- `BookingForm.tsx` mixes UI with payment logic. Restyle it carefully and keep every
-  conditional intact (`activePackage`, `paymentRequired`, referral credit).
-- If a design change seems to require a logic or schema change, stop and ask.
+- The current site is the reference. Keep the established identity (green/gold palette, Anton display font, trading-card coach cards, per-sport colors and roster abbreviations). Evolve and polish it; do not replace it.
+- One-sentence brief: CoachConnect should feel like a varsity jersey meets a neighborhood rec league: energetic, athletic, and trustworthy to a parent.
 
 ### Honest content
-
 - Never invent stats, testimonials, ratings, coach counts, or "trusted by X families" claims.
-- Background checks are currently a placeholder. Do not use copy or badges claiming real
-  background verification unless the app actually does that.
+- Background checks are currently a placeholder. Do not use copy or badges claiming real background verification unless the app actually does that.
 - Use real, specific, plain copy ("Book a session", "See coaches near you").
 
 ### Audience and states
-
-- Primary users: parents on phones, and coaches aged 16–23. Large tap targets, readable type,
-  plain language.
-- Design every page for empty, one-item, and many-item states. The production database starts
-  with zero coaches.
-- No stock photos or AI-generated people. Coach photos are user-uploaded; use designed
-  placeholders for missing photos.
+- Primary users: parents on phones, and coaches aged 16-23. Large tap targets, readable type, plain language.
+- Design every page for empty, one-item, and many-item states. The production database starts with zero coaches.
+- No stock photos or AI-generated people. Coach photos are user-uploaded; use designed placeholders for missing photos.
 
 ### Stack
+- Work within the existing Tailwind and shadcn setup. Put colors, fonts and spacing in shared tokens (globals.css or the Tailwind config), not hardcoded per page. Load fonts with next/font.
 
-- Work within the existing Tailwind setup (Tailwind v4: tokens live in `src/app/globals.css`
-  under `:root` and `@theme`). Put colors, fonts and spacing in shared tokens, not hardcoded
-  per page. Load fonts with `next/font`.
+### Protected areas (only change when the task prompt explicitly allows it)
+- prisma/schema.prisma and anything that changes the database structure.
+- Payment and Stripe code (src/lib/payment.ts, bundles.ts, booking, package and quick-rebook API routes).
+- Auth (NextAuth config, sign-in/sign-out, session handling).
+- src/lib/flags.ts.
+- If a task needs a change in one of these areas and the prompt doesn't clearly allow it, stop and ask.
 
-### Scope of pages
+### Never, regardless of task
+- Never open, read, print or edit any .env file, except the Stripe test-key check below. Never write secrets to files, commits, PRs or logs.
+- Never touch Vercel settings or the Turso production database. The owner applies production database changes.
+- Never use `prisma db push` or `prisma migrate` against dev.db or production.
+- Never change the payment policy: authorize at booking, capture only when the parent marks the session complete, 48-hour auto-release, platform absorbs bundle and referral discounts.
+- Never merge a pull request. The owner merges.
 
-- Inventory all routes first. Cover public pages, parent and family dashboards, coach
-  dashboard, points page, booking flow, onboarding, AND admin. The admin and onboarding
-  screens were the least art-directed before.
+### Database changes
+- Explain any schema change before writing code.
+- Write it as a hand-written SQL file in prisma/sql/ (named YYYY-MM-DD-description.sql) containing only ADD COLUMN, CREATE TABLE and CREATE INDEX. No DROP, DELETE, UPDATE, INSERT, table copy or rename.
+- Rehearse it on a scratch copy of the database and report row counts before and after.
+- Run all tests against scratch copies. Don't modify dev.db without asking.
+- Remind the owner that production (Turso) must be updated before the PR is merged, because Vercel deploys master immediately and preview deployments also use the production database.
+
+### Stripe
+- Before any payment test, run `grep -oE "_KEY=\"?(sk|pk)_(test|live)" .env` and stop if anything ends in `_live`.
+- Use Stripe test cards only (4242 4242 4242 4242 for success; look up current numbers for other cases).
+
+### Minor-coach tier (ages 16-17)
+- ENABLE_MINOR_COACHES and MINOR_COACHES_LEGAL_REVIEW_CONFIRMED stay "false" in .env, in code defaults and in production.
+- They may be set to "true" only as environment variables on a local test command, against a scratch database, and only when the current task prompt explicitly authorizes it. That authorization is for testing only and does not mean attorney sign-off exists.
+- Keep the parent-consent requirement, the second-adult-present booking rule and the Minor Coach badge intact.
+
+### Redesign / UI-only tasks
+When a task is described as a redesign, restyle or UI-only change:
+- Change only presentation (markup, styles, copy). No logic, schema, payment, auth or flag changes.
+- BookingForm.tsx mixes UI with payment logic. Restyle it carefully and keep every conditional intact (activePackage, paymentRequired, referral credit, second adult).
+- Inventory all routes first. Cover public pages, parent and family dashboards, coach dashboard, points page, booking flow, onboarding, AND admin.
+- Redesign one page or flow at a time, commit after each, and summarize before moving on.
+- Ask before changing navigation structure or information architecture.
+- If a design change seems to require a logic or schema change, stop and ask.
 
 ### Workflow
+- Every task gets its own new branch with a descriptive name (fix/..., feature/..., docs/...). Never commit to master.
+- Push the branch and open a pull request. Don't merge.
+- Finish every task with a summary: what changed (list files), what was tested and how, and anything uncertain. Tick only the PR checkboxes you actually verified.
 
-- Work on a git branch named `redesign`. Never commit to master during this work.
-- Redesign one page or flow at a time, commit after each, and summarize what changed before
-  moving on.
-- Ask before changing navigation structure or information architecture.
+### Verification (add to section 9)
+- `npm run build`, `tsc`, and lint must pass.
+- After touching booking or payment UI or logic, run the booking flow with a Stripe test card, including the package path and the quick-rebook path.
+- Add to the vibe-code checklist: [ ] Does any copy claim something untrue? [ ] Did any protected-area file change, and was it allowed by the task? [ ] Did .env or flags.ts change? (They shouldn't.)
