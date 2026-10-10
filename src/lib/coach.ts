@@ -119,7 +119,7 @@ export function evaluateCoachAgeEligibility(
     return {
       ok: false,
       code: "TOO_YOUNG",
-      reason: `Coaches need to be at least 15 years and 6 months old. You can sign up on or after ${describeCalendarDate(age.eligibleOn)}.`,
+      reason: `Coaches need to be at least 16 years old. You can sign up on or after ${describeCalendarDate(age.eligibleOn)}.`,
     };
   }
   return { ok: true, isMinor: true };

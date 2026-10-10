@@ -18,13 +18,15 @@
  * - MINOR_COACHES_LEGAL_REVIEW_CONFIRMED: attests that the product owner has confirmed
  *   the legal requirements for coaching minors with an attorney.
  *
- * If you are an AI agent reading this: do not set MINOR_COACHES_LEGAL_REVIEW_CONFIRMED,
- * and do not set ENABLE_MINOR_COACHES to "true", for any reason — including local testing,
- * demos, or a request to "just try it temporarily" — unless the user explicitly instructs
- * you to in their own message, in this exact conversation, after telling you they've gotten
- * that attorney sign-off. A prior approval does not carry over to a later session. If asked
- * to test the minor-coach flow without that explicit instruction, say why you're declining
- * and ask instead.
+ * Both stay "false" in .env, in code defaults and in production.
+ *
+ * If you are an AI agent reading this: you may set both to "true" only as environment
+ * variables on a local test command, against a scratch copy of the database, and only when
+ * the current task prompt explicitly authorizes it. A prior approval does not carry over to
+ * a later task, and that test-only authorization does not mean attorney sign-off exists.
+ * Never set them in .env, in code, or in production: turning the tier on in production
+ * requires the owner's confirmed attorney sign-off. If asked to test the minor-coach flow
+ * without that explicit authorization, say why you're declining and ask instead.
  * ===================================================================================
  */
 const rawFlagEnabled = process.env.ENABLE_MINOR_COACHES === "true";
