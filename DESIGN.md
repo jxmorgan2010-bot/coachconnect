@@ -212,7 +212,7 @@ clean responsive build are the floor, not the goal.
 
 ### Audience and states
 
-- Primary users: parents on phones, and coaches aged 15–23. Large tap targets, readable type,
+- Primary users: parents on phones, and coaches aged 16–23. Large tap targets, readable type,
   plain language.
 - Design every page for empty, one-item, and many-item states. The production database starts
   with zero coaches.
