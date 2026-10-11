@@ -9,7 +9,7 @@ import { toPacificParts } from "@/lib/availability";
  * in the Bay Area), whatever timezone the server runs in.
  *
  * When an anniversary lands on a day the target month doesn't have (a Feb 29 birthday in
- * a non-leap year, or Aug 31 plus six months), it moves to the 1st of the next month.
+ * a non-leap year), it moves to the 1st of the next month.
  * That's the later of the two common conventions, so in both directions it errs toward
  * caution: someone becomes old enough to apply one day later, and stays in the Minor
  * Coach flow (with its extra safeguards) one day longer.
@@ -19,7 +19,7 @@ import { toPacificParts } from "@/lib/availability";
 export type CalendarDate = { year: number; month: number; day: number };
 
 /** Minimum age to apply as a coach at all (only possible while the Minor Coach tier is on). */
-export const MIN_COACH_AGE = { years: 15, months: 6 } as const;
+export const MIN_COACH_AGE = { years: 16, months: 0 } as const;
 /** From this age a coach is in the standard adult flow. */
 export const ADULT_AGE = { years: 18, months: 0 } as const;
 
