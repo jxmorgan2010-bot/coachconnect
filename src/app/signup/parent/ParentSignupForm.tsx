@@ -77,7 +77,7 @@ export default function ParentSignupForm({ referralBonusCents }: { referralBonus
       panelTitle="Book real coaching time, safely."
       panelPoints={[
         "Only parent accounts can book or pay — kids can't book themselves",
-        "A person reviews every coach's ID before their profile goes live",
+        "An admin approves every coach before their profile goes live",
         "You pick the park, gym, or rec center — not the coach",
       ]}
     >

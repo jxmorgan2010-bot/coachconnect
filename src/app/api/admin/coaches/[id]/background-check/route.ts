@@ -21,6 +21,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     data: {
       backgroundCheckStatus: status,
       backgroundCheckExpiresAt: status === "CLEAR" ? backgroundCheckExpiryDate() : null,
+      // Drops any ref left by the old self-serve check, so this admin decision is what counts.
+      backgroundCheckRef: null,
     },
   });
 

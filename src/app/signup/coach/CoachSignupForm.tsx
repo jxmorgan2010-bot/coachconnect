@@ -78,11 +78,11 @@ export default function CoachSignupForm({
     <AuthLayout
       panelColor="gold"
       panelIcon={<IconWhistle className="h-7 w-7" />}
-      panelTitle="Set your rate. Coach your sport. Get paid."
+      panelTitle="Set your rate. Coach your sport."
       panelPoints={[
         "Build a profile with your school, sport, and rate",
-        "A person reviews your ID before families can find you",
-        `You get paid once a session is marked complete, minus a ${Math.round(PLATFORM_FEE_RATE * 100)}% platform fee`,
+        "An admin approves your profile before families can find you",
+        `A ${Math.round(PLATFORM_FEE_RATE * 100)}% platform fee comes out of each session price. During the beta, coach payouts aren't set up yet.`,
       ]}
     >
       <p className="eyebrow mb-2 text-pitch">Step 1 of onboarding</p>

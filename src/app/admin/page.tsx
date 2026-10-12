@@ -61,6 +61,7 @@ function toRow(
     idVerificationStatus: p.idVerificationStatus,
     backgroundCheckStatus: p.backgroundCheckStatus,
     backgroundCheckExpiresAt: p.backgroundCheckExpiresAt ? p.backgroundCheckExpiresAt.toISOString() : null,
+    backgroundCheckRef: p.backgroundCheckRef,
     isSuspended: p.isSuspended,
     profileComplete: Boolean(p.bio && p.schoolName && p.hourlyRateCents),
     dateOfBirth: birth ? describeCalendarDate(birth) : null,
@@ -117,7 +118,7 @@ export default async function AdminPage() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-12">
       <AdminHeader title="Verifications">
         A coach only becomes searchable once their ID is approved <span className="font-bold text-ink">and</span>{" "}
-        their background check step is marked clear. That check is currently a mock, not a real screening.
+        their background check step is marked clear by an admin. There&apos;s no third-party screening yet.
         {ENABLE_MINOR_COACHES && " Coaches under 18 also need completed parent/guardian consent before their ID can be approved."}
       </AdminHeader>
 

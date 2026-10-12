@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { SPORTS, SPORT_TAG, SPORT_COLOR, SPORT_LABELS } from "@/lib/sports";
-import { AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
 import { IconShieldCheck, IconMessage, IconPin, IconUsers, IconArrowRight } from "@/components/icons";
 import { goldButtonClass, secondaryButtonClass } from "@/lib/ui";
 
@@ -21,15 +20,15 @@ const STEPS = [
   },
   {
     title: "Mark it done and leave a review",
-    body: `The coach gets paid when you mark the session complete — or automatically ${AUTO_RELEASE_GRACE_HOURS} hours after it ends if you don't report a problem.`,
+    body: "Your card is held when you book and charged when you mark the session complete.",
   },
 ];
 
 const SAFEGUARDS = [
   {
     icon: IconShieldCheck,
-    title: "A person reviews every coach's ID",
-    body: "An admin looks at each ID before the profile can appear in search. No automatic approvals.",
+    title: "An admin approves every coach",
+    body: "Each profile has to be approved by an admin before it can appear in search. No automatic approvals.",
   },
   {
     icon: IconUsers,
@@ -140,7 +139,8 @@ export default function Home() {
         <div className="lg:sticky lg:top-24 lg:self-start">
           <h2 className="text-display-lg font-display text-ink">How a session actually happens</h2>
           <p className="mt-4 max-w-sm text-muted-foreground">
-            Four steps, start to finish. You stay in charge of where, when, and when the coach gets paid.
+            Four steps, start to finish. You choose where and when, and your card is only charged after you mark the
+            session complete.
           </p>
         </div>
         <ol className="flex flex-col">
@@ -189,9 +189,9 @@ export default function Home() {
       <section className="bg-gold texture-hatch-dark">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center md:justify-between md:py-16">
           <div>
-            <h2 className="text-display-lg font-display text-ink">Played varsity? Get paid to coach.</h2>
+            <h2 className="text-display-lg font-display text-ink">Played varsity? Coach your sport.</h2>
             <p className="mt-3 max-w-md text-ink/85">
-              Set your own rate and your own hours. You get paid through the app once each session is marked complete.
+              Set your own rate and your own hours. During the beta, coach payouts aren&apos;t set up yet.
             </p>
           </div>
           <Link href="/signup/coach" className={`${secondaryButtonClass} shrink-0 whitespace-nowrap`}>

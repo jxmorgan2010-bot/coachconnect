@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import Badge from "@/components/Badge";
 import { getBackgroundCheckExpiryState, isCoachLive } from "@/lib/coach";
-import { formatCents, AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
+import { formatCents } from "@/lib/money";
 import DateTile from "@/components/DateTile";
 import SportPill from "@/components/SportPill";
 import { IconMessage } from "@/components/icons";
@@ -51,7 +51,7 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
   function paymentNote(b: (typeof upcoming)[number]) {
     if (b.packageId) return "Prepaid package session.";
     if (b.paymentStatus === "AUTHORIZED") {
-      return `Card held. Paid out when the parent marks it complete, or automatically ${AUTO_RELEASE_GRACE_HOURS} hours after the session.`;
+      return "Card held. It's charged when the parent marks the session complete. Coach payouts aren't set up yet.";
     }
     return "No card hold on this session.";
   }
@@ -77,11 +77,7 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
             {waiting ? "Waiting for the parent to mark this complete. " : ""}
             {paymentNote(b)}
           </p>
-          {b.videoCallUrl && !waiting && (
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              First session — video call: <code className="break-all text-pitch">{b.videoCallUrl}</code>
-            </p>
-          )}
+          {/* videoCallUrl is a mock placeholder link, so it isn't shown until a real provider exists. */}
         </div>
       </li>
     );
@@ -128,11 +124,8 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
           <div className="flex flex-col gap-2 rounded-xl border-2 border-ink bg-warning/10 p-4 sm:flex-row sm:items-center sm:gap-3">
             <Badge variant="warning">Renewal needed</Badge>
             <span className="text-sm text-ink">
-              Your yearly background check step is due soon.{" "}
-              <Link href="/onboarding/coach#background-check" className="font-bold underline">
-                Renew it now
-              </Link>{" "}
-              to stay visible in search.
+              Your yearly background check step is due soon. Our team marks it again when it&apos;s reviewed. If it
+              isn&apos;t marked by the due date, your profile is hidden from search.
             </span>
           </div>
         )}
@@ -140,11 +133,8 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
           <div className="flex flex-col gap-2 rounded-xl border-2 border-ink bg-danger/10 p-4 sm:flex-row sm:items-center sm:gap-3">
             <Badge variant="danger">Lapsed</Badge>
             <span className="text-sm text-ink">
-              Your yearly background check step lapsed, so your profile is unpublished.{" "}
-              <Link href="/onboarding/coach#background-check" className="font-bold underline">
-                Renew it
-              </Link>{" "}
-              to go live again.
+              Your yearly background check step lapsed, so your profile is unpublished. It goes live again once our
+              team marks this step.
             </span>
           </div>
         )}

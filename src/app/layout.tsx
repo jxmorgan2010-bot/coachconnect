@@ -22,7 +22,7 @@ const karla = Karla({
 export const metadata: Metadata = {
   title: "CoachConnect — 1-on-1 coaching from student athletes",
   description:
-    "Book 1-on-1 sports sessions in the Bay Area with high school and college athletes. A person reviews every coach's ID before their profile goes live, and you pay through the app.",
+    "Book 1-on-1 sports sessions in the Bay Area with high school and college athletes. An admin approves every coach before their profile goes live, and you pay through the app.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

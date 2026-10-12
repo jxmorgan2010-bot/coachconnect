@@ -300,18 +300,7 @@ function BookingFormInner({
           <p className="mt-3 text-muted-foreground">
             You&apos;ll find the time, place, and payment details on your dashboard.
           </p>
-          {success.videoCallUrl ? (
-            <div className="mt-5 rounded-lg border-2 border-ink bg-muted p-4">
-              <p className="font-display text-lg leading-tight text-ink">First session? Hop on a quick video call first.</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Meeting a new coach in person for the first time? We recommend a short video call beforehand.
-                (Mock link — placeholder for a real video provider.)
-              </p>
-              <code className="mt-2 block break-all rounded bg-surface px-3 py-2 text-xs text-pitch">
-                {success.videoCallUrl}
-              </code>
-            </div>
-          ) : null}
+          {/* success.videoCallUrl is a mock placeholder link, so it isn't shown until a real provider exists. */}
           <button onClick={() => router.push("/dashboard")} className={`${primaryButtonClass} mt-6 w-full sm:w-auto`}>
             Go to my dashboard
           </button>
@@ -593,8 +582,9 @@ function BookingFormInner({
                     <span className="font-display text-2xl leading-none">{formatCents(totalDueCents)}</span>
                   </div>
                   <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                    Your card is authorized (held), not charged, when you book. It&apos;s only captured after you mark the
-                    session complete — minus a 15% platform fee to the coach&apos;s payout. Card/digital payment only.
+                    Your card is authorized (held), not charged, when you book. It&apos;s charged when you mark the
+                    session complete. The price includes CoachConnect&apos;s 15% platform fee — nothing is added on top.
+                    Card/digital payment only.
                   </p>
                 </div>
               )}

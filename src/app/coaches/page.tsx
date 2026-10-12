@@ -4,7 +4,7 @@ import { SPORTS, SPORT_LABELS, isSport } from "@/lib/sports";
 import { BAY_AREA_CITIES, isBayAreaCity } from "@/lib/bayArea";
 import CoachCard from "@/components/CoachCard";
 import type { CoachCardData } from "@/lib/coach";
-import { hasVerifiedVideoBio } from "@/lib/coach";
+import { hasVerifiedVideoBio, SELF_SERVE_CHECK_REF_PREFIX } from "@/lib/coach";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
 import { getCurrentSession } from "@/lib/session";
@@ -47,7 +47,15 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
   // DB-level filter — a plain flag+status where clause can't express "either/or" cleanly.
   const liveFilter = {
     OR: [
-      { isMinorCoach: false, idVerificationStatus: "APPROVED" as const, backgroundCheckStatus: "CLEAR" as const, backgroundCheckExpiresAt: { gt: new Date() } },
+      {
+        isMinorCoach: false,
+        idVerificationStatus: "APPROVED" as const,
+        backgroundCheckStatus: "CLEAR" as const,
+        backgroundCheckExpiresAt: { gt: new Date() },
+        // Only an admin-marked CLEAR counts (see SELF_SERVE_CHECK_REF_PREFIX). Spelled out
+        // with OR because NOT on a NULL ref would exclude it in SQL.
+        OR: [{ backgroundCheckRef: null }, { NOT: { backgroundCheckRef: { startsWith: SELF_SERVE_CHECK_REF_PREFIX } } }],
+      },
       ...(ENABLE_MINOR_COACHES
         ? [{ isMinorCoach: true, idVerificationStatus: "APPROVED" as const, minorGuardianConsentedAt: { not: null }, minorBackgroundCheckNote: { not: null } }]
         : []),
