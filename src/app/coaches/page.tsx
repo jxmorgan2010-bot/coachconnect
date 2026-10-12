@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SPORTS, SPORT_LABELS, isSport } from "@/lib/sports";
+import {
+  SKILL_LEVELS,
+  SKILL_LEVEL_LABELS,
+  SKILL_LEVEL_DESCRIPTIONS,
+  isSkillLevel,
+  acceptsLevelWhere,
+  levelsFromFlags,
+} from "@/lib/skillLevels";
+import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { BAY_AREA_CITIES, isBayAreaCity } from "@/lib/bayArea";
 import CoachCard from "@/components/CoachCard";
 import type { CoachCardData } from "@/lib/coach";
@@ -15,15 +24,22 @@ const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
 
 type SearchParams = {
   sport?: string;
+  level?: string;
   location?: string;
   maxPrice?: string;
   day?: string;
   excludeCoachId?: string;
 };
 
+// The level select holds either a level ("ADVANCED") or one of the parent's kids
+// ("child:<id>"), whose saved level for each sport is used instead.
+const CHILD_PREFIX = "child:";
+
 export default async function CoachesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const sportFilter = params.sport && isSport(params.sport) ? params.sport : undefined;
+  const levelParam = params.level?.trim() ?? "";
+  const explicitLevel = isSkillLevel(levelParam) ? levelParam : undefined;
   const locationFilter = params.location && isBayAreaCity(params.location) ? params.location.trim() : undefined;
   const maxPrice = params.maxPrice ? Number(params.maxPrice) : undefined;
   const day = params.day !== undefined && params.day !== "" ? Number(params.day) : undefined;
@@ -31,9 +47,14 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
 
   const session = await getCurrentSession();
   let priorBookingCounts = new Map<string, number>();
+  let kids: { id: string; firstName: string; sportLevels: { sport: Sport; level: SkillLevel }[] }[] = [];
   if (session?.user?.role === "PARENT") {
-    const parentProfile = await prisma.parentProfile.findUnique({ where: { userId: session.user.id } });
+    const parentProfile = await prisma.parentProfile.findUnique({
+      where: { userId: session.user.id },
+      include: { children: { orderBy: { createdAt: "asc" }, include: { sportLevels: true } } },
+    });
     if (parentProfile) {
+      kids = parentProfile.children;
       const grouped = await prisma.booking.groupBy({
         by: ["coachProfileId"],
         where: { parentProfileId: parentProfile.id, status: { in: ["CONFIRMED", "COMPLETED"] } },
@@ -42,6 +63,27 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
       priorBookingCounts = new Map(grouped.map((g) => [g.coachProfileId, g._count]));
     }
   }
+
+  // Only the signed-in parent's own kids resolve; any other id is ignored.
+  const kid = levelParam.startsWith(CHILD_PREFIX) ? kids.find((k) => `${CHILD_PREFIX}${k.id}` === levelParam) : undefined;
+  // (sport, level) pairs a coach must take at least one of. Empty = no level filter.
+  let levelPairs: { sport?: Sport; level: SkillLevel }[] = [];
+  let kidLevelNote: string | null = null;
+  if (explicitLevel) {
+    levelPairs = [{ sport: sportFilter, level: explicitLevel }];
+  } else if (kid) {
+    const relevant = kid.sportLevels.filter((l) => !sportFilter || l.sport === sportFilter);
+    levelPairs = relevant.map((l) => ({ sport: l.sport, level: l.level }));
+    if (relevant.length === 0) {
+      kidLevelNote = sportFilter
+        ? `${kid.firstName} has no ${SPORT_LABELS[sportFilter].toLowerCase()} level saved, so these results aren't filtered by level.`
+        : `${kid.firstName} has no levels saved yet, so these results aren't filtered by level.`;
+    }
+  }
+  const levelFilter =
+    levelPairs.length > 0
+      ? { sports: { some: { OR: levelPairs.map((p) => ({ ...(p.sport ? { sport: p.sport } : {}), ...acceptsLevelWhere(p.level) })) } } }
+      : null;
 
   // Mirrors isCoachLive()'s two branches (standard adult flow vs. minor coach flow) as a
   // DB-level filter — a plain flag+status where clause can't express "either/or" cleanly.
@@ -73,6 +115,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
       AND: [
         liveFilter,
         ...(sportFilter ? [{ sports: { some: { sport: sportFilter } } }] : []),
+        ...(levelFilter ? [levelFilter] : []),
         ...(locationFilter ? [{ city: locationFilter }] : []),
         ...(maxPrice ? [{ hourlyRateCents: { lte: Math.round(maxPrice * 100) } }] : []),
         ...(day !== undefined ? [{ availability: { some: { dayOfWeek: day } } }] : []),
@@ -103,6 +146,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
         state: p.state,
         profilePhotoUrl: p.profilePhotoUrl,
         sports: p.sports.map((s) => s.sport),
+        sportLevels: Object.fromEntries(p.sports.map((s) => [s.sport, levelsFromFlags(s)])),
         hasRecommendation: p.recommendations.length > 0,
         avgRating,
         reviewCount,
@@ -122,9 +166,11 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
       return bRating - aRating;
     });
 
-  const hasFilters = Boolean(sportFilter || locationFilter || maxPrice || day !== undefined || excludeCoachId);
+  const hasFilters = Boolean(sportFilter || explicitLevel || kid || locationFilter || maxPrice || day !== undefined || excludeCoachId);
   const activeFilterLabels = [
     sportFilter && SPORT_LABELS[sportFilter],
+    explicitLevel && SKILL_LEVEL_LABELS[explicitLevel],
+    kid && levelFilter && `${kid.firstName}'s level`,
     locationFilter,
     maxPrice && `max $${maxPrice}/hr`,
     day !== undefined && DAYS[day],
@@ -147,7 +193,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
         {/* Nothing to filter on an empty roster, so the form only shows once there's a reason to use it */}
         {(coaches.length > 0 || hasFilters) && (
         <form
-          className="card mb-10 grid grid-cols-2 gap-x-3 gap-y-4 p-4 sm:p-5 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end"
+          className="card mb-10 grid grid-cols-2 gap-x-3 gap-y-4 p-4 sm:p-5 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto] lg:items-end"
           method="get"
           aria-label="Filter coaches"
         >
@@ -158,6 +204,25 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
               {SPORTS.map((sport) => (
                 <option key={sport} value={sport}>{SPORT_LABELS[sport]}</option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="level">Level</label>
+            <select id="level" name="level" defaultValue={explicitLevel ?? (kid ? levelParam : "")} className={inputClass}>
+              <option value="">Any level</option>
+              {kids.length > 0 && (
+                <optgroup label="Your kids' saved levels">
+                  {kids.map((k) => (
+                    <option key={k.id} value={`${CHILD_PREFIX}${k.id}`}>{k.firstName}</option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Level">
+                {SKILL_LEVELS.map((level) => (
+                  <option key={level} value={level}>{SKILL_LEVEL_LABELS[level]}</option>
+                ))}
+              </optgroup>
             </select>
           </div>
 
@@ -206,7 +271,26 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
               Search
             </button>
           </div>
+
+          <details className="col-span-2 -mt-2 text-sm lg:col-span-6">
+            <summary className="inline-flex min-h-11 cursor-pointer items-center font-bold text-pitch">What do the levels mean?</summary>
+            <dl className="mt-1 grid max-w-2xl gap-x-4 gap-y-1.5 sm:grid-cols-[auto_1fr]">
+              {SKILL_LEVELS.map((level) => (
+                <div key={level} className="contents">
+                  <dt className="font-bold text-ink">{SKILL_LEVEL_LABELS[level]}</dt>
+                  <dd className="mb-1.5 text-muted-foreground sm:mb-0">{SKILL_LEVEL_DESCRIPTIONS[level]}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
         </form>
+        )}
+
+        {kidLevelNote && (
+          <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-4 py-2.5 text-sm font-bold text-ink">
+            {kidLevelNote}{" "}
+            <Link href="/dashboard/family" className="underline underline-offset-4">Set levels on your family page</Link>
+          </p>
         )}
 
         {excludeCoachId && (

@@ -6,6 +6,7 @@ import { isTopCoach } from "@/lib/points";
 import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
 import { IconShieldCheck, IconStar, IconPin } from "@/components/icons";
 import SportPill from "@/components/SportPill";
+import LevelTags from "@/components/LevelTags";
 import Badge from "@/components/Badge";
 import CoachPhotoPlaceholder from "@/components/CoachPhotoPlaceholder";
 
@@ -75,14 +76,17 @@ export default function CoachCard({ coach }: { coach: CoachCardData }) {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5" aria-label="Sports and levels">
           {coach.sports.slice(0, 4).map((sport) => (
-            <SportPill key={sport} sport={sport} />
+            <li key={sport} className="flex items-center gap-1.5">
+              <SportPill sport={sport} />
+              <LevelTags levels={coach.sportLevels[sport] ?? []} />
+            </li>
           ))}
           {coach.sports.length > 4 && (
-            <span className="text-xs font-bold text-muted-foreground">+{coach.sports.length - 4}</span>
+            <li className="text-xs font-bold text-muted-foreground">+{coach.sports.length - 4}</li>
           )}
-        </div>
+        </ul>
 
         {(coach.videoVerified || coach.isMinorCoach || isTopCoach(coach.lifetimePoints)) && (
           <div className="flex flex-wrap gap-1.5">

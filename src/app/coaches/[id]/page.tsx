@@ -6,6 +6,8 @@ import { getCurrentSession } from "@/lib/session";
 import { formatCents } from "@/lib/money";
 import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
+import LevelTags from "@/components/LevelTags";
+import { levelsFromFlags } from "@/lib/skillLevels";
 import ReportButton from "@/components/ReportButton";
 import MessageCoachButton from "@/components/MessageCoachButton";
 import NotRightFitButton from "@/components/NotRightFitButton";
@@ -151,11 +153,14 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
               {profile.gradYear ? ` · Class of ${profile.gradYear}` : ""}
               {profile.city ? ` · ${profile.city}, ${profile.state}` : ""}
             </p>
-            <div className="mt-4 flex flex-wrap gap-1.5">
+            <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5" aria-label="Sports and levels">
               {profile.sports.map((s) => (
-                <SportPill key={s.id} sport={s.sport} />
+                <li key={s.id} className="flex items-center gap-1.5">
+                  <SportPill sport={s.sport} />
+                  <LevelTags levels={levelsFromFlags(s)} inheritColor />
+                </li>
               ))}
-            </div>
+            </ul>
             {/* Credentials only — numbers live in the stat line beside the booking button */}
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Badge variant="neutral" icon={<IconShieldCheck className="h-3.5 w-3.5 text-pitch" />}>ID verified</Badge>
