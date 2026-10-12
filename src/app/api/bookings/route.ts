@@ -40,11 +40,11 @@ export async function POST(req: Request) {
     validated = await validateBookingRequest(parentProfile, data);
   } catch (err) {
     if (err instanceof BookingValidationError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
-  const { coach, sport, breakdown, discountCents, totalDueCents, isFirstSession } = validated;
+  const { coach, childLevel, sport, breakdown, discountCents, totalDueCents, isFirstSession } = validated;
 
   // A card hold is required for anything above Stripe's practical minimum charge —
   // verify it was actually authorized for the right amount before creating the booking.
@@ -76,6 +76,7 @@ export async function POST(req: Request) {
     parentProfileId: parentProfile.id,
     coachProfileId: coach.id,
     childId: data.childId,
+    childLevel,
     sport,
     scheduledAt: data.scheduledAt,
     durationMinutes: data.durationMinutes,
@@ -128,11 +129,11 @@ async function handlePackageBooking(
     });
   } catch (err) {
     if (err instanceof BookingValidationError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
-  const { package: pkg, sport, breakdown, isFirstSession } = validated;
+  const { package: pkg, childLevel, sport, breakdown, isFirstSession } = validated;
 
   const now = new Date();
   const booking = await prisma.$transaction(async (tx) => {
@@ -149,6 +150,7 @@ async function handlePackageBooking(
         parentProfileId,
         coachProfileId: pkg.coachProfileId,
         childId: data.childId,
+        childLevel,
         sport,
         scheduledAt: data.scheduledAt,
         durationMinutes: pkg.durationMinutes,

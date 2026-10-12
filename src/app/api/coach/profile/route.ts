@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
 import { coachProfileSchema } from "@/lib/validation";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
-import type { Sport } from "@/generated/prisma/client";
+import { flagsFromLevels } from "@/lib/skillLevels";
+import type { SkillLevel, Sport } from "@/generated/prisma/client";
 
 export async function PATCH(req: Request) {
   const profile = await requireCoachProfile();
@@ -17,7 +18,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
 
-  const { sports, hourlyRateDollars, ...rest } = parsed.data;
+  const { sports, sportLevels, hourlyRateDollars, ...rest } = parsed.data;
 
   // Bio and school name are shown publicly on the coach's profile.
   const blocked = await enforceContactPolicy({
@@ -37,7 +38,11 @@ export async function PATCH(req: Request) {
     }),
     prisma.coachSport.deleteMany({ where: { coachProfileId: profile.id } }),
     prisma.coachSport.createMany({
-      data: sports.map((sport) => ({ coachProfileId: profile.id, sport: sport as Sport })),
+      // A sport sent without levels takes every level (the column defaults).
+      data: sports.map((sport) => {
+        const levels = sportLevels?.find((s) => s.sport === sport)?.levels as SkillLevel[] | undefined;
+        return { coachProfileId: profile.id, sport: sport as Sport, ...(levels ? flagsFromLevels(levels) : {}) };
+      }),
     }),
   ]);
 

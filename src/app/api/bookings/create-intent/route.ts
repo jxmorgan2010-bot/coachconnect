@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     validated = await validateBookingRequest(parentProfile, data);
   } catch (err) {
     if (err instanceof BookingValidationError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }

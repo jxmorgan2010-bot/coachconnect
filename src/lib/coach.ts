@@ -1,4 +1,4 @@
-import type { CoachProfile, Sport, SchoolLevel } from "@/generated/prisma/client";
+import type { CoachProfile, Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { coachAgeBand, describeCalendarDate, todayInPacific, type CalendarDate } from "@/lib/age";
 
@@ -13,6 +13,8 @@ export type CoachCardData = {
   state: string | null;
   profilePhotoUrl: string | null;
   sports: Sport[];
+  /** Levels taken per sport, keyed by every sport in `sports`. */
+  sportLevels: Partial<Record<Sport, SkillLevel[]>>;
   hasRecommendation: boolean;
   avgRating: number | null;
   reviewCount: number;

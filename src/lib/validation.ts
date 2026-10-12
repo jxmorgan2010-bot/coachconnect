@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SPORTS } from "@/lib/sports";
+import { SKILL_LEVELS } from "@/lib/skillLevels";
 import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
 import { parseCalendarDate, compareCalendarDates, todayInPacific } from "@/lib/age";
 
@@ -15,6 +16,14 @@ export const childSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required.").max(60),
   gradeOrAge: z.string().trim().min(1, "Grade or age is required.").max(30),
   notes: z.string().trim().max(500).optional(),
+});
+
+const skillLevelEnum = z.enum(SKILL_LEVELS as [string, ...string[]], { error: "Choose a level." });
+
+/** A parent setting one child's level in one sport. */
+export const childLevelSchema = z.object({
+  sport: z.enum(SPORTS as [string, ...string[]]),
+  level: skillLevelEnum,
 });
 
 export const bookingCreateSchema = z.object({
@@ -170,6 +179,16 @@ export const coachProfileSchema = z.object({
     .max(10)
     .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
   sports: z.array(z.enum(SPORTS as [string, ...string[]])).min(1, "Select at least one sport."),
+  // Levels taken per sport. A sport in `sports` with no entry here takes every level, so an
+  // older client that doesn't send levels keeps the all-levels default.
+  sportLevels: z
+    .array(
+      z.object({
+        sport: z.enum(SPORTS as [string, ...string[]]),
+        levels: z.array(skillLevelEnum).min(1, "Pick at least one level for each sport you coach."),
+      }),
+    )
+    .optional(),
 });
 
 export const availabilitySlotSchema = z.object({

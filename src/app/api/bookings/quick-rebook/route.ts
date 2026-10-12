@@ -64,11 +64,15 @@ export async function POST(req: Request) {
         err.message === SECOND_ADULT_REQUIRED_MESSAGE
           ? "This coach is under 18, so each session needs a second adult named. Use the regular booking form to add one."
           : err.message;
-      return NextResponse.json({ error: message }, { status: err.status });
+      // LEVEL_REQUIRED: the rebook button asks for the level inline, saves it, and retries.
+      return NextResponse.json(
+        { error: message, code: err.code, childId: priorBooking.childId, sport: priorBooking.sport },
+        { status: err.status },
+      );
     }
     throw err;
   }
-  const { coach, sport, breakdown, discountCents, totalDueCents, isFirstSession } = validated;
+  const { coach, childLevel, sport, breakdown, discountCents, totalDueCents, isFirstSession } = validated;
 
   let stripePaymentIntentId: string | null = null;
   let stripePaymentMethodId: string | null = null;
@@ -97,6 +101,7 @@ export async function POST(req: Request) {
     parentProfileId: parentProfile.id,
     coachProfileId: coach.id,
     childId: priorBooking.childId,
+    childLevel,
     sport,
     scheduledAt,
     durationMinutes: priorBooking.durationMinutes,
