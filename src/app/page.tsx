@@ -139,8 +139,8 @@ export default function Home() {
         <div className="lg:sticky lg:top-24 lg:self-start">
           <h2 className="text-display-lg font-display text-ink">How a session actually happens</h2>
           <p className="mt-4 max-w-sm text-muted-foreground">
-            Four steps, start to finish. You choose where and when, and your card is only charged after you mark the
-            session complete.
+            Four steps, start to finish. You choose where and when, and your card is charged when you mark the session
+            complete.
           </p>
         </div>
         <ol className="flex flex-col">
