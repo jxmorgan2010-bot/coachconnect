@@ -34,12 +34,27 @@ export function backgroundCheckExpiryDate(from: Date = new Date()): Date {
 
 export type BackgroundCheckExpiryState = "NONE" | "VALID" | "RENEWAL_NEEDED" | "EXPIRED";
 
-/** Where a coach's background check stands relative to its 12-month expiry window. */
+/**
+ * Coaches used to be able to run a placeholder background check on themselves; that
+ * route stamped backgroundCheckRef with this prefix. Admin actions clear the ref, so a
+ * CLEAR still carrying it was never marked by an admin and doesn't count.
+ */
+export const SELF_SERVE_CHECK_REF_PREFIX = "mock_bgc_";
+
+export function isSelfServeBackgroundCheck(profile: Pick<CoachProfile, "backgroundCheckRef">): boolean {
+  return Boolean(profile.backgroundCheckRef?.startsWith(SELF_SERVE_CHECK_REF_PREFIX));
+}
+
+/**
+ * Where a coach's background check stands relative to its 12-month expiry window.
+ * Only an admin-marked CLEAR counts (see SELF_SERVE_CHECK_REF_PREFIX).
+ */
 export function getBackgroundCheckExpiryState(
-  profile: Pick<CoachProfile, "backgroundCheckStatus" | "backgroundCheckExpiresAt">,
+  profile: Pick<CoachProfile, "backgroundCheckStatus" | "backgroundCheckExpiresAt" | "backgroundCheckRef">,
   now: Date = new Date(),
 ): BackgroundCheckExpiryState {
   if (profile.backgroundCheckStatus !== "CLEAR" || !profile.backgroundCheckExpiresAt) return "NONE";
+  if (isSelfServeBackgroundCheck(profile)) return "NONE";
   const daysLeft = (profile.backgroundCheckExpiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
   if (daysLeft <= 0) return "EXPIRED";
   if (daysLeft <= BACKGROUND_CHECK_RENEWAL_WINDOW_DAYS) return "RENEWAL_NEEDED";
@@ -59,6 +74,7 @@ export function isCoachLive(
     | "idVerificationStatus"
     | "backgroundCheckStatus"
     | "backgroundCheckExpiresAt"
+    | "backgroundCheckRef"
     | "isSuspended"
     | "isMinorCoach"
     | "minorGuardianConsentedAt"

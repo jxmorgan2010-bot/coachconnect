@@ -207,7 +207,7 @@ export default function CoachOnboardingClient({
             <span className="text-sm text-ink">
               Your yearly background check step is due{" "}
               {profile.backgroundCheckExpiresAt?.toLocaleDateString("en-US", { month: "short", day: "numeric" })}.
-              Renew it below before then to stay visible.
+              Our team marks it again when it&apos;s reviewed.
             </span>
           </div>
         )}
@@ -216,8 +216,8 @@ export default function CoachOnboardingClient({
           <div className="flex flex-col gap-2 rounded-xl border-2 border-ink bg-danger/10 p-4 sm:flex-row sm:items-center sm:gap-3">
             <Badge variant="danger">Lapsed</Badge>
             <span className="text-sm text-ink">
-              Your yearly background check step lapsed, so your profile is unpublished. Renew it below to go live
-              again.
+              Your yearly background check step lapsed, so your profile is unpublished. It goes live again once our
+              team marks this step.
             </span>
           </div>
         )}
@@ -291,8 +291,9 @@ export default function CoachOnboardingClient({
           {!isMinorCoach && (
             <Section id="background-check" step={stepNumber("background-check")} title="Background check" done={backgroundDone}>
               <BackgroundCheckPanel
-                initialStatus={profile.backgroundCheckStatus}
+                status={profile.backgroundCheckStatus}
                 expiresAt={profile.backgroundCheckExpiresAt}
+                checkRef={profile.backgroundCheckRef}
               />
             </Section>
           )}

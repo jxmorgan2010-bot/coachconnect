@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { IdVerificationStatus, BackgroundCheckStatus } from "@/generated/prisma/client";
 import Badge from "@/components/Badge";
-import { getBackgroundCheckExpiryState } from "@/lib/coach";
+import { getBackgroundCheckExpiryState, isSelfServeBackgroundCheck } from "@/lib/coach";
 import { secondaryButtonClass, primaryButtonClass, inputClass, errorClass } from "@/lib/ui";
 
 export type ConsentStatus = "NONE" | "PENDING" | "EXPIRED" | "COMPLETED" | "REVOKED";
@@ -35,6 +35,7 @@ export type CoachRowData = {
   idVerificationStatus: IdVerificationStatus;
   backgroundCheckStatus: BackgroundCheckStatus;
   backgroundCheckExpiresAt: string | null;
+  backgroundCheckRef: string | null;
   isSuspended: boolean;
   profileComplete: boolean;
   dateOfBirth: string | null;
@@ -112,6 +113,7 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
   const [idStatus, setIdStatus] = useState(coach.idVerificationStatus);
   const [bgcStatus, setBgcStatus] = useState(coach.backgroundCheckStatus);
   const [expiresAt, setExpiresAt] = useState(coach.backgroundCheckExpiresAt);
+  const [bgcRef, setBgcRef] = useState(coach.backgroundCheckRef);
   const [isSuspended, setIsSuspended] = useState(coach.isSuspended);
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -171,6 +173,7 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
     if (await post(`/api/admin/coaches/${coach.id}/background-check`, { status })) {
       setBgcStatus(status);
       setExpiresAt(status === "CLEAR" ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null);
+      setBgcRef(null);
     }
   }
 
@@ -181,7 +184,10 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
   const expiryState = getBackgroundCheckExpiryState({
     backgroundCheckStatus: bgcStatus,
     backgroundCheckExpiresAt: expiresAt ? new Date(expiresAt) : null,
+    backgroundCheckRef: bgcRef,
   });
+  // CLEAR from the old self-serve check: doesn't count until an admin marks it.
+  const selfServeClear = bgcStatus === "CLEAR" && isSelfServeBackgroundCheck({ backgroundCheckRef: bgcRef });
 
   const sig = coach.consent?.signature ?? null;
 
@@ -367,7 +373,10 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
         {!showMinor && (
           <div role="group" aria-label={`Background check actions for ${coach.name}`} className="flex flex-wrap items-center gap-2">
             <span className="eyebrow w-24 shrink-0 text-muted-foreground">Background</span>
-            {bgcStatus !== "CLEAR" && (
+            {selfServeClear && (
+              <span className="text-xs font-bold text-warning">Cleared by the old self-serve check — review</span>
+            )}
+            {(bgcStatus !== "CLEAR" || selfServeClear) && (
               <button onClick={() => setBgc("CLEAR")} disabled={loading} className={secondaryButtonClass}>
                 Mark clear
               </button>

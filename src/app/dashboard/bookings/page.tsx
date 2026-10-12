@@ -133,11 +133,7 @@ export default async function MyBookingsPage() {
                         </div>
                       </div>
 
-                      {b.videoCallUrl && b.status === "CONFIRMED" && (
-                        <p className="text-xs text-muted-foreground">
-                          First session — video call: <code className="break-all text-pitch">{b.videoCallUrl}</code>
-                        </p>
-                      )}
+                      {/* videoCallUrl is a mock placeholder link, so it isn't shown until a real provider exists. */}
 
                       {b.status === "CONFIRMED" && (
                         <div className="flex flex-wrap items-start gap-3 border-t-2 border-line pt-3">

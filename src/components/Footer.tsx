@@ -3,11 +3,11 @@
 import { usePathname } from "next/navigation";
 import { IconShieldCheck, IconMessage, IconPin } from "@/components/icons";
 
-// Only claims the app actually enforces: an admin approves each coach's ID before the
-// profile is searchable, chat stays in-app, and the parent sets the meeting place.
+// Only claims the app actually enforces: an admin approves each coach before the profile
+// is searchable, chat stays in-app, and the parent sets the meeting place.
 // Background checks are a placeholder today, so they are deliberately not claimed here.
 const PROMISES = [
-  { icon: IconShieldCheck, text: "A person reviews every coach's ID before their profile goes live" },
+  { icon: IconShieldCheck, text: "An admin approves every coach before their profile goes live" },
   { icon: IconMessage, text: "Parents and coaches message in the app — contact details aren't shown" },
   { icon: IconPin, text: "The parent picks where the session happens" },
 ];
