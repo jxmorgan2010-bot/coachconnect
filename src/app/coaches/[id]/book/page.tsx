@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { isCoachLive } from "@/lib/coach";
+import { levelsFromFlags } from "@/lib/skillLevels";
 import SuspendedBlock from "@/components/SuspendedBlock";
 import NoHoursNotice from "@/components/NoHoursNotice";
 import BookingForm from "./BookingForm";
@@ -30,20 +31,29 @@ export default async function BookCoachPage({
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    include: { children: { orderBy: { createdAt: "asc" } }, user: { select: { isSuspended: true } } },
+    include: {
+      children: { orderBy: { createdAt: "asc" }, include: { sportLevels: true } },
+      user: { select: { isSuspended: true } },
+    },
   });
   if (!parentProfile) redirect("/dashboard");
   if (parentProfile.user.isSuspended) return <SuspendedBlock action="book sessions" />;
 
   let activePackage = null;
   if (packageId) {
-    const pkg = await prisma.sessionPackage.findUnique({ where: { id: packageId } });
+    const pkg = await prisma.sessionPackage.findUnique({
+      where: { id: packageId },
+      include: { bookings: { select: { childId: true } } },
+    });
     if (pkg && pkg.parentProfileId === parentProfile.id && pkg.coachProfileId === coach.id && pkg.status === "ACTIVE") {
       activePackage = {
         id: pkg.id,
         sport: pkg.sport,
         durationMinutes: pkg.durationMinutes,
         sessionsRemaining: pkg.totalSessions - pkg.sessionsUsed,
+        // Kids who have already used this package keep using it even if the coach has since
+        // stopped taking their level (the server applies the same rule).
+        childIdsUsed: [...new Set(pkg.bookings.flatMap((b) => (b.childId ? [b.childId] : [])))],
       };
     }
   }
@@ -55,9 +65,15 @@ export default async function BookCoachPage({
         name: coach.user.name,
         hourlyRateCents: coach.hourlyRateCents,
         sports: coach.sports.map((s) => s.sport),
+        sportLevels: Object.fromEntries(coach.sports.map((s) => [s.sport, levelsFromFlags(s)])),
         isMinorCoach: coach.isMinorCoach,
       }}
-      childOptions={parentProfile.children.map((c) => ({ id: c.id, firstName: c.firstName, gradeOrAge: c.gradeOrAge }))}
+      childOptions={parentProfile.children.map((c) => ({
+        id: c.id,
+        firstName: c.firstName,
+        gradeOrAge: c.gradeOrAge,
+        levels: Object.fromEntries(c.sportLevels.map((l) => [l.sport, l.level])),
+      }))}
       creditCents={parentProfile.creditCents}
       activePackage={activePackage}
     />

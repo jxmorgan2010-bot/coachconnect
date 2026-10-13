@@ -8,6 +8,7 @@ import SportPill from "@/components/SportPill";
 import { IconMessage } from "@/components/icons";
 import { secondaryButtonClass } from "@/lib/ui";
 import { SPORT_LABELS } from "@/lib/sports";
+import { SKILL_LEVEL_LABELS } from "@/lib/skillLevels";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { ProgressNoteForm } from "./BookingActions";
 
@@ -65,6 +66,12 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
             <p className="flex flex-wrap items-center gap-2 font-bold text-ink">
               <SportPill sport={b.sport} />
               {b.child?.firstName ?? "Session"}
+              {b.child && (
+                // Null only on bookings made before skill levels existed.
+                <Badge variant="neutral">
+                  {b.childLevel ? SKILL_LEVEL_LABELS[b.childLevel] : "Level not set"}
+                </Badge>
+              )}
               <span className="font-normal text-muted-foreground">· {b.parentProfile.user.name}&apos;s family</span>
             </p>
             <span className="font-display text-lg leading-none text-pitch">{formatCents(b.priceCents - b.discountCents)}</span>

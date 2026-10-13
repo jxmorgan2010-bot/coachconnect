@@ -2,18 +2,29 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, useStripe, useElements, CardNumberElement } from "@stripe/react-stripe-js";
-import type { Sport } from "@/generated/prisma/client";
+import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { SPORT_LABELS } from "@/lib/sports";
+import { SKILL_LEVEL_LABELS, describeLevels, listLevels } from "@/lib/skillLevels";
 import { calculatePriceBreakdown, formatCents } from "@/lib/money";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
+import LevelPicker from "@/components/LevelPicker";
 import CardSection from "./CardSection";
 
-type ChildOption = { id: string; firstName: string; gradeOrAge: string };
+type ChildOption = { id: string; firstName: string; gradeOrAge: string; levels: Partial<Record<Sport, SkillLevel>> };
 type OpenDay = { date: string; slots: { startsAt: string; label: string }[] };
-type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[]; isMinorCoach: boolean };
-type ActivePackage = { id: string; sport: Sport; durationMinutes: number; sessionsRemaining: number };
+type CoachInfo = {
+  id: string;
+  name: string;
+  hourlyRateCents: number;
+  sports: Sport[];
+  /** Levels the coach takes, per sport they coach. */
+  sportLevels: Partial<Record<Sport, SkillLevel[]>>;
+  isMinorCoach: boolean;
+};
+type ActivePackage = { id: string; sport: Sport; durationMinutes: number; sessionsRemaining: number; childIdsUsed: string[] };
 
 const DURATIONS = [30, 60, 90, 120];
 
@@ -95,7 +106,30 @@ function BookingFormInner({
   const [loadedSlotsKey, setLoadedSlotsKey] = useState<string | null>(null);
   const [slotsVersion, setSlotsVersion] = useState(0);
   const [stripeSlowToLoad, setStripeSlowToLoad] = useState(false);
+  // The level picker shows when the child has no level for this sport, or the parent hit "Change".
+  const [editingLevel, setEditingLevel] = useState(false);
+  const [levelDraft, setLevelDraft] = useState<SkillLevel | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
+
+  const child = childList.find((c) => c.id === childId);
+  const savedLevel = sport && child ? child.levels[sport] : undefined;
+  const acceptedLevels = sport ? coach.sportLevels[sport] : undefined;
+  const showLevelPicker = Boolean(child && sport) && (!savedLevel || editingLevel);
+  const levelGrandfathered = Boolean(activePackage?.childIdsUsed.includes(childId));
+  function levelMismatchFor(level: SkillLevel | undefined) {
+    return Boolean(level && acceptedLevels && !acceptedLevels.includes(level) && !levelGrandfathered);
+  }
+  const levelMismatch = !showLevelPicker && levelMismatchFor(savedLevel);
+  const sportName = sport ? SPORT_LABELS[sport].toLowerCase() : "";
+
+  function levelMismatchMessage(level: SkillLevel) {
+    return `${coach.name.split(" ")[0]} takes ${listLevels(acceptedLevels ?? [])} ${sportName} players, and ${child?.firstName} is set to ${SKILL_LEVEL_LABELS[level]}.`;
+  }
+
+  function changeChildOrSport() {
+    setEditingLevel(false);
+    setLevelDraft(null);
+  }
 
   useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -167,8 +201,9 @@ function BookingFormInner({
       setAddChildError(data.error ?? "Something went wrong.");
       return;
     }
-    setChildList((prev) => [...prev, data.child]);
+    setChildList((prev) => [...prev, { ...data.child, levels: {} }]);
     setChildId(data.child.id);
+    changeChildOrSport();
     setShowAddChild(false);
     setNewChildName("");
     setNewChildGrade("");
@@ -200,6 +235,38 @@ function BookingFormInner({
     }
     if (paymentRequired && zip.trim().length < 5) {
       setError("Enter your card's billing zip code.");
+      return;
+    }
+
+    // Save the child's level first if it was just picked or changed, then stop before any
+    // card hold if the coach doesn't take it. The server checks again either way.
+    if (showLevelPicker && sport) {
+      if (!levelDraft) {
+        setError(`Choose ${child?.firstName}'s ${sportName} level.`);
+        return;
+      }
+      setLoading(true);
+      const levelRes = await fetch(`/api/children/${childId}/levels`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sport, level: levelDraft }),
+      });
+      const levelData = await levelRes.json().catch(() => ({}));
+      if (!levelRes.ok) {
+        setLoading(false);
+        setError(levelData.error ?? "We couldn't save the level. Try again.");
+        return;
+      }
+      const saved = levelDraft;
+      setChildList((prev) => prev.map((c) => (c.id === childId ? { ...c, levels: { ...c.levels, [sport]: saved } } : c)));
+      setEditingLevel(false);
+      if (levelMismatchFor(saved)) {
+        setLoading(false);
+        setError(levelMismatchMessage(saved));
+        return;
+      }
+    } else if (levelMismatch && savedLevel) {
+      setError(levelMismatchMessage(savedLevel));
       return;
     }
 
@@ -369,7 +436,15 @@ function BookingFormInner({
               <div>
                 <label className={labelClass} htmlFor="child">Child</label>
                 <div className="flex gap-2">
-                  <select id="child" className={inputClass} value={childId} onChange={(e) => setChildId(e.target.value)}>
+                  <select
+                    id="child"
+                    className={inputClass}
+                    value={childId}
+                    onChange={(e) => {
+                      setChildId(e.target.value);
+                      changeChildOrSport();
+                    }}
+                  >
                     {childList.map((c) => (
                       <option key={c.id} value={c.id}>{c.firstName} ({c.gradeOrAge})</option>
                     ))}
@@ -382,12 +457,90 @@ function BookingFormInner({
 
               <div>
                 <label className={labelClass} htmlFor="sport">Sport</label>
-                <select id="sport" className={inputClass} value={sport} disabled={!!activePackage} onChange={(e) => setSport(e.target.value as Sport)}>
+                <select
+                  id="sport"
+                  className={inputClass}
+                  value={sport}
+                  disabled={!!activePackage}
+                  aria-describedby={acceptedLevels ? "sport-levels" : undefined}
+                  onChange={(e) => {
+                    setSport(e.target.value as Sport);
+                    changeChildOrSport();
+                  }}
+                >
                   {coach.sports.map((s) => (
                     <option key={s} value={s}>{SPORT_LABELS[s]}</option>
                   ))}
                 </select>
+                {acceptedLevels && (
+                  <p id="sport-levels" className="mt-1.5 text-xs text-muted-foreground">
+                    {coach.name.split(" ")[0]} takes: {describeLevels(acceptedLevels)}
+                  </p>
+                )}
               </div>
+
+              {child && sport && (
+                showLevelPicker ? (
+                  <div className="flex flex-col gap-2">
+                    <LevelPicker
+                      name="childLevel"
+                      legend={`${child.firstName}'s ${sportName} level`}
+                      value={levelDraft}
+                      onChange={setLevelDraft}
+                      accepted={levelGrandfathered ? undefined : acceptedLevels}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Saved to {child.firstName}&apos;s profile for next time. You can change it on your family page.
+                    </p>
+                    {editingLevel && (
+                      <button
+                        type="button"
+                        className={`${quietLinkClass} self-start text-pitch`}
+                        onClick={changeChildOrSport}
+                      >
+                        Keep {savedLevel ? SKILL_LEVEL_LABELS[savedLevel] : "the saved level"}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  savedLevel && (
+                    <div
+                      className={`flex flex-col gap-1 rounded-lg border-2 px-3.5 py-2.5 text-sm ${
+                        levelMismatch ? "border-danger bg-danger/10" : "border-line"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-x-3">
+                        <p className="text-ink">
+                          {child.firstName}&apos;s {sportName} level: <span className="font-bold">{SKILL_LEVEL_LABELS[savedLevel]}</span>
+                        </p>
+                        <button
+                          type="button"
+                          className={`${quietLinkClass} text-pitch`}
+                          onClick={() => {
+                            setLevelDraft(savedLevel);
+                            setEditingLevel(true);
+                          }}
+                        >
+                          Change<span className="sr-only"> {child.firstName}&apos;s level</span>
+                        </button>
+                      </div>
+                      {levelMismatch && (
+                        <>
+                          <p className="font-semibold text-danger">
+                            {levelMismatchMessage(savedLevel)} You can&apos;t book this coach at that level.
+                          </p>
+                          <Link
+                            href={`/coaches?sport=${sport}&level=${savedLevel}`}
+                            className={`${quietLinkClass} self-start text-pitch`}
+                          >
+                            See {sportName} coaches who take {SKILL_LEVEL_LABELS[savedLevel]} players
+                          </Link>
+                        </>
+                      )}
+                    </div>
+                  )
+                )
+              )}
             </fieldset>
 
             <fieldset className={sectionClass}>
@@ -623,7 +776,7 @@ function BookingFormInner({
 
             {error && <p className={errorClass}>{error}</p>}
 
-            <button type="submit" className={`${primaryButtonClass} w-full text-base`} disabled={loading}>
+            <button type="submit" className={`${primaryButtonClass} w-full text-base`} disabled={loading || levelMismatch}>
               {loading ? "Booking..." : paymentRequired ? `Book & hold ${formatCents(totalDueCents)}` : "Book session"}
             </button>
           </form>

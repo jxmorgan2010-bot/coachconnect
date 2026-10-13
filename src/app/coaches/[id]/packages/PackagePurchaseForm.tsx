@@ -4,8 +4,9 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, useStripe, useElements, CardNumberElement } from "@stripe/react-stripe-js";
-import type { Sport } from "@/generated/prisma/client";
+import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { SPORT_LABELS } from "@/lib/sports";
+import { SKILL_LEVELS, describeLevels } from "@/lib/skillLevels";
 import { calculateBundlePricing } from "@/lib/bundles";
 import { formatCents } from "@/lib/money";
 import { inputClass, labelClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
@@ -16,7 +17,15 @@ const DURATIONS = [30, 60, 90, 120];
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
-type CoachInfo = { id: string; name: string; hourlyRateCents: number; sports: Sport[]; isMinorCoach: boolean };
+type CoachInfo = {
+  id: string;
+  name: string;
+  hourlyRateCents: number;
+  sports: Sport[];
+  /** Levels the coach takes, per sport. A package isn't tied to one kid, so show them before purchase. */
+  sportLevels: Partial<Record<Sport, SkillLevel[]>>;
+  isMinorCoach: boolean;
+};
 
 export default function PackagePurchaseForm(props: { coach: CoachInfo }) {
   return (
@@ -138,11 +147,22 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelClass} htmlFor="sport">Sport</label>
-            <select id="sport" className={inputClass} value={sport} onChange={(e) => setSport(e.target.value as Sport)}>
+            <select
+              id="sport"
+              className={inputClass}
+              value={sport}
+              onChange={(e) => setSport(e.target.value as Sport)}
+              aria-describedby="package-sport-levels"
+            >
               {coach.sports.map((s) => (
                 <option key={s} value={s}>{SPORT_LABELS[s]}</option>
               ))}
             </select>
+            <p id="package-sport-levels" className="mt-1.5 text-xs text-muted-foreground">
+              {coach.name.split(" ")[0]} takes: {describeLevels(coach.sportLevels[sport] ?? [])}.
+              {(coach.sportLevels[sport]?.length ?? 0) < SKILL_LEVELS.length &&
+                " Only kids set to one of these levels can book sessions from this package."}
+            </p>
           </div>
 
           <div>

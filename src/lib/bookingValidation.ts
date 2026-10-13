@@ -6,15 +6,25 @@ import { rangesOverlap } from "@/lib/bookingConflicts";
 import { checkSlot, SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { generateMockVideoCallUrl } from "@/lib/videoCall";
 import { enforceContactPolicy, rejectIfSuspended, ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactPolicy";
-import type { ParentProfile, Sport } from "@/generated/prisma/client";
+import { SKILL_LEVEL_LABELS, levelsFromFlags, listLevels } from "@/lib/skillLevels";
+import { SPORT_LABELS } from "@/lib/sports";
+import type { Child, ParentProfile, SkillLevel, Sport } from "@/generated/prisma/client";
 
 export class BookingValidationError extends Error {
   status: number;
-  constructor(message: string, status = 400) {
+  /** Machine-readable reason, for clients that respond to a specific failure (see LEVEL_REQUIRED). */
+  code?: string;
+  constructor(message: string, status = 400, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
+
+/** The child has no level saved for this sport yet. Clients ask for one and retry. */
+export const LEVEL_REQUIRED = "LEVEL_REQUIRED";
+/** The child's level for this sport isn't one the coach takes. */
+export const LEVEL_NOT_ACCEPTED = "LEVEL_NOT_ACCEPTED";
 
 export type BookingRequestInput = {
   coachProfileId: string;
@@ -46,9 +56,12 @@ export async function validateBookingRequest(parentProfile: ParentProfile, data:
   if (!coach || !isCoachLive(coach) || !coach.hourlyRateCents) {
     throw new BookingValidationError("This coach isn't available for booking right now.");
   }
-  if (!coach.sports.some((s) => s.sport === data.sport)) {
+  const coachSport = coach.sports.find((s) => s.sport === data.sport);
+  if (!coachSport) {
     throw new BookingValidationError("This coach doesn't offer that sport.");
   }
+
+  const childLevel = await assertLevelAccepted(child, coachSport.sport, levelsFromFlags(coachSport));
 
   await assertSecondAdultNamed(coach, parentProfile, data.secondAdultName);
 
@@ -60,7 +73,7 @@ export async function validateBookingRequest(parentProfile: ParentProfile, data:
 
   const isFirstSession = await isFirstSessionWithCoach(parentProfile.id, coach.id);
 
-  return { child, coach, sport: data.sport as Sport, breakdown, discountCents, totalDueCents, isFirstSession };
+  return { child, childLevel, coach, sport: data.sport as Sport, breakdown, discountCents, totalDueCents, isFirstSession };
 }
 
 export type PackageBookingRequestInput = {
@@ -98,6 +111,16 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
   if (!isCoachLive(pkg.coachProfile)) {
     throw new BookingValidationError("This coach isn't available for booking right now.");
   }
+  // A package is bought for a coach and sport, not a child, and paid for upfront. A child
+  // who has already had a session from this package keeps using it even if the coach has
+  // since stopped taking their level, so the parent isn't left holding unusable sessions.
+  // (If the coach has dropped the sport entirely, the package still works, as before.)
+  const usedPackageBefore = await prisma.booking.count({ where: { packageId: pkg.id, childId: child.id } });
+  const coachSport = pkg.coachProfile.sports.find((s) => s.sport === pkg.sport);
+  const childLevel = await assertLevelAccepted(child, pkg.sport, coachSport ? levelsFromFlags(coachSport) : null, {
+    allowMismatch: usedPackageBefore > 0,
+  });
+
   await assertSecondAdultNamed(pkg.coachProfile, parentProfile, data.secondAdultName);
 
   await assertSlotOpen(pkg.coachProfileId, data.scheduledAt, pkg.durationMinutes);
@@ -105,7 +128,38 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
   const breakdown = perSessionBreakdown(pkg.pricePerSessionCents, pkg.discountPercent);
   const isFirstSession = await isFirstSessionWithCoach(parentProfile.id, pkg.coachProfileId);
 
-  return { child, package: pkg, coach: pkg.coachProfile, sport: pkg.sport, breakdown, isFirstSession };
+  return { child, childLevel, package: pkg, coach: pkg.coachProfile, sport: pkg.sport, breakdown, isFirstSession };
+}
+
+/**
+ * Every booking path (single, package, quick rebook) books a child at the level the parent
+ * has saved for that sport, and only with a coach who takes that level. Levels are
+ * self-reported, so this is a fit check rather than a safety gate. Returns the level so it
+ * can be stored on the booking for the coach to see. `accepted` is null when there's no
+ * coach-sport row to check against (a package whose sport the coach has since dropped).
+ */
+async function assertLevelAccepted(
+  child: Child,
+  sport: Sport,
+  accepted: SkillLevel[] | null,
+  { allowMismatch = false }: { allowMismatch?: boolean } = {},
+): Promise<SkillLevel> {
+  const sportName = SPORT_LABELS[sport].toLowerCase();
+  const saved = await prisma.childSportLevel.findUnique({
+    where: { childId_sport: { childId: child.id, sport } },
+  });
+  if (!saved) {
+    throw new BookingValidationError(`Set ${child.firstName}'s ${sportName} level before booking.`, 400, LEVEL_REQUIRED);
+  }
+  if (accepted && !accepted.includes(saved.level) && !allowMismatch) {
+    throw new BookingValidationError(
+      `This coach takes ${listLevels(accepted)} ${sportName} players, and ${child.firstName} is set to ${SKILL_LEVEL_LABELS[saved.level]}. ` +
+        `If that's out of date, change ${child.firstName}'s level. Otherwise, find a coach who takes ${SKILL_LEVEL_LABELS[saved.level]} players.`,
+      400,
+      LEVEL_NOT_ACCEPTED,
+    );
+  }
+  return saved.level;
 }
 
 /**
@@ -182,6 +236,7 @@ type CreateConfirmedBookingInput = {
   parentProfileId: string;
   coachProfileId: string;
   childId: string;
+  childLevel: SkillLevel;
   sport: Sport;
   scheduledAt: Date;
   durationMinutes: number;
@@ -218,6 +273,7 @@ export async function createConfirmedBooking(input: CreateConfirmedBookingInput)
         parentProfileId: input.parentProfileId,
         coachProfileId: input.coachProfileId,
         childId: input.childId,
+        childLevel: input.childLevel,
         sport: input.sport,
         scheduledAt: input.scheduledAt,
         durationMinutes: input.durationMinutes,

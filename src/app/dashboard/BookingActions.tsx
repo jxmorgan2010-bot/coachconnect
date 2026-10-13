@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import { formatCents } from "@/lib/money";
+import LevelPicker from "@/components/LevelPicker";
 
 export function MarkCompleteButton({ bookingId }: { bookingId: string }) {
   const router = useRouter();
@@ -113,11 +116,37 @@ export function QuickRebookButton({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // Set when the server asks for the child's level (LEVEL_REQUIRED): pick it here, save, retry.
+  const [levelNeeded, setLevelNeeded] = useState<{ childId: string; sport: Sport; prompt: string } | null>(null);
+  const [levelDraft, setLevelDraft] = useState<SkillLevel | null>(null);
 
   async function onClick() {
     setError(null);
+    setErrorCode(null);
     setLoading(true);
+
+    if (levelNeeded) {
+      if (!levelDraft) {
+        setLoading(false);
+        setError("Choose a level first.");
+        return;
+      }
+      const levelRes = await fetch(`/api/children/${levelNeeded.childId}/levels`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sport: levelNeeded.sport, level: levelDraft }),
+      });
+      if (!levelRes.ok) {
+        const levelData = await levelRes.json().catch(() => ({}));
+        setLoading(false);
+        setError(levelData.error ?? "We couldn't save the level. Try again.");
+        return;
+      }
+      setLevelNeeded(null);
+    }
+
     const res = await fetch("/api/bookings/quick-rebook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,7 +155,13 @@ export function QuickRebookButton({
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
+      if (data.code === "LEVEL_REQUIRED" && data.childId && data.sport) {
+        setLevelNeeded({ childId: data.childId, sport: data.sport, prompt: data.error });
+        setLevelDraft(null);
+        return;
+      }
       setError(data.error ?? "Something went wrong.");
+      setErrorCode(data.code ?? null);
       return;
     }
     setSuccess(new Date(data.scheduledAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
@@ -140,8 +175,21 @@ export function QuickRebookButton({
   return (
     <div className="flex flex-col items-start gap-1">
       {error && <p className={errorClass}>{error}</p>}
+      {errorCode === "LEVEL_NOT_ACCEPTED" && (
+        <Link href="/dashboard/family" className={`${quietLinkClass} text-pitch`}>Update levels on your family page</Link>
+      )}
+      {levelNeeded && (
+        <div className="w-full max-w-md">
+          <LevelPicker
+            name={`rebook-level-${bookingId}`}
+            legend={levelNeeded.prompt}
+            value={levelDraft}
+            onChange={setLevelDraft}
+          />
+        </div>
+      )}
       <button onClick={onClick} className={secondaryButtonClass} disabled={loading} aria-describedby={secondAdultName ? `rebook-adult-${bookingId}` : undefined}>
-        {loading ? "Rebooking..." : `Quick rebook with ${coachName}`}
+        {loading ? "Rebooking..." : levelNeeded ? "Save level and rebook" : `Quick rebook with ${coachName}`}
       </button>
       {secondAdultName && (
         <p id={`rebook-adult-${bookingId}`} className="max-w-xs text-xs text-muted-foreground">

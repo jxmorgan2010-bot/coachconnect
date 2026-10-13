@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/money";
-import { SPORT_LABELS } from "@/lib/sports";
+import { SPORTS, SPORT_LABELS } from "@/lib/sports";
 import Badge from "@/components/Badge";
 import DateTile from "@/components/DateTile";
 import SportPill from "@/components/SportPill";
@@ -11,6 +11,7 @@ import { IconArrowRight } from "@/components/icons";
 import { secondaryButtonClass, quietLinkClass } from "@/lib/ui";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import ParentTabs from "../ParentTabs";
+import ChildLevelsCard from "./ChildLevelsCard";
 
 const STATUS_VARIANT = {
   PENDING_CONSENT: "warning",
@@ -26,7 +27,7 @@ export default async function FamilyDashboardPage() {
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    include: { children: { orderBy: { createdAt: "asc" } } },
+    include: { children: { orderBy: { createdAt: "asc" }, include: { sportLevels: true } } },
   });
   if (!parentProfile) redirect("/dashboard");
 
@@ -66,14 +67,28 @@ export default async function FamilyDashboardPage() {
       <ParentTabs />
 
       {parentProfile.children.length > 0 && (
-        <ul className="mb-8 flex flex-wrap gap-2" aria-label="Your kids">
-          {parentProfile.children.map((c) => (
-            <li key={c.id} className="rounded-lg border-2 border-ink bg-surface px-3 py-1.5 text-sm">
-              <span className="font-bold text-ink">{c.firstName}</span>
-              <span className="text-muted-foreground"> · {c.gradeOrAge}</span>
-            </li>
-          ))}
-        </ul>
+        <section aria-labelledby="family-kids" className="mb-10">
+          <h2 id="family-kids" className="mb-1 font-display text-3xl text-ink">Kids &amp; levels</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Each coach takes certain levels in each sport. Keep these current so you see coaches who fit.
+          </p>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {parentProfile.children.map((c) => (
+              <ChildLevelsCard
+                key={c.id}
+                child={{
+                  id: c.id,
+                  firstName: c.firstName,
+                  gradeOrAge: c.gradeOrAge,
+                  levels: SPORTS.flatMap((sport) => c.sportLevels.filter((l) => l.sport === sport)).map((l) => ({
+                    sport: l.sport,
+                    level: l.level,
+                  })),
+                }}
+              />
+            ))}
+          </ul>
+        </section>
       )}
 
       <section aria-labelledby="family-upcoming" className="mb-10">

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { isCoachLive } from "@/lib/coach";
+import { levelsFromFlags } from "@/lib/skillLevels";
 import SuspendedBlock from "@/components/SuspendedBlock";
 import NoHoursNotice from "@/components/NoHoursNotice";
 import PackagePurchaseForm from "./PackagePurchaseForm";
@@ -35,6 +36,7 @@ export default async function PackagePurchasePage({ params }: { params: Promise<
         name: profile.user.name,
         hourlyRateCents: profile.hourlyRateCents,
         sports: profile.sports.map((s) => s.sport),
+        sportLevels: Object.fromEntries(profile.sports.map((s) => [s.sport, levelsFromFlags(s)])),
         isMinorCoach: profile.isMinorCoach,
       }}
     />

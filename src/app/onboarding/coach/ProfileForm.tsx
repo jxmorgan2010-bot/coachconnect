@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { Sport, SchoolLevel } from "@/generated/prisma/client";
+import type { Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
 import { SPORTS, SPORT_LABELS, SPORT_TAG, SPORT_COLOR } from "@/lib/sports";
+import { SKILL_LEVELS, SKILL_LEVEL_LABELS, SKILL_LEVEL_DESCRIPTIONS } from "@/lib/skillLevels";
+import SportPill from "@/components/SportPill";
 import { BAY_AREA_CITIES } from "@/lib/bayArea";
 import { inputClass, labelClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 
@@ -16,6 +18,8 @@ export type ProfileFormValues = {
   state: string;
   zip: string;
   sports: Sport[];
+  /** Levels taken per selected sport. A newly picked sport starts with every level. */
+  sportLevels: Partial<Record<Sport, SkillLevel[]>>;
 };
 
 export default function ProfileForm({
@@ -34,19 +38,38 @@ export default function ProfileForm({
     setValues((v) => ({
       ...v,
       sports: v.sports.includes(sport) ? v.sports.filter((s) => s !== sport) : [...v.sports, sport],
+      sportLevels: v.sportLevels[sport] ? v.sportLevels : { ...v.sportLevels, [sport]: [...SKILL_LEVELS] },
     }));
+  }
+
+  function toggleLevel(sport: Sport, level: SkillLevel) {
+    setValues((v) => {
+      const current = v.sportLevels[sport] ?? [];
+      const next = current.includes(level) ? current.filter((l) => l !== level) : [...current, level];
+      return { ...v, sportLevels: { ...v.sportLevels, [sport]: next } };
+    });
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaved(false);
-    setLoading(true);
 
+    const missing = values.sports.find((sport) => (values.sportLevels[sport] ?? []).length === 0);
+    if (missing) {
+      setError(`Pick at least one level for ${SPORT_LABELS[missing]}.`);
+      return;
+    }
+
+    setLoading(true);
+    const { sportLevels, ...rest } = values;
     const res = await fetch("/api/coach/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      body: JSON.stringify({
+        ...rest,
+        sportLevels: values.sports.map((sport) => ({ sport, levels: sportLevels[sport] ?? [] })),
+      }),
     });
     const data = await res.json();
     setLoading(false);
@@ -87,6 +110,49 @@ export default function ProfileForm({
           })}
         </div>
       </div>
+
+      {values.sports.length > 0 && (
+        <div className="rounded-lg border-2 border-line p-4">
+          <p className={labelClass}>Levels you take</p>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Parents set their kid&apos;s level for each sport, and can only book you at levels you take.
+          </p>
+          <dl className="mb-4 grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[auto_1fr]">
+            {SKILL_LEVELS.map((level) => (
+              <div key={level} className="contents">
+                <dt className="font-bold text-ink">{SKILL_LEVEL_LABELS[level]}</dt>
+                <dd className="mb-1.5 text-muted-foreground sm:mb-0">{SKILL_LEVEL_DESCRIPTIONS[level]}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="flex flex-col gap-3">
+            {SPORTS.filter((sport) => values.sports.includes(sport)).map((sport) => (
+              <fieldset key={sport} className="border-t-2 border-line pt-3">
+                <legend className="sr-only">{SPORT_LABELS[sport]} levels</legend>
+                <p aria-hidden className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
+                  <SportPill sport={sport} /> {SPORT_LABELS[sport]}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {SKILL_LEVELS.map((level) => (
+                    <label
+                      key={level}
+                      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border-2 border-line bg-surface px-3 text-sm font-bold text-ink hover:border-ink has-[:checked]:border-ink has-[:checked]:bg-muted"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={(values.sportLevels[sport] ?? []).includes(level)}
+                        onChange={() => toggleLevel(sport, level)}
+                        className="h-4 w-4 accent-[var(--pitch)]"
+                      />
+                      {SKILL_LEVEL_LABELS[level]}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

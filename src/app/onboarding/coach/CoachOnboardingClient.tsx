@@ -5,6 +5,7 @@ import type { CoachProfile, CoachSport, Availability, Recommendation } from "@/g
 import Badge from "@/components/Badge";
 import { IconCheck } from "@/components/icons";
 import { isCoachLive, isCoachProfileComplete, getBackgroundCheckExpiryState } from "@/lib/coach";
+import { levelsFromFlags } from "@/lib/skillLevels";
 import ProfileForm, { type ProfileFormValues } from "./ProfileForm";
 import AvailabilityForm, { type Slot } from "./AvailabilityForm";
 import VerificationUploads from "./VerificationUploads";
@@ -94,6 +95,7 @@ export default function CoachOnboardingClient({
     state: profile.state ?? "",
     zip: profile.zip ?? "",
     sports: profile.sports.map((s) => s.sport),
+    sportLevels: Object.fromEntries(profile.sports.map((s) => [s.sport, levelsFromFlags(s)])),
   });
 
   const profileComplete = isCoachProfileComplete({

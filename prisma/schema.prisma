@@ -26,6 +26,15 @@ enum Sport {
   SOFTBALL
 }
 
+/// A child's skill level in one sport, and the levels a coach takes per sport. Labels,
+/// tags and parent-facing descriptions live in src/lib/skillLevels.ts.
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  COMPETITIVE
+}
+
 enum SchoolLevel {
   HIGH_SCHOOL
   COLLEGE
@@ -199,6 +208,21 @@ model Child {
 
   bookings          Booking[]
   trainingPlanItems TrainingPlanItem[]
+  sportLevels       ChildSportLevel[]
+}
+
+/// A child's level in one sport, set by the parent (family page, booking form or quick
+/// rebook). Bookings are checked against it — see assertLevelAccepted in
+/// src/lib/bookingValidation.ts.
+model ChildSportLevel {
+  id        String     @id @default(cuid())
+  childId   String
+  child     Child      @relation(fields: [childId], references: [id], onDelete: Cascade)
+  sport     Sport
+  level     SkillLevel
+  updatedAt DateTime   @updatedAt
+
+  @@unique([childId, sport])
 }
 
 model CoachProfile {
@@ -370,6 +394,14 @@ model CoachSport {
   coachProfile   CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
   sport          Sport
 
+  // Levels this coach takes for this sport. One column per level (rather than a child
+  // table) so existing rows default to every level when the columns are added — see
+  // prisma/sql/2026-10-12-skill-levels.sql. The profile form requires at least one.
+  acceptsBeginner     Boolean @default(true)
+  acceptsIntermediate Boolean @default(true)
+  acceptsAdvanced     Boolean @default(true)
+  acceptsCompetitive  Boolean @default(true)
+
   @@unique([coachProfileId, sport])
 }
 
@@ -477,6 +509,10 @@ model Booking {
   // Required whenever the booked coach is a minor coach (see CoachProfile.isMinorCoach) —
   // the name of the additional adult, beyond the booking parent, who'll be present.
   secondAdultName   String?
+
+  // The child's level for this sport when the booking was made, i.e. what the coach's
+  // levels were checked against. Null on bookings made before skill levels existed.
+  childLevel        SkillLevel?
 
   reminder24SentAt  DateTime?
   reminder1hSentAt  DateTime?
