@@ -21,7 +21,7 @@ export const SKILL_LEVEL_TAG: Record<SkillLevel, string> = {
 /** Shown wherever a level is picked, so parents and coaches mean the same thing by it. */
 export const SKILL_LEVEL_DESCRIPTIONS: Record<SkillLevel, string> = {
   BEGINNER: "New to the sport or still learning the basics.",
-  INTERMEDIATE: "Knows the basics and plays on a rec or school team.",
+  INTERMEDIATE: "Knows the basics; plays rec, or on a middle school or freshman team.",
   ADVANCED: "Strong skills; plays on a club, travel, JV or varsity team.",
   COMPETITIVE: "Training for top club, varsity starter or college-recruiting level.",
 };
