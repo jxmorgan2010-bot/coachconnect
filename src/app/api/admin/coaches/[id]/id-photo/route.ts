@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
-import { readFile } from "fs/promises";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { resolvePrivateFilePath } from "@/lib/storage";
-
-function contentTypeFor(filename: string) {
-  if (filename.endsWith(".png")) return "image/png";
-  if (filename.endsWith(".webp")) return "image/webp";
-  return "image/jpeg";
-}
+import { idPhotoResponse } from "@/lib/storage";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
@@ -23,14 +16,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const buffer = await readFile(resolvePrivateFilePath(coach.idPhotoPath));
-    return new NextResponse(new Uint8Array(buffer), {
-      headers: {
-        "Content-Type": contentTypeFor(coach.idPhotoPath),
-        "Cache-Control": "private, no-store",
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
+    const response = await idPhotoResponse(coach.idPhotoPath);
+    return response ?? NextResponse.json({ error: "Not found." }, { status: 404 });
+  } catch (err) {
+    console.error("[id-photo] Couldn't load ID photo for coach", id, err);
+    return NextResponse.json({ error: "Couldn't load the ID photo." }, { status: 500 });
   }
 }
