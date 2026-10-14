@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { signInWithPassword } from "@/lib/authClient";
 import AuthLayout from "@/components/AuthLayout";
 import { IconWhistle } from "@/components/icons";
 import { inputClass, labelClass, goldButtonClass, errorClass, quietLinkClass } from "@/lib/ui";
@@ -61,9 +61,10 @@ export default function CoachSignupForm({
         return;
       }
 
-      const signInRes = await signIn("credentials", { redirect: false, email, password });
-      if (signInRes?.error) {
-        router.push("/login");
+      const signInResult = await signInWithPassword(email, password);
+      if (!signInResult.ok) {
+        // The account exists; only the automatic sign-in failed.
+        router.push("/login?created=1&callbackUrl=/onboarding/coach");
         return;
       }
       router.push("/onboarding/coach");

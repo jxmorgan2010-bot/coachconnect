@@ -3,15 +3,17 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import AuthLayout from "@/components/AuthLayout";
 import { IconWhistle } from "@/components/icons";
-import { inputClass, labelClass, primaryButtonClass, errorClass } from "@/lib/ui";
+import { safeCallbackPath, signInWithPassword } from "@/lib/authClient";
+import { inputClass, labelClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = safeCallbackPath(searchParams.get("callbackUrl"), "/dashboard");
+  // Set by the signup forms when the account was created but signing in afterwards failed.
+  const accountCreated = searchParams.get("created") === "1";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,12 +24,13 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const res = await signIn("credentials", { redirect: false, email, password });
-    setLoading(false);
-    if (res?.error) {
-      setError("Invalid email or password.");
+    const result = await signInWithPassword(email, password);
+    if (!result.ok) {
+      setError(result.error);
+      setLoading(false);
       return;
     }
+    // Stay in the loading state until the next page loads, so the button can't be pressed twice.
     router.push(callbackUrl);
     router.refresh();
   }
@@ -44,6 +47,9 @@ function LoginForm() {
     >
       <h1 className="text-display-lg mb-6 font-display text-ink">Log in</h1>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        {accountCreated && !error && (
+          <p role="status" className={successClass}>Your account is ready. Log in to continue.</p>
+        )}
         {error && <p role="alert" className={errorClass}>{error}</p>}
         <div>
           <label className={labelClass} htmlFor="email">Email</label>
