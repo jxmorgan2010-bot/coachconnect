@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { IdVerificationStatus } from "@/generated/prisma/client";
 import Badge from "@/components/Badge";
 import { secondaryButtonClass, errorClass } from "@/lib/ui";
+import { uploadCoachFile } from "@/lib/coachUpload";
 
 const STATUS_META: Record<IdVerificationStatus, { label: string; variant: "success" | "warning" | "danger" }> = {
   APPROVED: { label: "Approved", variant: "success" },
@@ -14,54 +15,47 @@ const STATUS_META: Record<IdVerificationStatus, { label: string; variant: "succe
 
 export default function VerificationUploads({
   hasIdPhoto,
-  idPhotoPath,
   idStatus,
   profilePhotoUrl,
 }: {
   hasIdPhoto: boolean;
-  idPhotoPath: string | null;
   idStatus: IdVerificationStatus;
   profilePhotoUrl: string | null;
 }) {
   const [idUploaded, setIdUploaded] = useState(hasIdPhoto);
-  const [idPreviewPath, setIdPreviewPath] = useState(idPhotoPath);
+  // Bumped after each re-upload so the preview refetches (its URL is otherwise unchanged).
+  const [idVersion, setIdVersion] = useState(0);
   const [status, setStatus] = useState(idStatus);
   const [photoUrl, setPhotoUrl] = useState(profilePhotoUrl);
   const [idError, setIdError] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const [idLoading, setIdLoading] = useState(false);
-  const [photoLoading, setPhotoLoading] = useState(false);
+  const [idProgress, setIdProgress] = useState<number | null>(null);
+  const [photoProgress, setPhotoProgress] = useState<number | null>(null);
 
   async function uploadId(file: File) {
     setIdError(null);
-    setIdLoading(true);
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("/api/coach/upload-id", { method: "POST", body: form });
-    const data = await res.json();
-    setIdLoading(false);
-    if (!res.ok) {
-      setIdError(data.error ?? "Upload failed.");
+    setIdProgress(0);
+    const result = await uploadCoachFile("id", file, { onProgress: setIdProgress });
+    setIdProgress(null);
+    if (!result.ok) {
+      setIdError(result.error);
       return;
     }
     setIdUploaded(true);
-    setIdPreviewPath(data.filename ?? null);
+    setIdVersion((v) => v + 1);
     setStatus("PENDING");
   }
 
   async function uploadPhoto(file: File) {
     setPhotoError(null);
-    setPhotoLoading(true);
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("/api/coach/upload-photo", { method: "POST", body: form });
-    const data = await res.json();
-    setPhotoLoading(false);
-    if (!res.ok) {
-      setPhotoError(data.error ?? "Upload failed.");
+    setPhotoProgress(0);
+    const result = await uploadCoachFile("photo", file, { onProgress: setPhotoProgress });
+    setPhotoProgress(null);
+    if (!result.ok) {
+      setPhotoError(result.error);
       return;
     }
-    setPhotoUrl(data.url);
+    if (result.url) setPhotoUrl(result.url);
   }
 
   const statusMeta = STATUS_META[status];
@@ -77,19 +71,20 @@ export default function VerificationUploads({
           Used only to verify current enrollment. Never shown publicly — visible only to you and CoachConnect
           admins.
         </p>
-        {idPreviewPath && (
+        {idUploaded && (
           <div className="relative h-32 w-full overflow-hidden rounded-lg border-2 border-ink">
-            <Image src={`/api/private-files/${idPreviewPath}`} alt="Your uploaded school ID" fill className="object-cover" />
+            {/* unoptimized: the browser fetches it with the coach's session, so the ID never enters Next's image cache. */}
+            <Image src={`/api/coach/id-photo?v=${idVersion}`} alt="Your uploaded school ID" fill unoptimized className="object-cover" />
           </div>
         )}
         {idError && <p className={errorClass}>{idError}</p>}
         <label className={`${secondaryButtonClass} cursor-pointer has-[:focus-visible]:outline-solid has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}>
-          {idLoading ? "Uploading..." : idUploaded ? "Re-upload ID" : "Upload school ID"}
+          {idProgress !== null ? `Uploading... ${idProgress}%` : idUploaded ? "Re-upload ID" : "Upload school ID"}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
             className="sr-only"
-            disabled={idLoading}
+            disabled={idProgress !== null}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) uploadId(file);
@@ -112,12 +107,12 @@ export default function VerificationUploads({
         )}
         {photoError && <p className={errorClass}>{photoError}</p>}
         <label className={`${secondaryButtonClass} cursor-pointer has-[:focus-visible]:outline-solid has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}>
-          {photoLoading ? "Uploading..." : photoUrl ? "Change photo" : "Upload profile photo"}
+          {photoProgress !== null ? `Uploading... ${photoProgress}%` : photoUrl ? "Change photo" : "Upload profile photo"}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
             className="sr-only"
-            disabled={photoLoading}
+            disabled={photoProgress !== null}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) uploadPhoto(file);

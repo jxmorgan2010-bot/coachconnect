@@ -3,9 +3,8 @@
 import { useState, useRef } from "react";
 import Badge from "@/components/Badge";
 import { secondaryButtonClass, errorClass } from "@/lib/ui";
-import type { BioVideoClipType } from "@/lib/storage";
-
-const MAX_SECONDS = 60;
+import { MAX_CLIP_SECONDS as MAX_SECONDS, type BioVideoClipType } from "@/lib/uploadRules";
+import { uploadCoachFile } from "@/lib/coachUpload";
 
 const CLIP_META: Record<BioVideoClipType, { title: string; instructions: string }> = {
   intro: {
@@ -67,20 +66,16 @@ function ClipUploader({
         setLoading(false);
         return;
       }
-      const form = new FormData();
-      form.append("file", file);
-      form.append("clipType", clipType);
-      form.append("durationSeconds", String(Math.round(duration)));
-      const res = await fetch("/api/coach/upload-video", { method: "POST", body: form });
-      const data = await res.json();
+      const result = await uploadCoachFile("video", file, { clipType, durationSeconds: Math.round(duration) });
       setLoading(false);
-      if (!res.ok) {
-        setError(data.error ?? "Upload failed.");
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
-      setUrl(data.url);
+      const savedUrl = result.url ?? null;
+      setUrl(savedUrl);
       setSeconds(Math.round(duration));
-      onSaved({ url: data.url, seconds: Math.round(duration) });
+      onSaved({ url: savedUrl, seconds: Math.round(duration) });
     } catch (err) {
       setLoading(false);
       setError(err instanceof Error ? err.message : "Upload failed.");
