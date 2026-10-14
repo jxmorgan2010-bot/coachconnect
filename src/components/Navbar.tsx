@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { IconWhistle } from "@/components/icons";
+import SignOutButton from "@/components/SignOutButton";
 import { secondaryButtonClass } from "@/lib/ui";
 
 type NavLink = { href: string; label: string };
@@ -54,9 +55,7 @@ export default function Navbar() {
           {status === "authenticated" ? (
             <>
               <span className="text-sm text-muted-foreground">Hey, {session.user.name?.split(" ")[0]}</span>
-              <button onClick={() => signOut({ callbackUrl: "/" })} className={secondaryButtonClass}>
-                Sign out
-              </button>
+              <SignOutButton className={secondaryButtonClass} floatingError />
             </>
           ) : (
             <>
@@ -111,15 +110,7 @@ export default function Navbar() {
             ))}
             <div className="flex gap-3 py-3">
               {status === "authenticated" ? (
-                <button
-                  className={`${secondaryButtonClass} flex-1`}
-                  onClick={() => {
-                    setOpen(false);
-                    signOut({ callbackUrl: "/" });
-                  }}
-                >
-                  Sign out
-                </button>
+                <SignOutButton className={`${secondaryButtonClass} w-full`} wrapperClassName="flex-1" />
               ) : (
                 <>
                   <Link href="/login" onClick={() => setOpen(false)} className={`${secondaryButtonClass} flex-1`}>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { signInWithPassword } from "@/lib/authClient";
 import AuthLayout from "@/components/AuthLayout";
 import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 import { IconUsers } from "@/components/icons";
@@ -57,9 +57,10 @@ export default function ParentSignupForm({ referralBonusCents }: { referralBonus
         return;
       }
 
-      const signInRes = await signIn("credentials", { redirect: false, email, password });
-      if (signInRes?.error) {
-        router.push("/login");
+      const signInResult = await signInWithPassword(email, password);
+      if (!signInResult.ok) {
+        // The account exists; only the automatic sign-in failed.
+        router.push("/login?created=1&callbackUrl=/coaches");
         return;
       }
       router.push("/coaches");
