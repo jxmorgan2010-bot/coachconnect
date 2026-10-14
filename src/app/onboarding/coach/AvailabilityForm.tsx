@@ -18,7 +18,7 @@ function fromTimeString(value: string) {
   return h * 60 + m;
 }
 
-export default function AvailabilityForm({ initial }: { initial: Slot[] }) {
+export default function AvailabilityForm({ initial, onSaved }: { initial: Slot[]; onSaved: (slots: Slot[]) => void }) {
   const [slots, setSlots] = useState<Slot[]>(initial.length ? initial : [{ dayOfWeek: 6, startMinute: 9 * 60, endMinute: 12 * 60 }]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -52,6 +52,7 @@ export default function AvailabilityForm({ initial }: { initial: Slot[] }) {
       return;
     }
     setSaved(true);
+    onSaved(slots);
   }
 
   return (

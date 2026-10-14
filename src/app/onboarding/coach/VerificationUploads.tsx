@@ -17,10 +17,15 @@ export default function VerificationUploads({
   hasIdPhoto,
   idStatus,
   profilePhotoUrl,
+  onIdUploaded,
+  onPhotoUploaded,
 }: {
   hasIdPhoto: boolean;
   idStatus: IdVerificationStatus;
   profilePhotoUrl: string | null;
+  /** A new ID is saved and back to pending review. */
+  onIdUploaded: () => void;
+  onPhotoUploaded: (url: string) => void;
 }) {
   const [idUploaded, setIdUploaded] = useState(hasIdPhoto);
   // Bumped after each re-upload so the preview refetches (its URL is otherwise unchanged).
@@ -44,6 +49,7 @@ export default function VerificationUploads({
     setIdUploaded(true);
     setIdVersion((v) => v + 1);
     setStatus("PENDING");
+    onIdUploaded();
   }
 
   async function uploadPhoto(file: File) {
@@ -55,7 +61,10 @@ export default function VerificationUploads({
       setPhotoError(result.error);
       return;
     }
-    if (result.url) setPhotoUrl(result.url);
+    if (result.url) {
+      setPhotoUrl(result.url);
+      onPhotoUploaded(result.url);
+    }
   }
 
   const statusMeta = STATUS_META[status];
