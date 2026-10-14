@@ -6,6 +6,7 @@ import Badge from "@/components/Badge";
 import { IconCheck } from "@/components/icons";
 import { isCoachLive, isCoachProfileComplete, getBackgroundCheckExpiryState } from "@/lib/coach";
 import { levelsFromFlags } from "@/lib/skillLevels";
+import { BIO_VIDEO_UPLOADS_ENABLED } from "@/lib/features";
 import ProfileForm, { type ProfileFormValues } from "./ProfileForm";
 import AvailabilityForm, { type Slot } from "./AvailabilityForm";
 import VerificationUploads from "./VerificationUploads";
@@ -142,7 +143,8 @@ export default function CoachOnboardingClient({
           { id: "identity", title: "ID & profile photo", done: idDone },
           { id: "background-check", title: "Background check", done: backgroundDone },
         ]),
-    { id: "bio-video", title: "Bio video", done: videoDone, optional: true },
+    // Bio video is hidden while uploads are paused (src/lib/features.ts).
+    ...(BIO_VIDEO_UPLOADS_ENABLED ? [{ id: "bio-video", title: "Bio video", done: videoDone, optional: true }] : []),
     { id: "recommendation", title: "Recommendation", done: recommendationDone, optional: true },
     { id: "conduct", title: "Conduct rules", done: profile.conductAcknowledged },
   ];
@@ -283,7 +285,6 @@ export default function CoachOnboardingClient({
             ) : (
               <VerificationUploads
                 hasIdPhoto={Boolean(profile.idPhotoPath)}
-                idPhotoPath={profile.idPhotoPath}
                 idStatus={profile.idVerificationStatus}
                 profilePhotoUrl={profile.profilePhotoUrl}
               />
@@ -306,19 +307,21 @@ export default function CoachOnboardingClient({
             </Section>
           )}
 
-          <Section id="bio-video" step={stepNumber("bio-video")} title="Bio video" optional done={videoDone}>
-            {mediaLocked ? (
-              <UploadsLockedNotice what="bio videos" />
-            ) : (
-              <BioVideoUpload
-                initial={{
-                  intro: { url: profile.introClipUrl, seconds: profile.introClipSeconds },
-                  coaching: { url: profile.coachingClipUrl, seconds: profile.coachingClipSeconds },
-                  playing: { url: profile.playingClipUrl, seconds: profile.playingClipSeconds },
-                }}
-              />
-            )}
-          </Section>
+          {BIO_VIDEO_UPLOADS_ENABLED && (
+            <Section id="bio-video" step={stepNumber("bio-video")} title="Bio video" optional done={videoDone}>
+              {mediaLocked ? (
+                <UploadsLockedNotice what="bio videos" />
+              ) : (
+                <BioVideoUpload
+                  initial={{
+                    intro: { url: profile.introClipUrl, seconds: profile.introClipSeconds },
+                    coaching: { url: profile.coachingClipUrl, seconds: profile.coachingClipSeconds },
+                    playing: { url: profile.playingClipUrl, seconds: profile.playingClipSeconds },
+                  }}
+                />
+              )}
+            </Section>
+          )}
 
           <Section id="recommendation" step={stepNumber("recommendation")} title="Recommendation" optional done={recommendationDone}>
             <RecommendationPanel
