@@ -1,4 +1,8 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { getCurrentSession } from "@/lib/session";
+import { getCoachReviewStatus } from "@/lib/coachReview";
+import SubmittedForReviewBanner from "@/components/SubmittedForReviewBanner";
 import { SPORTS, SPORT_TAG, SPORT_COLOR, SPORT_LABELS } from "@/lib/sports";
 import { IconShieldCheck, IconMessage, IconPin, IconUsers, IconArrowRight } from "@/components/icons";
 import { goldButtonClass, secondaryButtonClass } from "@/lib/ui";
@@ -47,6 +51,19 @@ const SAFEGUARDS = [
   },
 ];
 
+/** Where "Finish" in coach onboarding lands: tells a coach waiting for review where they stand. */
+async function CoachSubmittedNotice() {
+  const session = await getCurrentSession();
+  if (session?.user?.role !== "COACH") return null;
+  const status = await getCoachReviewStatus(session.user.id);
+  if (!status?.awaitingReview) return null;
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6">
+      <SubmittedForReviewBanner />
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <div className="flex flex-col">
@@ -57,6 +74,10 @@ export default function Home() {
           Join the waitlist for your area
         </Link>
       </div>
+
+      <Suspense fallback={null}>
+        <CoachSubmittedNotice />
+      </Suspense>
 
       {/* HERO — full-bleed pitch green, asymmetric: headline left, pitch diagram right */}
       <section className="on-dark relative overflow-hidden border-b-2 border-ink bg-pitch text-white texture-hatch">

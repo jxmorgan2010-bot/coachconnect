@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { CoachProfile, CoachSport, Availability, Recommendation } from "@/generated/prisma/client";
 import Badge from "@/components/Badge";
 import { IconCheck } from "@/components/icons";
 import { isCoachLive, isCoachProfileComplete, getBackgroundCheckExpiryState } from "@/lib/coach";
+import { areCoachOwnStepsDone, isIdStepDone } from "@/lib/onboardingSteps";
 import { levelsFromFlags } from "@/lib/skillLevels";
 import { BIO_VIDEO_UPLOADS_ENABLED } from "@/lib/features";
+import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui";
 import ProfileForm, { type ProfileFormValues } from "./ProfileForm";
 import AvailabilityForm, { type Slot } from "./AvailabilityForm";
 import VerificationUploads from "./VerificationUploads";
@@ -35,19 +39,33 @@ function UploadsLockedNotice({ what }: { what: string }) {
   );
 }
 
+/**
+ * "coach": a step the coach finishes themselves; these make up their progress count.
+ * "team": a step only an admin can mark; shown as waiting and never counted against the coach.
+ */
+type StepKind = "coach" | "team" | "optional";
+
+const TEAM_WAITING_LABEL = "Waiting for our team";
+
+function stepStatusText(kind: StepKind, done: boolean) {
+  if (done) return " — done";
+  if (kind === "team") return ` — ${TEAM_WAITING_LABEL.toLowerCase()}`;
+  return kind === "optional" ? " — optional" : " — to do";
+}
+
 function Section({
   id,
   step,
   title,
   done,
-  optional = false,
+  kind = "coach",
   children,
 }: {
   id: string;
   step: number;
   title: string;
   done: boolean;
-  optional?: boolean;
+  kind?: StepKind;
   children: React.ReactNode;
 }) {
   return (
@@ -56,20 +74,39 @@ function Section({
         <span
           aria-hidden
           className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-ink font-display text-sm ${
-            done ? "bg-pitch text-white" : "bg-gold text-ink"
+            done ? "bg-pitch text-white" : kind === "team" ? "bg-surface text-ink" : "bg-gold text-ink"
           }`}
         >
           {done ? <IconCheck className="h-4 w-4" /> : step}
         </span>
         <h2 id={`${id}-title`} className="font-display text-2xl leading-none text-ink">
           {title}
-          <span className="sr-only">{done ? " — done" : optional ? " — optional" : " — to do"}</span>
+          <span className="sr-only">{stepStatusText(kind, done)}</span>
         </h2>
-        {optional && !done && <Badge variant="neutral">Optional</Badge>}
+        {kind === "optional" && !done && <Badge variant="neutral">Optional</Badge>}
         {done && <Badge variant="success">Done</Badge>}
       </div>
       {children}
     </section>
+  );
+}
+
+/** Ends onboarding once the coach's own steps are done: their profile then waits for an admin. */
+function FinishButton({ className = "" }: { className?: string }) {
+  const router = useRouter();
+  const [leaving, setLeaving] = useState(false);
+  return (
+    <button
+      type="button"
+      className={`${primaryButtonClass} ${className}`}
+      disabled={leaving}
+      onClick={() => {
+        setLeaving(true);
+        router.push("/");
+      }}
+    >
+      {leaving ? "Finishing..." : "Finish"}
+    </button>
   );
 }
 
@@ -115,41 +152,60 @@ export default function CoachOnboardingClient({
     endMinute: a.endMinute,
   }));
 
-  const live = isCoachLive(profile);
+  // What each section has saved since the page loaded. Sections report their saves here, so the
+  // checklist, counter and section badges update straight away instead of after a reload.
+  const [savedSlotCount, setSavedSlotCount] = useState(initialSlots.length);
+  const [conductAcknowledged, setConductAcknowledged] = useState(profile.conductAcknowledged);
+  const [hasIdPhoto, setHasIdPhoto] = useState(Boolean(profile.idPhotoPath));
+  const [idStatus, setIdStatus] = useState(profile.idVerificationStatus);
+  const [photoUrl, setPhotoUrl] = useState(profile.profilePhotoUrl);
+
+  // A re-uploaded ID goes back to pending review, which can take a live profile down.
+  const live = isCoachLive({ ...profile, idVerificationStatus: idStatus });
   const expiryState = getBackgroundCheckExpiryState(profile);
 
-  // Same "done" conditions each section used before — gathered once so the
-  // checklist and progress bar can't drift from the sections themselves.
-  const idDone = profile.idVerificationStatus === "APPROVED" && Boolean(profile.profilePhotoUrl);
-  const backgroundDone = expiryState === "VALID" || expiryState === "RENEWAL_NEEDED";
+  // Gathered once so the checklist and progress bar can't drift from the sections themselves.
   const consentDone = minorConsent?.status === "COMPLETED";
+  const idDone = isIdStepDone({ hasIdPhoto, idStatus, hasProfilePhoto: Boolean(photoUrl) });
+  // Admin-marked steps: shown as waiting for our team, never counted against the coach.
+  const backgroundDone = expiryState === "VALID" || expiryState === "RENEWAL_NEEDED";
   // A minor can't upload their ID, photos or videos until a parent has consented (the server enforces this too).
   const mediaLocked = isMinorCoach && !consentDone;
   const minorBackgroundDone = Boolean(profile.minorBackgroundCheckNote);
   const videoDone = Boolean(profile.introClipUrl && profile.coachingClipUrl && profile.playingClipUrl);
   const recommendationDone = profile.recommendations.some((r) => r.status === "SUBMITTED");
+  const ownStepsDone = areCoachOwnStepsDone({
+    profileComplete,
+    hasAvailability: savedSlotCount > 0,
+    hasIdPhoto,
+    idStatus,
+    hasProfilePhoto: Boolean(photoUrl),
+    conductAcknowledged,
+    guardianConsentDone: isMinorCoach ? consentDone : null,
+  });
 
-  const steps: { id: string; title: string; done: boolean; optional?: boolean }[] = [
-    { id: "profile", title: "Profile & sports", done: profileComplete },
-    { id: "availability", title: "Availability", done: initialSlots.length > 0 },
+  const steps: { id: string; title: string; done: boolean; kind: StepKind }[] = [
+    { id: "profile", title: "Profile & sports", done: profileComplete, kind: "coach" },
+    { id: "availability", title: "Availability", done: savedSlotCount > 0, kind: "coach" },
     // Minors: consent comes first, because it covers the ID and photo uploads that follow.
     ...(isMinorCoach
       ? [
-          { id: "guardian-consent", title: "Parent/guardian consent", done: consentDone },
-          { id: "identity", title: "ID & profile photo", done: idDone },
-          { id: "minor-background", title: "Background verification", done: minorBackgroundDone },
+          { id: "guardian-consent", title: "Parent/guardian consent", done: consentDone, kind: "coach" as const },
+          { id: "identity", title: "ID & profile photo", done: idDone, kind: "coach" as const },
+          { id: "minor-background", title: "Background verification", done: minorBackgroundDone, kind: "team" as const },
         ]
       : [
-          { id: "identity", title: "ID & profile photo", done: idDone },
-          { id: "background-check", title: "Background check", done: backgroundDone },
+          { id: "identity", title: "ID & profile photo", done: idDone, kind: "coach" as const },
+          { id: "background-check", title: "Background check", done: backgroundDone, kind: "team" as const },
         ]),
     // Bio video is hidden while uploads are paused (src/lib/features.ts).
-    ...(BIO_VIDEO_UPLOADS_ENABLED ? [{ id: "bio-video", title: "Bio video", done: videoDone, optional: true }] : []),
-    { id: "recommendation", title: "Recommendation", done: recommendationDone, optional: true },
-    { id: "conduct", title: "Conduct rules", done: profile.conductAcknowledged },
+    ...(BIO_VIDEO_UPLOADS_ENABLED ? [{ id: "bio-video", title: "Bio video", done: videoDone, kind: "optional" as const }] : []),
+    { id: "recommendation", title: "Recommendation", done: recommendationDone, kind: "optional" },
+    { id: "conduct", title: "Conduct rules", done: conductAcknowledged, kind: "coach" },
   ];
-  const required = steps.filter((s) => !s.optional);
+  const required = steps.filter((s) => s.kind === "coach");
   const requiredDone = required.filter((s) => s.done).length;
+  const readyToFinish = ownStepsDone && !live;
   const stepNumber = (id: string) => steps.findIndex((s) => s.id === id) + 1;
   const stepFor = (id: string) => steps.find((s) => s.id === id)!;
 
@@ -158,12 +214,13 @@ export default function CoachOnboardingClient({
       <p className="eyebrow mb-2 text-pitch">Coach onboarding</p>
       <h1 className="text-display-lg font-display text-ink">Get your profile ready</h1>
       <p className="mt-3 max-w-2xl text-muted-foreground">
-        Finish the required steps below. Your profile stays private until our team has reviewed your ID and
-        you&apos;ve completed the background check step.
+        Finish your steps below, then submit your profile. It stays private until our team has approved your ID
+        and marked the background check step.
       </p>
 
       {/* STATUS — the one thing a coach comes here to learn */}
       <div
+        role="status"
         className={`mt-6 flex flex-col gap-3 rounded-xl border-2 border-ink p-4 sm:flex-row sm:items-center sm:gap-4 ${
           live ? "bg-success/10" : "bg-warning/10"
         }`}
@@ -172,6 +229,14 @@ export default function CoachOnboardingClient({
           <>
             <Badge variant="success">Live</Badge>
             <span className="text-sm text-ink">Your profile is approved and visible to families.</span>
+          </>
+        ) : ownStepsDone ? (
+          <>
+            <Badge variant="warning">Ready to submit</Badge>
+            <span className="text-sm text-ink">
+              You&apos;ve finished your steps. Select Finish to submit your profile. An admin will review it before
+              families can find you.
+            </span>
           </>
         ) : (
           <>
@@ -230,8 +295,8 @@ export default function CoachOnboardingClient({
       <div className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
         {/* PROGRESS — bar on phones, sticky checklist on desktop */}
         <nav aria-label="Onboarding steps" className="lg:sticky lg:top-24 lg:self-start">
-          <p className="mb-2 text-sm font-bold text-ink">
-            {requiredDone} of {required.length} required steps done
+          <p className="mb-2 text-sm font-bold text-ink" aria-live="polite">
+            {requiredDone} of {required.length} steps done
           </p>
           <div className="flex gap-1 lg:hidden" aria-hidden>
             {required.map((s) => (
@@ -247,21 +312,30 @@ export default function CoachOnboardingClient({
                 >
                   <span
                     aria-hidden
-                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 border-ink text-xs font-bold ${
-                      s.done ? "bg-pitch text-white" : "bg-surface text-ink"
+                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 text-xs font-bold ${
+                      s.done
+                        ? "border-ink bg-pitch text-white"
+                        : s.kind === "team"
+                          ? "border-dashed border-ink bg-surface text-muted-foreground"
+                          : "border-ink bg-surface text-ink"
                     }`}
                   >
                     {s.done ? <IconCheck className="h-3.5 w-3.5" /> : i + 1}
                   </span>
-                  <span className={s.done ? "text-muted-foreground" : "font-bold text-ink"}>
+                  <span className={s.done || s.kind === "team" ? "text-muted-foreground" : "font-bold text-ink"}>
                     {s.title}
-                    {s.optional && <span className="ml-1 font-normal text-muted-foreground">(optional)</span>}
-                    <span className="sr-only">{s.done ? " — done" : " — to do"}</span>
+                    {s.kind === "optional" && <span className="ml-1 font-normal text-muted-foreground">(optional)</span>}
+                    {s.kind === "team" && !s.done ? (
+                      <span className="block text-xs">{TEAM_WAITING_LABEL}</span>
+                    ) : (
+                      <span className="sr-only">{stepStatusText(s.kind, s.done)}</span>
+                    )}
                   </span>
                 </a>
               </li>
             ))}
           </ol>
+          {readyToFinish && <FinishButton className="mt-4 w-full" />}
         </nav>
 
         <div className="flex min-w-0 flex-col gap-6">
@@ -270,7 +344,7 @@ export default function CoachOnboardingClient({
           </Section>
 
           <Section id="availability" step={stepNumber("availability")} title="Availability" done={stepFor("availability").done}>
-            <AvailabilityForm initial={initialSlots} />
+            <AvailabilityForm initial={initialSlots} onSaved={(slots) => setSavedSlotCount(slots.length)} />
           </Section>
 
           {isMinorCoach && minorConsent && (
@@ -287,12 +361,17 @@ export default function CoachOnboardingClient({
                 hasIdPhoto={Boolean(profile.idPhotoPath)}
                 idStatus={profile.idVerificationStatus}
                 profilePhotoUrl={profile.profilePhotoUrl}
+                onIdUploaded={() => {
+                  setHasIdPhoto(true);
+                  setIdStatus("PENDING");
+                }}
+                onPhotoUploaded={setPhotoUrl}
               />
             )}
           </Section>
 
           {!isMinorCoach && (
-            <Section id="background-check" step={stepNumber("background-check")} title="Background check" done={backgroundDone}>
+            <Section id="background-check" step={stepNumber("background-check")} title="Background check" done={backgroundDone} kind="team">
               <BackgroundCheckPanel
                 status={profile.backgroundCheckStatus}
                 expiresAt={profile.backgroundCheckExpiresAt}
@@ -302,13 +381,13 @@ export default function CoachOnboardingClient({
           )}
 
           {isMinorCoach && (
-            <Section id="minor-background" step={stepNumber("minor-background")} title="Background verification" done={minorBackgroundDone}>
+            <Section id="minor-background" step={stepNumber("minor-background")} title="Background verification" done={minorBackgroundDone} kind="team">
               <MinorBackgroundNotice verified={minorBackgroundDone} />
             </Section>
           )}
 
           {BIO_VIDEO_UPLOADS_ENABLED && (
-            <Section id="bio-video" step={stepNumber("bio-video")} title="Bio video" optional done={videoDone}>
+            <Section id="bio-video" step={stepNumber("bio-video")} title="Bio video" kind="optional" done={videoDone}>
               {mediaLocked ? (
                 <UploadsLockedNotice what="bio videos" />
               ) : (
@@ -323,7 +402,7 @@ export default function CoachOnboardingClient({
             </Section>
           )}
 
-          <Section id="recommendation" step={stepNumber("recommendation")} title="Recommendation" optional done={recommendationDone}>
+          <Section id="recommendation" step={stepNumber("recommendation")} title="Recommendation" kind="optional" done={recommendationDone}>
             <RecommendationPanel
               initial={profile.recommendations.map((r) => ({
                 id: r.id,
@@ -335,9 +414,34 @@ export default function CoachOnboardingClient({
             />
           </Section>
 
-          <Section id="conduct" step={stepNumber("conduct")} title="Platform conduct rules" done={profile.conductAcknowledged}>
-            <ConductAck initialAcknowledged={profile.conductAcknowledged} />
+          <Section id="conduct" step={stepNumber("conduct")} title="Platform conduct rules" done={conductAcknowledged}>
+            <ConductAck initialAcknowledged={profile.conductAcknowledged} onAcknowledged={() => setConductAcknowledged(true)} />
           </Section>
+
+          {/* FINISH — the end of onboarding: what's left is the admin's part */}
+          <section aria-labelledby="finish-title" className="card scroll-mt-24 p-5 sm:p-6" id="finish">
+            <h2 id="finish-title" className="font-display text-2xl leading-none text-ink">
+              {live ? "You're live" : readyToFinish ? "Submit your profile" : "Finish up"}
+            </h2>
+            <p className="mt-3 text-sm text-ink/85">
+              {live
+                ? "Families can find you in search. Come back here any time to update your profile."
+                : readyToFinish
+                  ? "Your steps are done. Select Finish and an admin will review your profile before families can find you."
+                  : `Finish your ${required.length - requiredDone === 1 ? "last step" : `${required.length - requiredDone} remaining steps`} above, then you can submit your profile for review.`}
+            </p>
+            <div className="mt-4">
+              {live ? (
+                <Link href="/dashboard" className={`${secondaryButtonClass} w-full sm:w-auto`}>Go to your dashboard</Link>
+              ) : readyToFinish ? (
+                <FinishButton className="w-full sm:w-auto" />
+              ) : (
+                <button type="button" className={`${primaryButtonClass} w-full sm:w-auto`} disabled>
+                  Finish
+                </button>
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </div>

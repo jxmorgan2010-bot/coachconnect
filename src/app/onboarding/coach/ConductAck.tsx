@@ -12,7 +12,13 @@ const RULES = [
   "Report anything that makes you uncomfortable using the Report button on any profile or conversation.",
 ];
 
-export default function ConductAck({ initialAcknowledged }: { initialAcknowledged: boolean }) {
+export default function ConductAck({
+  initialAcknowledged,
+  onAcknowledged,
+}: {
+  initialAcknowledged: boolean;
+  onAcknowledged: () => void;
+}) {
   const [acknowledged, setAcknowledged] = useState(initialAcknowledged);
   const [checked, setChecked] = useState(initialAcknowledged);
   const [loading, setLoading] = useState(false);
@@ -28,6 +34,7 @@ export default function ConductAck({ initialAcknowledged }: { initialAcknowledge
       return;
     }
     setAcknowledged(true);
+    onAcknowledged();
   }
 
   return (

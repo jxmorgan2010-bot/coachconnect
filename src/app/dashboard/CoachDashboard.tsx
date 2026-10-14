@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import Badge from "@/components/Badge";
+import SubmittedForReviewBanner from "@/components/SubmittedForReviewBanner";
 import { getBackgroundCheckExpiryState, isCoachLive } from "@/lib/coach";
 import { formatCents } from "@/lib/money";
 import DateTile from "@/components/DateTile";
@@ -12,7 +13,14 @@ import { SKILL_LEVEL_LABELS } from "@/lib/skillLevels";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { ProgressNoteForm } from "./BookingActions";
 
-export default async function CoachDashboard({ coachProfileId }: { coachProfileId: string }) {
+export default async function CoachDashboard({
+  coachProfileId,
+  awaitingReview,
+}: {
+  coachProfileId: string;
+  /** Finished onboarding and waiting for an admin (see lib/coachReview.ts). */
+  awaitingReview: boolean;
+}) {
   const profile = await prisma.coachProfile.findUniqueOrThrow({
     where: { id: coachProfileId },
     include: { user: { select: { isSuspended: true } }, availability: { select: { id: true }, take: 1 } },
@@ -111,6 +119,7 @@ export default async function CoachDashboard({ coachProfileId }: { coachProfileI
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
+        {awaitingReview && <SubmittedForReviewBanner />}
         {profile.availability.length === 0 && (
           <div className="flex flex-col gap-2 rounded-xl border-2 border-ink bg-warning/10 p-4 sm:flex-row sm:items-center sm:gap-3">
             <Badge variant="warning">No hours posted</Badge>
