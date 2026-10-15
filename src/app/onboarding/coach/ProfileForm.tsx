@@ -22,17 +22,30 @@ export type ProfileFormValues = {
   sportLevels: Partial<Record<Sport, SkillLevel[]>>;
 };
 
+/** Parts of the form. My profile edits one at a time; onboarding shows them all. */
+export type ProfileFormField = "sports" | "school" | "location" | "rate" | "bio";
+const ALL_FIELDS: ProfileFormField[] = ["sports", "school", "location", "rate", "bio"];
+
 export default function ProfileForm({
   initial,
   onSaved,
+  fields = ALL_FIELDS,
+  submitLabel = "Save profile",
 }: {
   initial: ProfileFormValues;
   onSaved: (values: ProfileFormValues) => void;
+  /**
+   * Which parts to show. Every value is still sent, so the server validates the whole profile
+   * exactly as onboarding does; hidden parts are sent as they were loaded.
+   */
+  fields?: ProfileFormField[];
+  submitLabel?: string;
 }) {
   const [values, setValues] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  const show = (field: ProfileFormField) => fields.includes(field);
 
   function toggleSport(sport: Sport) {
     setValues((v) => ({
@@ -86,32 +99,34 @@ export default function ProfileForm({
       {error && <p role="alert" className={errorClass}>{error}</p>}
       {saved && <p role="status" className={successClass}>Profile saved.</p>}
 
-      <div role="group" aria-labelledby="sports-label">
-        <p id="sports-label" className={labelClass}>Sports you coach</p>
-        <div className="flex flex-wrap gap-2">
-          {SPORTS.map((sport) => {
-            const selected = values.sports.includes(sport);
-            const c = SPORT_COLOR[sport];
-            return (
-              <button
-                type="button"
-                key={sport}
-                aria-pressed={selected}
-                onClick={() => toggleSport(sport)}
-                className={`flex min-h-11 items-center gap-2 rounded-lg border-2 px-3 text-sm font-bold ${
-                  selected ? "border-ink shadow-patch-xs" : "border-line bg-surface text-ink hover:border-ink"
-                }`}
-                style={selected ? { background: c.bg, color: c.fg } : undefined}
-              >
-                <span className="font-display tracking-wide">{SPORT_TAG[sport]}</span>
-                {SPORT_LABELS[sport]}
-              </button>
-            );
-          })}
+      {show("sports") && (
+        <div role="group" aria-labelledby="sports-label">
+          <p id="sports-label" className={labelClass}>Sports you coach</p>
+          <div className="flex flex-wrap gap-2">
+            {SPORTS.map((sport) => {
+              const selected = values.sports.includes(sport);
+              const c = SPORT_COLOR[sport];
+              return (
+                <button
+                  type="button"
+                  key={sport}
+                  aria-pressed={selected}
+                  onClick={() => toggleSport(sport)}
+                  className={`flex min-h-11 items-center gap-2 rounded-lg border-2 px-3 text-sm font-bold ${
+                    selected ? "border-ink shadow-patch-xs" : "border-line bg-surface text-ink hover:border-ink"
+                  }`}
+                  style={selected ? { background: c.bg, color: c.fg } : undefined}
+                >
+                  <span className="font-display tracking-wide">{SPORT_TAG[sport]}</span>
+                  {SPORT_LABELS[sport]}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {values.sports.length > 0 && (
+      {show("sports") && values.sports.length > 0 && (
         <div className="rounded-lg border-2 border-line p-4">
           <p className={labelClass}>Levels you take</p>
           <p className="mb-3 text-sm text-muted-foreground">
@@ -154,116 +169,130 @@ export default function ProfileForm({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelClass} htmlFor="schoolLevel">School level</label>
-          <select
-            id="schoolLevel"
-            className={inputClass}
-            value={values.schoolLevel}
-            onChange={(e) => setValues((v) => ({ ...v, schoolLevel: e.target.value as SchoolLevel }))}
-            required
-          >
-            <option value="" disabled>Select...</option>
-            <option value="HIGH_SCHOOL">High School</option>
-            <option value="COLLEGE">College</option>
-          </select>
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="gradYear">Graduation year</label>
-          <input
-            id="gradYear"
-            type="number"
-            className={inputClass}
-            value={values.gradYear}
-            onChange={(e) => setValues((v) => ({ ...v, gradYear: e.target.value }))}
-            required
-          />
-        </div>
-      </div>
+      {show("school") && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass} htmlFor="schoolLevel">School level</label>
+              <select
+                id="schoolLevel"
+                className={inputClass}
+                value={values.schoolLevel}
+                onChange={(e) => setValues((v) => ({ ...v, schoolLevel: e.target.value as SchoolLevel }))}
+                required
+              >
+                <option value="" disabled>Select...</option>
+                <option value="HIGH_SCHOOL">High School</option>
+                <option value="COLLEGE">College</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="gradYear">Graduation year</label>
+              <input
+                id="gradYear"
+                type="number"
+                className={inputClass}
+                value={values.gradYear}
+                onChange={(e) => setValues((v) => ({ ...v, gradYear: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
 
-      <div>
-        <label className={labelClass} htmlFor="schoolName">School name</label>
-        <input
-          id="schoolName"
-          className={inputClass}
-          value={values.schoolName}
-          onChange={(e) => setValues((v) => ({ ...v, schoolName: e.target.value }))}
-          required
-        />
-      </div>
+          <div>
+            <label className={labelClass} htmlFor="schoolName">School name</label>
+            <input
+              id="schoolName"
+              className={inputClass}
+              value={values.schoolName}
+              onChange={(e) => setValues((v) => ({ ...v, schoolName: e.target.value }))}
+              required
+            />
+          </div>
+        </>
+      )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass} htmlFor="city">City</label>
-          <select
-            id="city"
-            className={inputClass}
-            value={values.city}
-            onChange={(e) => setValues((v) => ({ ...v, city: e.target.value }))}
-            required
-          >
-            <option value="" disabled>Select a Bay Area city...</option>
-            {BAY_AREA_CITIES.map((city) => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
+      {(show("location") || show("rate")) && (
+        <div className="grid grid-cols-2 gap-4">
+          {show("location") && (
+            <>
+              <div>
+                <label className={labelClass} htmlFor="city">City</label>
+                <select
+                  id="city"
+                  className={inputClass}
+                  value={values.city}
+                  onChange={(e) => setValues((v) => ({ ...v, city: e.target.value }))}
+                  required
+                >
+                  <option value="" disabled>Select a Bay Area city...</option>
+                  {BAY_AREA_CITIES.map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="state">State</label>
+                <input
+                  id="state"
+                  maxLength={2}
+                  placeholder="CA"
+                  className={inputClass}
+                  value={values.state}
+                  onChange={(e) => setValues((v) => ({ ...v, state: e.target.value.toUpperCase() }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="zip">Zip code</label>
+                <input
+                  id="zip"
+                  maxLength={10}
+                  placeholder="94103"
+                  className={inputClass}
+                  value={values.zip}
+                  onChange={(e) => setValues((v) => ({ ...v, zip: e.target.value }))}
+                  required
+                />
+              </div>
+            </>
+          )}
+          {show("rate") && (
+            <div>
+              <label className={labelClass} htmlFor="rate">Hourly rate ($)</label>
+              <input
+                id="rate"
+                type="number"
+                min={5}
+                max={500}
+                className={inputClass}
+                value={values.hourlyRateDollars}
+                onChange={(e) => setValues((v) => ({ ...v, hourlyRateDollars: e.target.value }))}
+                required
+              />
+            </div>
+          )}
         </div>
-        <div>
-          <label className={labelClass} htmlFor="state">State</label>
-          <input
-            id="state"
-            maxLength={2}
-            placeholder="CA"
-            className={inputClass}
-            value={values.state}
-            onChange={(e) => setValues((v) => ({ ...v, state: e.target.value.toUpperCase() }))}
-            required
-          />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="zip">Zip code</label>
-          <input
-            id="zip"
-            maxLength={10}
-            placeholder="94103"
-            className={inputClass}
-            value={values.zip}
-            onChange={(e) => setValues((v) => ({ ...v, zip: e.target.value }))}
-            required
-          />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="rate">Hourly rate ($)</label>
-          <input
-            id="rate"
-            type="number"
-            min={5}
-            max={500}
-            className={inputClass}
-            value={values.hourlyRateDollars}
-            onChange={(e) => setValues((v) => ({ ...v, hourlyRateDollars: e.target.value }))}
-            required
-          />
-        </div>
-      </div>
+      )}
 
-      <div>
-        <label className={labelClass} htmlFor="bio">Bio</label>
-        <textarea
-          id="bio"
-          rows={5}
-          className={inputClass}
-          placeholder="Share your playing experience, coaching style, and what a session with you looks like..."
-          value={values.bio}
-          onChange={(e) => setValues((v) => ({ ...v, bio: e.target.value }))}
-          required
-          minLength={30}
-        />
-      </div>
+      {show("bio") && (
+        <div>
+          <label className={labelClass} htmlFor="bio">Bio</label>
+          <textarea
+            id="bio"
+            rows={5}
+            className={inputClass}
+            placeholder="Share your playing experience, coaching style, and what a session with you looks like..."
+            value={values.bio}
+            onChange={(e) => setValues((v) => ({ ...v, bio: e.target.value }))}
+            required
+            minLength={30}
+          />
+        </div>
+      )}
 
       <button type="submit" className={`${primaryButtonClass} w-full sm:w-auto sm:self-start`} disabled={loading}>
-        {loading ? "Saving..." : "Save profile"}
+        {loading ? "Saving..." : submitLabel}
       </button>
     </form>
   );

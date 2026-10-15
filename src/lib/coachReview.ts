@@ -40,7 +40,8 @@ export async function getCoachReviewStatus(userId: string): Promise<CoachReviewS
     hasAvailability: profile.availability.length > 0,
     hasIdPhoto: Boolean(profile.idPhotoPath),
     idStatus: profile.idVerificationStatus,
-    hasProfilePhoto: Boolean(profile.profilePhotoUrl),
+    // A photo waiting for admin approval counts: uploading it is the coach's part.
+    hasProfilePhoto: Boolean(profile.profilePhotoUrl || profile.pendingProfilePhotoUrl),
     conductAcknowledged: profile.conductAcknowledged,
     guardianConsentDone,
   });
