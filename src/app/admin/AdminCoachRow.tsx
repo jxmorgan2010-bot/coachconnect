@@ -32,6 +32,8 @@ export type CoachRowData = {
   name: string;
   email: string;
   hasIdPhoto: boolean;
+  /** A new profile photo is waiting in "Photos to review". */
+  hasPendingPhoto: boolean;
   idVerificationStatus: IdVerificationStatus;
   backgroundCheckStatus: BackgroundCheckStatus;
   backgroundCheckExpiresAt: string | null;
@@ -213,6 +215,11 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
           )}
           {expiryState === "EXPIRED" && <Badge variant="danger">Background check expired</Badge>}
           {isSuspended && <Badge variant="danger">Suspended — 3+ reports</Badge>}
+          {coach.hasPendingPhoto && (
+            <a href="#photos" className="rounded-md underline-offset-4 hover:underline">
+              <Badge variant="warning">New photo to review</Badge>
+            </a>
+          )}
           {showMinor && <Badge variant="accent">Minor Coach</Badge>}
           {showMinor && coach.consent && (
             <Badge variant={CONSENT_BADGE[coach.consent.status].variant}>{CONSENT_BADGE[coach.consent.status].label}</Badge>

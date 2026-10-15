@@ -18,11 +18,27 @@ export default function Navbar() {
   const role = status === "authenticated" ? session.user.role : null;
   const links: NavLink[] = [
     { href: "/coaches", label: "See coaches near you" },
-    ...(role === "COACH" ? [{ href: "/onboarding/coach", label: "My coach profile" }] : []),
+    ...(role === "COACH"
+      ? [
+          { href: "/dashboard", label: "Dashboard" },
+          { href: "/dashboard/profile", label: "My profile" },
+        ]
+      : []),
     ...(role === "ADMIN" ? [{ href: "/admin", label: "Admin" }] : []),
-    ...(role === "PARENT" ? [{ href: "/dashboard", label: "Dashboard" }] : []),
+    ...(role === "PARENT"
+      ? [
+          { href: "/dashboard", label: "Dashboard" },
+          { href: "/dashboard/family", label: "My family" },
+        ]
+      : []),
   ];
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const matches = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  // Only the most specific match is current, so "Dashboard" isn't also lit on /dashboard/profile.
+  const activeHref = links
+    .map((l) => l.href)
+    .filter(matches)
+    .sort((a, b) => b.length - a.length)[0];
+  const isActive = (href: string) => href === activeHref;
 
   return (
     <header className="sticky top-0 z-40 border-b-2 border-ink bg-chalk">

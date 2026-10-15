@@ -241,6 +241,23 @@ model CoachProfile {
   profilePhotoUrl  String?
   idPhotoPath      String?
 
+  // A new profile photo waits here until an admin approves it; profilePhotoUrl (the one
+  // families see) doesn't change until then. profilePhotoRejectedAt is set when an admin
+  // turns one down and cleared by the next upload, so the coach can be told.
+  pendingProfilePhotoUrl String?
+  pendingProfilePhotoAt  DateTime?
+  profilePhotoRejectedAt DateTime?
+
+  // Accommodations: coach-reported, shown on the public profile, never verified. Labels and
+  // the language list live in src/lib/accommodations.ts. languages is a JSON array of codes.
+  specialNeedsExperience Boolean  @default(false)
+  specialNeedsNote       String?
+  languages              String?
+  languagesOther         String?
+  travelRadiusMiles      Int?
+  bringsEquipment        Boolean?
+  accommodationsNote     String?
+
   idVerificationStatus   IdVerificationStatus   @default(PENDING)
   backgroundCheckStatus  BackgroundCheckStatus  @default(NOT_STARTED)
   backgroundCheckRef     String?
@@ -313,6 +330,8 @@ model CoachProfile {
   packages        SessionPackage[]
   pointsTransactions PointsTransaction[]
   trainingPlanItems  TrainingPlanItem[]
+
+  @@index([pendingProfilePhotoAt])
 }
 
 /**

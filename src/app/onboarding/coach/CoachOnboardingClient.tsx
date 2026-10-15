@@ -158,7 +158,8 @@ export default function CoachOnboardingClient({
   const [conductAcknowledged, setConductAcknowledged] = useState(profile.conductAcknowledged);
   const [hasIdPhoto, setHasIdPhoto] = useState(Boolean(profile.idPhotoPath));
   const [idStatus, setIdStatus] = useState(profile.idVerificationStatus);
-  const [photoUrl, setPhotoUrl] = useState(profile.profilePhotoUrl);
+  // Approved or waiting for approval: either way, the coach's part of the photo step is done.
+  const [photoUrl, setPhotoUrl] = useState(profile.pendingProfilePhotoUrl ?? profile.profilePhotoUrl);
 
   // A re-uploaded ID goes back to pending review, which can take a live profile down.
   const live = isCoachLive({ ...profile, idVerificationStatus: idStatus });
@@ -211,11 +212,17 @@ export default function CoachOnboardingClient({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-12">
-      <p className="eyebrow mb-2 text-pitch">Coach onboarding</p>
-      <h1 className="text-display-lg font-display text-ink">Get your profile ready</h1>
+      <p className="eyebrow mb-2 text-pitch">{live ? "Verification" : "Coach onboarding"}</p>
+      <h1 className="text-display-lg font-display text-ink">{live ? "Verification & setup" : "Get your profile ready"}</h1>
       <p className="mt-3 max-w-2xl text-muted-foreground">
-        Finish your steps below, then submit your profile. It stays private until our team has approved your ID
-        and marked the background check step.
+        {live ? (
+          <>
+            Your ID, background check step and conduct rules live here. To change what families see, use{" "}
+            <Link href="/dashboard/profile" className="font-bold text-pitch underline-offset-4 hover:underline">My profile</Link>.
+          </>
+        ) : (
+          "Finish your steps below, then submit your profile. It stays private until our team has approved your ID and marked the background check step."
+        )}
       </p>
 
       {/* STATUS — the one thing a coach comes here to learn */}
@@ -361,6 +368,8 @@ export default function CoachOnboardingClient({
                 hasIdPhoto={Boolean(profile.idPhotoPath)}
                 idStatus={profile.idVerificationStatus}
                 profilePhotoUrl={profile.profilePhotoUrl}
+                pendingPhotoUrl={profile.pendingProfilePhotoUrl}
+                photoRejected={Boolean(profile.profilePhotoRejectedAt)}
                 onIdUploaded={() => {
                   setHasIdPhoto(true);
                   setIdStatus("PENDING");

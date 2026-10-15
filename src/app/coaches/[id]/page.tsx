@@ -1,13 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { formatCents } from "@/lib/money";
-import Badge from "@/components/Badge";
-import SportPill from "@/components/SportPill";
-import LevelTags from "@/components/LevelTags";
-import { levelsFromFlags } from "@/lib/skillLevels";
 import ReportButton from "@/components/ReportButton";
 import MessageCoachButton from "@/components/MessageCoachButton";
 import NotRightFitButton from "@/components/NotRightFitButton";
@@ -15,31 +10,19 @@ import PaymentProtectionNotice from "@/components/PaymentProtectionNotice";
 import { QuickRebookButton } from "@/app/dashboard/BookingActions";
 import { isCoachLive, getBackgroundCheckExpiryState, hasVerifiedVideoBio } from "@/lib/coach";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
-import { SPORT_COLOR } from "@/lib/sports";
 import { BUNDLE_SESSION_COUNT, BUNDLE_DISCOUNT_PERCENT } from "@/lib/bundles";
-import CoachPhotoPlaceholder from "@/components/CoachPhotoPlaceholder";
 import NoHoursNotice from "@/components/NoHoursNotice";
+import CoachProfileHeader from "@/components/coach-profile/CoachProfileHeader";
+import AvailabilityList from "@/components/coach-profile/AvailabilityList";
+import AccommodationsList from "@/components/coach-profile/AccommodationsList";
+import RecommendationsList from "@/components/coach-profile/RecommendationsList";
+import ReviewsSection from "@/components/coach-profile/ReviewsSection";
+import { accommodationsFromProfile, hasAnyAccommodations } from "@/lib/accommodations";
+import { reviewerName, summarizeReviews, formatAverage } from "@/lib/reviews";
 import { getCoachSessionsCompleted, getCoachAverageResponseMinutes, formatResponseTime, getSiblingsCoachedForFamily, getPriorBookingCount } from "@/lib/stats";
 import { isTopCoach } from "@/lib/points";
 import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
-import { IconShieldCheck, IconStar, IconCalendar } from "@/components/icons";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui";
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function toTimeString(minutes: number) {
-  const h = minutes / 60;
-  const hour12 = Math.floor(h) % 12 === 0 ? 12 : Math.floor(h) % 12;
-  const ampm = h >= 12 ? "PM" : "AM";
-  const min = minutes % 60;
-  return `${hour12}${min ? ":" + String(min).padStart(2, "0") : ""}${ampm}`;
-}
-
-/** Reviews are public, so show "Dana R." rather than a parent's full name. */
-function reviewerName(fullName: string) {
-  const parts = fullName.trim().split(/\s+/);
-  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1].charAt(0)}.` : parts[0];
-}
 
 export default async function CoachProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -52,7 +35,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
       sports: true,
       availability: true,
       recommendations: { where: { status: "SUBMITTED" } },
-      reviews: { include: { parentProfile: { include: { user: true } } }, orderBy: { createdAt: "desc" } },
+      reviews: { include: { parentProfile: { include: { user: { select: { name: true } } } } }, orderBy: { createdAt: "desc" } },
     },
   });
 
@@ -65,12 +48,10 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
   if (!live && !isOwner && !isAdmin) notFound();
 
   const isMinorCoach = ENABLE_MINOR_COACHES && profile.isMinorCoach;
-  const videoVerified = hasVerifiedVideoBio(profile);
-  const reviewCount = profile.reviews.length;
-  const avgRating = reviewCount ? profile.reviews.reduce((s, r) => s + r.rating, 0) / reviewCount : null;
+  const { count: reviewCount, average: avgRating } = summarizeReviews(profile.reviews.map((r) => r.rating));
   const primarySport = profile.sports[0]?.sport;
-  const bandColor = primarySport ? SPORT_COLOR[primarySport] : { bg: "var(--pitch)", fg: "#FFFFFF" };
   const expiryState = getBackgroundCheckExpiryState(profile);
+  const accommodations = accommodationsFromProfile(profile);
 
   const [sessionsCompleted, avgResponseMinutes] = await Promise.all([
     getCoachSessionsCompleted(profile.id),
@@ -113,12 +94,6 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
   }
 
   const firstName = profile.user.name.split(" ")[0];
-  const availabilityByDay = DAYS.map((label, day) => ({
-    label,
-    slots: profile.availability
-      .filter((s) => s.dayOfWeek === day)
-      .sort((a, b) => a.startMinute - b.startMinute),
-  }));
   const isBrandNew = sessionsCompleted === 0 && reviewCount === 0;
 
   return (
@@ -129,49 +104,23 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
         </div>
       )}
 
-      {/* Header band in the coach's primary sport color — the front of their trading card */}
-      <div className="texture-hatch border-b-2 border-ink" style={{ background: bandColor.bg, color: bandColor.fg }}>
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:flex-row sm:items-end sm:gap-8 sm:px-6 sm:py-10">
-          <div className="relative h-44 w-36 shrink-0 -rotate-2 overflow-hidden rounded-xl border-2 border-ink bg-white shadow-patch sm:h-52 sm:w-40">
-            {profile.profilePhotoUrl ? (
-              <Image src={profile.profilePhotoUrl} alt={profile.user.name} fill sizes="160px" className="object-cover" />
-            ) : (
-              <CoachPhotoPlaceholder
-                name={profile.user.name}
-                sport={primarySport}
-                gradYear={profile.gradYear}
-                size="profile"
-              />
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <h1 className="text-display-lg font-display">{profile.user.name}</h1>
-            <p className="mt-2 text-sm font-bold opacity-90">
-              {profile.schoolLevel === "COLLEGE" ? "College athlete" : "High school athlete"}
-              {profile.schoolName ? ` · ${profile.schoolName}` : ""}
-              {profile.gradYear ? ` · Class of ${profile.gradYear}` : ""}
-              {profile.city ? ` · ${profile.city}, ${profile.state}` : ""}
-            </p>
-            <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5" aria-label="Sports and levels">
-              {profile.sports.map((s) => (
-                <li key={s.id} className="flex items-center gap-1.5">
-                  <SportPill sport={s.sport} />
-                  <LevelTags levels={levelsFromFlags(s)} inheritColor />
-                </li>
-              ))}
-            </ul>
-            {/* Credentials only — numbers live in the stat line beside the booking button */}
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <Badge variant="neutral" icon={<IconShieldCheck className="h-3.5 w-3.5 text-pitch" />}>ID verified</Badge>
-              {isTopCoach(profile.lifetimePoints) && <Badge variant="accent">Top Coach</Badge>}
-              {profile.recommendations.length > 0 && <Badge variant="accent">Recommended by a coach</Badge>}
-              {videoVerified && <Badge variant="accent">Video intro</Badge>}
-              {isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}
-            </div>
-          </div>
-        </div>
-      </div>
+      <CoachProfileHeader
+        coach={{
+          name: profile.user.name,
+          photoUrl: profile.profilePhotoUrl,
+          schoolLevel: profile.schoolLevel,
+          schoolName: profile.schoolName,
+          gradYear: profile.gradYear,
+          city: profile.city,
+          state: profile.state,
+          sports: profile.sports,
+          idVerified: profile.idVerificationStatus === "APPROVED",
+          topCoach: isTopCoach(profile.lifetimePoints),
+          recommended: profile.recommendations.length > 0,
+          videoVerified: hasVerifiedVideoBio(profile),
+          minorCoach: isMinorCoach,
+        }}
+      />
 
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-8 sm:px-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12 lg:py-12">
         {/* BOOKING RAIL — sticky right column on desktop. On phones the wrapper is
@@ -225,7 +174,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
               {isBrandNew ? (
                 <div className="col-span-3 text-sm text-muted-foreground">
                   <dt className="sr-only">Experience on CoachConnect</dt>
-                  <dd>New to the roster — no sessions or reviews yet.</dd>
+                  <dd>New coach, no reviews yet.</dd>
                 </div>
               ) : (
                 <>
@@ -236,13 +185,13 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
                   <div>
                     <dt className="eyebrow text-muted-foreground">Rating</dt>
                     <dd className="mt-1 font-display text-2xl leading-none text-ink">
-                      {reviewCount > 0 ? (
+                      {avgRating !== null ? (
                         <>
-                          {avgRating?.toFixed(1)}
+                          {formatAverage(avgRating)}
                           <span className="ml-1 font-sans text-xs font-bold text-muted-foreground">({reviewCount})</span>
                         </>
                       ) : (
-                        <span className="font-sans text-sm font-bold text-muted-foreground">None yet</span>
+                        <span className="font-sans text-sm font-bold text-muted-foreground">No reviews yet</span>
                       )}
                     </dd>
                   </div>
@@ -300,6 +249,13 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
             </section>
           )}
 
+          {hasAnyAccommodations(accommodations) && (
+            <section aria-labelledby="accommodations">
+              <h2 id="accommodations" className="mb-3 font-display text-3xl text-ink">Accommodations</h2>
+              <AccommodationsList accommodations={accommodations} firstName={firstName} city={profile.city} />
+            </section>
+          )}
+
           {(profile.introClipUrl || profile.coachingClipUrl || profile.playingClipUrl) && (
             <section>
               <h2 className="mb-3 font-display text-3xl text-ink">Meet {firstName}</h2>
@@ -328,77 +284,30 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
 
           <section>
             <h2 className="mb-3 font-display text-3xl text-ink">Weekly availability</h2>
-            {profile.availability.length === 0 ? (
-              <p className="text-muted-foreground">
-                {firstName} hasn&apos;t posted regular hours yet. Send a message to ask about times.
-              </p>
-            ) : (
-              <ul className="divide-y-2 divide-line overflow-hidden rounded-lg border-2 border-ink bg-surface">
-                {availabilityByDay.map(({ label, slots }) => (
-                  <li key={label} className="flex items-center gap-4 px-4 py-3">
-                    <span className={`eyebrow w-10 shrink-0 ${slots.length ? "text-ink" : "text-muted-foreground"}`}>
-                      {label}
-                    </span>
-                    {slots.length ? (
-                      <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-ink">
-                        {slots.map((slot) => (
-                          <span key={slot.id} className="inline-flex items-center gap-1.5">
-                            <IconCalendar className="h-3.5 w-3.5 text-pitch" aria-hidden />
-                            {toTimeString(slot.startMinute)}–{toTimeString(slot.endMinute)}
-                          </span>
-                        ))}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Not available</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <AvailabilityList
+              slots={profile.availability}
+              emptyText={`${firstName} hasn't posted regular hours yet. Send a message to ask about times.`}
+            />
           </section>
 
           {profile.recommendations.length > 0 && (
             <section>
               <h2 className="mb-3 font-display text-3xl text-ink">Coach recommendations</h2>
-              <div className="flex flex-col gap-4">
-                {profile.recommendations.map((rec) => (
-                  <blockquote key={rec.id} className="border-l-4 border-gold bg-muted py-3 pl-4 pr-3">
-                    <p className="text-ink">&ldquo;{rec.content}&rdquo;</p>
-                    <footer className="mt-2 text-xs font-bold text-muted-foreground">
-                      {rec.recommenderName}
-                      {rec.recommenderRole ? ` · ${rec.recommenderRole}` : ""}
-                    </footer>
-                  </blockquote>
-                ))}
-              </div>
+              <RecommendationsList recommendations={profile.recommendations} />
             </section>
           )}
 
-          <section>
-            <h2 className="mb-3 font-display text-3xl text-ink">Reviews</h2>
-            {profile.reviews.length === 0 ? (
-              <p className="text-muted-foreground">No reviews yet. Families can review {firstName} after a completed session.</p>
-            ) : (
-              <ul className="flex flex-col">
-                {profile.reviews.map((review) => (
-                  <li key={review.id} className="border-b-2 border-line py-4 first:pt-0 last:border-0">
-                    <div className="flex items-center gap-2">
-                      <span className="flex text-gold" aria-hidden>
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <IconStar key={i} className={`h-4 w-4 ${i < review.rating ? "" : "opacity-25"}`} />
-                        ))}
-                      </span>
-                      <span className="sr-only">{review.rating} out of 5 stars</span>
-                      <span className="text-xs font-bold text-muted-foreground">
-                        {reviewerName(review.parentProfile.user.name)}
-                      </span>
-                    </div>
-                    {review.comment && <p className="mt-1.5 max-w-prose text-sm text-ink/85">{review.comment}</p>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <ReviewsSection
+            firstName={firstName}
+            sessionsCompleted={sessionsCompleted}
+            reviews={profile.reviews.map((r) => ({
+              id: r.id,
+              rating: r.rating,
+              comment: r.comment,
+              reviewer: reviewerName(r.parentProfile.user.name),
+              createdAt: r.createdAt,
+            }))}
+          />
         </div>
       </div>
     </div>
