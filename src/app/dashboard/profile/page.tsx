@@ -12,6 +12,8 @@ import AvailabilityList from "@/components/coach-profile/AvailabilityList";
 import AccommodationsList from "@/components/coach-profile/AccommodationsList";
 import RecommendationsList from "@/components/coach-profile/RecommendationsList";
 import ReviewsSection from "@/components/coach-profile/ReviewsSection";
+import VideoClips, { videoClips } from "@/components/coach-profile/VideoClips";
+import RemoveClipButton from "./RemoveClipButton";
 import BioVideoUpload from "@/app/onboarding/coach/BioVideoUpload";
 import type { ProfileFormField, ProfileFormValues } from "@/app/onboarding/coach/ProfileForm";
 import EditableSection, { AvailabilityEditor, BasicsEditor, ProfileFieldsEditor } from "./EditableSection";
@@ -80,6 +82,7 @@ export default async function MyCoachProfilePage({
   const expiryState = getBackgroundCheckExpiryState(profile);
   const firstName = profile.user.name.split(" ")[0];
   const accommodations = accommodationsFromProfile(profile);
+  const clips = videoClips(profile);
   const toHistory = (b: (typeof upcoming)[number]) => ({
     id: b.id,
     scheduledAt: b.scheduledAt,
@@ -237,6 +240,54 @@ export default async function MyCoachProfilePage({
             )}
           </EditableSection>
 
+          {/* Same order as the public profile from here down. */}
+          <EditableSection id="accommodations" title="Accommodations" editor={<AccommodationsForm initial={accommodations} />}>
+            {hasAnyAccommodations(accommodations) ? (
+              <AccommodationsList accommodations={accommodations} firstName={firstName} city={profile.city} />
+            ) : (
+              <p className="text-muted-foreground">
+                Nothing added yet. Families can see experience with special needs, languages, how far you travel and
+                whether you bring equipment. This section stays hidden from families until you add something.
+              </p>
+            )}
+          </EditableSection>
+
+          {/* Saved clips always show here, because families see them even while new uploads are paused. */}
+          {(clips.length > 0 || BIO_VIDEO_UPLOADS_ENABLED) && (
+            <EditableSection
+              id="video"
+              title={`Meet ${firstName}`}
+              note={
+                clips.length > 0
+                  ? `Families see ${clips.length === 1 ? "this clip" : "these clips"} on your profile. Removing a clip deletes it.${
+                      BIO_VIDEO_UPLOADS_ENABLED ? "" : " New uploads are paused during the beta."
+                    }`
+                  : undefined
+              }
+              editor={
+                BIO_VIDEO_UPLOADS_ENABLED ? (
+                  <BioVideoUpload
+                    initial={{
+                      intro: { url: profile.introClipUrl, seconds: profile.introClipSeconds },
+                      coaching: { url: profile.coachingClipUrl, seconds: profile.coachingClipSeconds },
+                      playing: { url: profile.playingClipUrl, seconds: profile.playingClipSeconds },
+                    }}
+                  />
+                ) : undefined
+              }
+            >
+              {clips.length > 0 ? (
+                <VideoClips
+                  clips={clips}
+                  firstName={firstName}
+                  action={(clip) => <RemoveClipButton clipType={clip.type} label={clip.label} />}
+                />
+              ) : (
+                <p className="text-muted-foreground">Add short clips so families can meet you.</p>
+              )}
+            </EditableSection>
+          )}
+
           <EditableSection
             id="availability"
             title="Weekly availability"
@@ -249,37 +300,6 @@ export default async function MyCoachProfilePage({
           >
             <AvailabilityList slots={profile.availability} emptyText="No hours posted yet. Families can't book you until you add some." />
           </EditableSection>
-
-          <EditableSection id="accommodations" title="Accommodations" editor={<AccommodationsForm initial={accommodations} />}>
-            {hasAnyAccommodations(accommodations) ? (
-              <AccommodationsList accommodations={accommodations} firstName={firstName} city={profile.city} />
-            ) : (
-              <p className="text-muted-foreground">
-                Nothing added yet. Families can see experience with special needs, languages, how far you travel and
-                whether you bring equipment. This section stays hidden from families until you add something.
-              </p>
-            )}
-          </EditableSection>
-
-          {BIO_VIDEO_UPLOADS_ENABLED && (
-            <EditableSection
-              id="video"
-              title={`Meet ${firstName}`}
-              editor={
-                <BioVideoUpload
-                  initial={{
-                    intro: { url: profile.introClipUrl, seconds: profile.introClipSeconds },
-                    coaching: { url: profile.coachingClipUrl, seconds: profile.coachingClipSeconds },
-                    playing: { url: profile.playingClipUrl, seconds: profile.playingClipSeconds },
-                  }}
-                />
-              }
-            >
-              <p className="text-muted-foreground">
-                {hasVerifiedVideoBio(profile) ? "All three clips are up." : "Add short clips so families can meet you."}
-              </p>
-            </EditableSection>
-          )}
 
           <EditableSection id="recommendations" title="Coach recommendations">
             {profile.recommendations.length > 0 ? (
