@@ -12,6 +12,7 @@ import { SPORT_LABELS } from "@/lib/sports";
 import { SKILL_LEVEL_LABELS } from "@/lib/skillLevels";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { ProgressNoteForm } from "./BookingActions";
+import VerificationCard, { getVerificationItems } from "./VerificationCard";
 
 export default async function CoachDashboard({
   coachProfileId,
@@ -55,6 +56,7 @@ export default async function CoachDashboard({
   const comingUp = upcoming.filter((b) => b.scheduledAt >= now);
   const awaitingParent = upcoming.filter((b) => b.scheduledAt < now);
   const live = isCoachLive(profile);
+  const verificationItems = getVerificationItems(profile, expiryState);
 
   // What the coach should expect for payment, from the booking's actual payment state.
   function paymentNote(b: (typeof upcoming)[number]) {
@@ -113,19 +115,19 @@ export default async function CoachDashboard({
             <IconMessage className="h-4 w-4" /> Messages
           </Link>
           <Link href="/dashboard/points" className={secondaryButtonClass}>Points</Link>
-          <Link href={`/coaches/${profile.id}`} className={secondaryButtonClass}>Public profile</Link>
-          <Link href="/onboarding/coach" className={secondaryButtonClass}>Edit profile</Link>
+          <Link href="/dashboard/profile" className={secondaryButtonClass}>My profile</Link>
         </div>
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
         {awaitingReview && <SubmittedForReviewBanner />}
+        <VerificationCard items={verificationItems} />
         {profile.availability.length === 0 && (
           <div className="flex flex-col gap-2 rounded-xl border-2 border-ink bg-warning/10 p-4 sm:flex-row sm:items-center sm:gap-3">
             <Badge variant="warning">No hours posted</Badge>
             <span className="text-sm text-ink">
               Families can&apos;t book you until you post your weekly hours.{" "}
-              <Link href="/onboarding/coach#availability" className="font-bold underline">
+              <Link href="/dashboard/profile#availability" className="font-bold underline">
                 Add your hours
               </Link>
             </span>

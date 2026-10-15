@@ -27,7 +27,10 @@ export default async function FamilyDashboardPage() {
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    include: { children: { orderBy: { createdAt: "asc" }, include: { sportLevels: true } } },
+    include: {
+      user: { select: { name: true, email: true } },
+      children: { orderBy: { createdAt: "asc" }, include: { sportLevels: true } },
+    },
   });
   if (!parentProfile) redirect("/dashboard");
 
@@ -164,6 +167,24 @@ export default async function FamilyDashboardPage() {
           </div>
         </section>
       )}
+
+      {/* Read-only for now: changing name or email touches sign-in, which is a separate change. */}
+      <section aria-labelledby="family-account" className="mt-10 rounded-xl border-2 border-ink bg-surface p-4 sm:p-5">
+        <h2 id="family-account" className="mb-3 font-display text-3xl text-ink">Account</h2>
+        <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[8rem_minmax(0,1fr)]">
+          <dt className="eyebrow text-muted-foreground">Name</dt>
+          <dd className="font-bold text-ink">{parentProfile.user.name}</dd>
+          <dt className="eyebrow text-muted-foreground">Email</dt>
+          <dd className="break-all font-bold text-ink">{parentProfile.user.email}</dd>
+          <dt className="eyebrow text-muted-foreground">Phone</dt>
+          <dd className={parentProfile.phone ? "font-bold text-ink" : "text-muted-foreground"}>
+            {parentProfile.phone ?? "Not added"}
+          </dd>
+        </dl>
+        <p className="mt-4 text-sm text-muted-foreground">
+          To change any of these, send us a note with the help button in the bottom corner.
+        </p>
+      </section>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { coachConsentStatus, REVOKED_CANCEL_REASON } from "@/lib/minorConsent";
 import { formatCents } from "@/lib/money";
 import AdminHeader from "@/components/AdminHeader";
 import AdminCoachRow, { type CoachRowData } from "./AdminCoachRow";
+import PhotoReviewItem, { type PhotoReviewData } from "./PhotoReviewItem";
 import type { CoachProfile, MinorConsent } from "@/generated/prisma/client";
 
 function toRow(
@@ -58,6 +59,7 @@ function toRow(
     name: p.user.name,
     email: p.user.email,
     hasIdPhoto: Boolean(p.idPhotoPath),
+    hasPendingPhoto: Boolean(p.pendingProfilePhotoUrl),
     idVerificationStatus: p.idVerificationStatus,
     backgroundCheckStatus: p.backgroundCheckStatus,
     backgroundCheckExpiresAt: p.backgroundCheckExpiresAt ? p.backgroundCheckExpiresAt.toISOString() : null,
@@ -100,6 +102,18 @@ export default async function AdminPage() {
   ]);
   const adminNames = new Map(admins.map((a) => [a.id, a.name]));
 
+  // Oldest first, so nobody waits longest.
+  const photosToReview: PhotoReviewData[] = profiles
+    .filter((p) => p.pendingProfilePhotoUrl)
+    .sort((a, b) => (a.pendingProfilePhotoAt?.getTime() ?? 0) - (b.pendingProfilePhotoAt?.getTime() ?? 0))
+    .map((p) => ({
+      coachProfileId: p.id,
+      name: p.user.name,
+      currentUrl: p.profilePhotoUrl,
+      pendingUrl: p.pendingProfilePhotoUrl!,
+      uploadedAt: p.pendingProfilePhotoAt?.toISOString() ?? null,
+    }));
+
   const suspended = profiles.filter((p) => p.isSuspended);
   const expiringSoon = profiles.filter((p) => !p.isSuspended && getBackgroundCheckExpiryState(p) === "RENEWAL_NEEDED");
   const pending = profiles.filter(
@@ -123,6 +137,26 @@ export default async function AdminPage() {
       </AdminHeader>
 
       <div className="flex flex-col gap-10">
+        <section aria-labelledby="sec-photos" id="photos" className="scroll-mt-24">
+          <h2 id="sec-photos" className="mb-3 flex items-baseline gap-2 font-display text-3xl text-ink">
+            Photos to review
+            <span className="font-sans text-sm font-bold text-muted-foreground">{photosToReview.length}</span>
+          </h2>
+          {photosToReview.length === 0 ? (
+            <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
+              No new photos waiting. Families keep seeing a coach&apos;s current photo until you approve a new one.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {photosToReview.map((photo) => (
+                <li key={photo.coachProfileId}>
+                  <PhotoReviewItem photo={photo} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {openHolds.length > 0 && (
           <section aria-labelledby="sec-holds">
             <h2 id="sec-holds" className="mb-3 flex items-baseline gap-2 font-display text-3xl text-ink">
