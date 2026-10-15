@@ -17,6 +17,7 @@ import AvailabilityList from "@/components/coach-profile/AvailabilityList";
 import AccommodationsList from "@/components/coach-profile/AccommodationsList";
 import RecommendationsList from "@/components/coach-profile/RecommendationsList";
 import ReviewsSection from "@/components/coach-profile/ReviewsSection";
+import VideoClips, { videoClips } from "@/components/coach-profile/VideoClips";
 import { accommodationsFromProfile, hasAnyAccommodations } from "@/lib/accommodations";
 import { reviewerName, summarizeReviews, formatAverage } from "@/lib/reviews";
 import { getCoachSessionsCompleted, getCoachAverageResponseMinutes, formatResponseTime, getSiblingsCoachedForFamily, getPriorBookingCount } from "@/lib/stats";
@@ -52,6 +53,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
   const primarySport = profile.sports[0]?.sport;
   const expiryState = getBackgroundCheckExpiryState(profile);
   const accommodations = accommodationsFromProfile(profile);
+  const clips = videoClips(profile);
 
   const [sessionsCompleted, avgResponseMinutes] = await Promise.all([
     getCoachSessionsCompleted(profile.id),
@@ -256,29 +258,10 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
             </section>
           )}
 
-          {(profile.introClipUrl || profile.coachingClipUrl || profile.playingClipUrl) && (
+          {clips.length > 0 && (
             <section>
               <h2 className="mb-3 font-display text-3xl text-ink">Meet {firstName}</h2>
-              <div className="grid gap-5 sm:grid-cols-3">
-                {[
-                  { url: profile.introClipUrl, label: "Introduction" },
-                  { url: profile.coachingClipUrl, label: "Coaching" },
-                  { url: profile.playingClipUrl, label: "Playing" },
-                ]
-                  .filter((clip) => clip.url)
-                  .map((clip) => (
-                    <figure key={clip.label}>
-                      <video
-                        controls
-                        preload="metadata"
-                        aria-label={`${firstName} — ${clip.label.toLowerCase()} clip`}
-                        className="aspect-video w-full rounded-lg border-2 border-ink bg-ink shadow-patch-sm"
-                        src={clip.url!}
-                      />
-                      <figcaption className="eyebrow mt-2 text-muted-foreground">{clip.label}</figcaption>
-                    </figure>
-                  ))}
-              </div>
+              <VideoClips clips={clips} firstName={firstName} />
             </section>
           )}
 

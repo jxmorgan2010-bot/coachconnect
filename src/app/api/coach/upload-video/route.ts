@@ -12,6 +12,29 @@ const CLIP_FIELDS: Record<BioVideoClipType, { urlField: "introClipUrl" | "coachi
   playing: { urlField: "playingClipUrl", secondsField: "playingClipSeconds" },
 };
 
+/**
+ * Removes one of the coach's own clips and deletes its file. Allowed while uploads are paused:
+ * clips saved before the pause still show publicly, so the coach must be able to take them down.
+ */
+export async function DELETE(req: Request) {
+  const profile = await requireCoachProfile();
+  if (!profile) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  }
+
+  const body = (await req.json().catch(() => null)) as { clipType?: unknown } | null;
+  if (!isBioVideoClipType(body?.clipType)) {
+    return NextResponse.json({ error: "Invalid clip type." }, { status: 400 });
+  }
+  const { urlField, secondsField } = CLIP_FIELDS[body.clipType];
+  const url = profile[urlField];
+  if (!url) return NextResponse.json({ ok: true });
+
+  await prisma.coachProfile.update({ where: { id: profile.id }, data: { [urlField]: null, [secondsField]: null } });
+  await deleteStoredCoachFile("video", url);
+  return NextResponse.json({ ok: true });
+}
+
 /** Saves one bio video clip the browser has just uploaded to the public store (see lib/storage.ts). */
 export async function POST(req: Request) {
   const profile = await requireCoachProfile();
