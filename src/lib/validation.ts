@@ -3,6 +3,13 @@ import { SPORTS } from "@/lib/sports";
 import { SKILL_LEVELS } from "@/lib/skillLevels";
 import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
 import { parseCalendarDate, compareCalendarDates, todayInPacific } from "@/lib/age";
+import {
+  ACCOMMODATION_NOTE_MAX,
+  LANGUAGE_CODES,
+  OTHER_LANGUAGES_MAX,
+  TRAVEL_RADIUS_OPTIONS,
+  type LanguageCode,
+} from "@/lib/accommodations";
 
 export const parentRegisterSchema = z.object({
   name: z.string().trim().min(2, "Please enter your full name."),
@@ -190,6 +197,28 @@ export const coachProfileSchema = z.object({
     )
     .optional(),
 });
+
+/** Empty or whitespace-only text is stored as null. */
+const optionalText = (max: number, message: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, message)
+    .nullish()
+    .transform((value) => value || null);
+
+export const accommodationsSchema = z
+  .object({
+    specialNeedsExperience: z.boolean(),
+    specialNeedsNote: optionalText(ACCOMMODATION_NOTE_MAX, `Keep the special-needs note under ${ACCOMMODATION_NOTE_MAX} characters.`),
+    languages: z.array(z.enum(LANGUAGE_CODES as [LanguageCode, ...LanguageCode[]], { error: "Pick languages from the list." })),
+    languagesOther: optionalText(OTHER_LANGUAGES_MAX, `Keep other languages under ${OTHER_LANGUAGES_MAX} characters.`),
+    travelRadiusMiles: z.literal(TRAVEL_RADIUS_OPTIONS, { error: "Pick a travel distance from the list." }).nullable(),
+    bringsEquipment: z.boolean().nullable(),
+    accommodationsNote: optionalText(ACCOMMODATION_NOTE_MAX, `Keep the note under ${ACCOMMODATION_NOTE_MAX} characters.`),
+  })
+  // A note about special-needs experience only makes sense with the box ticked.
+  .transform((a) => ({ ...a, specialNeedsNote: a.specialNeedsExperience ? a.specialNeedsNote : null }));
 
 export const availabilitySlotSchema = z.object({
   dayOfWeek: z.coerce.number().int().min(0).max(6),

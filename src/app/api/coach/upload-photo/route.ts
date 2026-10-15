@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
 import { minorMediaUploadBlockedMessage } from "@/lib/minorConsent";
 import { confirmCoachUpload, deleteStoredCoachFile, uploadErrorResponse } from "@/lib/storage";
 import { isOwnUploadPathname } from "@/lib/uploadRules";
+import { savePendingProfilePhoto } from "@/lib/profilePhoto";
 
-/** Saves a profile photo the browser has just uploaded to the public store (see lib/storage.ts). */
+/**
+ * Saves a profile photo the browser has just uploaded to the public store (see lib/storage.ts).
+ * It waits for an admin to approve it; the current public photo stays until then (lib/profilePhoto.ts).
+ */
 export async function POST(req: Request) {
   const profile = await requireCoachProfile();
   if (!profile) {
@@ -26,12 +29,8 @@ export async function POST(req: Request) {
 
   try {
     const { url } = await confirmCoachUpload("photo", profile.id, body?.pathname);
-    await prisma.coachProfile.update({
-      where: { id: profile.id },
-      data: { profilePhotoUrl: url },
-    });
-    if (profile.profilePhotoUrl !== url) await deleteStoredCoachFile("photo", profile.profilePhotoUrl);
-    return NextResponse.json({ ok: true, url });
+    await savePendingProfilePhoto(profile, url);
+    return NextResponse.json({ ok: true, url, pending: true });
   } catch (err) {
     return uploadErrorResponse(err);
   }
