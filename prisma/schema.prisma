@@ -585,6 +585,11 @@ model Message {
   sender     User     @relation(fields: [senderId], references: [id])
   body       String
   createdAt  DateTime @default(now())
+  /// Set when the other side of the thread opens it; NULL = unread. A sender's own messages
+  /// never count as unread for them (see src/lib/unreadMessages.ts).
+  readAt     DateTime?
+
+  @@index([threadId, readAt])
 }
 
 model Report {

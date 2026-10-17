@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/session";
 import ReportButton from "@/components/ReportButton";
 import Link from "next/link";
 import MessageComposer from "./MessageComposer";
+import MessagesLiveRefresh from "../MessagesLiveRefresh";
 import { CONTACT_RULE_TEXT, ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactRule";
 import { quietLinkClass } from "@/lib/ui";
 
@@ -33,6 +34,8 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col px-4 py-8 sm:px-6 md:py-12">
+      {/* Admins can open a reported thread, but that must not mark it read for the family or coach */}
+      {(isParentSide || isCoachSide) && <MessagesLiveRefresh threadId={thread.id} />}
       <Link href="/messages" className={`${quietLinkClass} -ml-1 mb-1 self-start text-pitch`}>
         ← All messages
       </Link>

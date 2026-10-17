@@ -3,13 +3,17 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { secondaryButtonClass } from "@/lib/ui";
+import { unreadFor } from "@/lib/unreadMessages";
+import CountBadge from "@/components/CountBadge";
+import MessagesLiveRefresh from "./MessagesLiveRefresh";
 
 export default async function MessagesPage() {
   const session = await getCurrentSession();
   if (!session?.user) redirect("/login?callbackUrl=/messages");
   if (session.user.role !== "PARENT" && session.user.role !== "COACH") redirect("/dashboard");
 
-  let rows: { id: string; otherName: string; lastMessage: string | null; lastAt: Date | null }[] = [];
+  let rows: { id: string; otherName: string; lastMessage: string | null; lastAt: Date | null; unread: number }[] = [];
+  const unreadCount = { _count: { select: { messages: { where: unreadFor(session.user.id) } } } } as const;
 
   if (session.user.role === "PARENT") {
     const threads = await prisma.thread.findMany({
@@ -17,6 +21,7 @@ export default async function MessagesPage() {
       include: {
         coachProfile: { include: { user: true } },
         messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        ...unreadCount,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -25,6 +30,7 @@ export default async function MessagesPage() {
       otherName: t.coachProfile.user.name,
       lastMessage: t.messages[0]?.body ?? null,
       lastAt: t.messages[0]?.createdAt ?? null,
+      unread: t._count.messages,
     }));
   } else {
     const threads = await prisma.thread.findMany({
@@ -32,6 +38,7 @@ export default async function MessagesPage() {
       include: {
         parentProfile: { include: { user: true } },
         messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        ...unreadCount,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -40,6 +47,7 @@ export default async function MessagesPage() {
       otherName: t.parentProfile.user.name,
       lastMessage: t.messages[0]?.body ?? null,
       lastAt: t.messages[0]?.createdAt ?? null,
+      unread: t._count.messages,
     }));
   }
 
@@ -48,6 +56,7 @@ export default async function MessagesPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 md:py-12">
+      <MessagesLiveRefresh />
       <p className="eyebrow mb-2 text-pitch">{session.user.role === "PARENT" ? "Parent" : "Coach"}</p>
       <h1 className="text-display-lg mb-6 font-display text-ink">Messages</h1>
 
@@ -65,29 +74,46 @@ export default async function MessagesPage() {
         </div>
       ) : (
         <ul className="flex flex-col overflow-hidden rounded-xl border-2 border-ink bg-surface shadow-patch">
-          {rows.map((row, i) => (
-            <li key={row.id} className={i > 0 ? "border-t-2 border-line" : ""}>
-              <Link href={`/messages/${row.id}`} className="flex min-h-16 items-center gap-4 p-4 hover:bg-chalk">
-                <span
-                  aria-hidden
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-ink bg-gold font-display text-lg text-ink"
+          {rows.map((row, i) => {
+            const unread = row.unread > 0;
+            return (
+              <li key={row.id} className={i > 0 ? "border-t-2 border-line" : ""}>
+                {/* Unread: gold edge, tinted row, ink preview — readable without relying on colour alone */}
+                <Link
+                  href={`/messages/${row.id}`}
+                  className={`flex min-h-16 items-center gap-4 border-l-[6px] p-4 pl-3 ${
+                    unread ? "border-l-gold bg-gold/10 hover:bg-gold/20" : "border-l-transparent hover:bg-chalk"
+                  }`}
                 >
-                  {row.otherName.charAt(0)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="truncate font-display text-xl leading-tight text-ink">{row.otherName}</p>
-                    {row.lastAt && (
-                      <time dateTime={row.lastAt.toISOString()} className="shrink-0 text-xs text-muted-foreground">
-                        {row.lastAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </time>
-                    )}
+                  <span
+                    aria-hidden
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-ink bg-gold font-display text-lg text-ink"
+                  >
+                    {row.otherName.charAt(0)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="truncate font-display text-xl leading-tight text-ink">{row.otherName}</p>
+                      {row.lastAt && (
+                        <time
+                          dateTime={row.lastAt.toISOString()}
+                          className={`shrink-0 text-xs ${unread ? "font-bold text-ink" : "text-muted-foreground"}`}
+                        >
+                          {row.lastAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </time>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className={`line-clamp-1 text-sm ${unread ? "font-bold text-ink" : "text-muted-foreground"}`}>
+                        {row.lastMessage ?? "No messages yet — say hello."}
+                      </p>
+                      {unread && <CountBadge className="shrink-0">{row.unread} new</CountBadge>}
+                    </div>
                   </div>
-                  <p className="line-clamp-1 text-sm text-muted-foreground">{row.lastMessage ?? "No messages yet — say hello."}</p>
-                </div>
-              </Link>
-            </li>
-          ))}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
