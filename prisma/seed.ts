@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 import bcrypt from "bcryptjs";
+import { REFERRAL_BONUS_CENTS } from "../src/lib/referral";
 
 const adapter = new PrismaLibSql({ url: process.env.DATABASE_URL ?? "file:./dev.db" });
 const prisma = new PrismaClient({ adapter });
@@ -84,7 +85,7 @@ async function main() {
           phone: "555-0101",
           referralCode: "TAYLOR001",
           referredById: jamie.id,
-          creditCents: 1000,
+          creditCents: REFERRAL_BONUS_CENTS,
           children: { create: [{ firstName: "Jordan", gradeOrAge: "4th grade" }] },
         },
       },
@@ -93,7 +94,7 @@ async function main() {
   });
   const taylor = referredParentUser.parentProfile!;
   const jordan = taylor.children[0];
-  await prisma.parentProfile.update({ where: { id: jamie.id }, data: { creditCents: { increment: 1000 } } });
+  await prisma.parentProfile.update({ where: { id: jamie.id }, data: { creditCents: { increment: REFERRAL_BONUS_CENTS } } });
 
   const coachSeeds = [
     {
