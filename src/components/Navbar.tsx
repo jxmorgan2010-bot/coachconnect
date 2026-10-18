@@ -6,9 +6,11 @@ import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { IconWhistle } from "@/components/icons";
 import SignOutButton from "@/components/SignOutButton";
+import CountBadge from "@/components/CountBadge";
+import { useUnreadMessages } from "@/components/useUnreadMessages";
 import { secondaryButtonClass } from "@/lib/ui";
 
-type NavLink = { href: string; label: string };
+type NavLink = { href: string; label: string; unread?: number };
 
 export default function Navbar() {
   const { data: session, status } = useSession();
@@ -16,11 +18,16 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
 
   const role = status === "authenticated" ? session.user.role : null;
+  const hasMessages = role === "PARENT" || role === "COACH";
+  // Conversations with something unread, so it matches the highlighted rows on /messages.
+  const unread = useUnreadMessages(hasMessages, pathname).threads;
+  const messagesLink: NavLink = { href: "/messages", label: "Messages", unread };
   const links: NavLink[] = [
     { href: "/coaches", label: "See coaches near you" },
     ...(role === "COACH"
       ? [
           { href: "/dashboard", label: "Dashboard" },
+          messagesLink,
           { href: "/dashboard/profile", label: "My profile" },
         ]
       : []),
@@ -28,10 +35,22 @@ export default function Navbar() {
     ...(role === "PARENT"
       ? [
           { href: "/dashboard", label: "Dashboard" },
+          messagesLink,
           { href: "/dashboard/family", label: "My family" },
         ]
       : []),
   ];
+  const linkContent = (l: NavLink) => (
+    <>
+      {l.label}
+      {l.unread ? (
+        <>
+          <CountBadge className="ml-1.5" aria-hidden>{l.unread}</CountBadge>
+          <span className="sr-only">, {l.unread} unread</span>
+        </>
+      ) : null}
+    </>
+  );
   const matches = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   // Only the most specific match is current, so "Dashboard" isn't also lit on /dashboard/profile.
   const activeHref = links
@@ -52,7 +71,7 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-6 text-sm font-bold text-ink md:flex">
+        <nav aria-label="Main" className="hidden items-center gap-6 text-sm font-bold text-ink lg:flex">
           {links.map((l) => (
             <Link
               key={l.href}
@@ -62,12 +81,12 @@ export default function Navbar() {
                 isActive(l.href) ? "border-gold" : "border-transparent hover:border-gold"
               }`}
             >
-              {l.label}
+              {linkContent(l)}
             </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           {status === "authenticated" ? (
             <>
               <span className="text-sm text-muted-foreground">Hey, {session.user.name?.split(" ")[0]}</span>
@@ -86,12 +105,19 @@ export default function Navbar() {
         </div>
 
         <button
-          className="grid h-11 w-11 place-items-center rounded-md border-2 border-ink bg-surface md:hidden"
+          className="relative grid h-11 w-11 place-items-center rounded-md border-2 border-ink bg-surface lg:hidden"
           onClick={() => setOpen((o) => !o)}
-          aria-label={open ? "Close menu" : "Open menu"}
+          aria-label={`${open ? "Close menu" : "Open menu"}${unread ? ", new messages" : ""}`}
           aria-expanded={open}
           aria-controls="mobile-menu"
         >
+          {/* Parents mostly use phones: show new messages without them opening the menu */}
+          {unread > 0 && !open && (
+            <span
+              aria-hidden
+              className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full border-2 border-ink bg-gold"
+            />
+          )}
           <span className="relative block h-3.5 w-5" aria-hidden>
             <span
               className={`absolute left-0 h-0.5 w-5 bg-ink transition-transform motion-reduce:transition-none ${
@@ -109,7 +135,7 @@ export default function Navbar() {
       </div>
 
       {open && (
-        <div id="mobile-menu" className="border-t-2 border-ink bg-chalk md:hidden">
+        <div id="mobile-menu" className="border-t-2 border-ink bg-chalk lg:hidden">
           <nav aria-label="Main" className="mx-auto flex max-w-6xl flex-col px-4 py-2 font-bold text-ink">
             {links.map((l) => (
               <Link
@@ -121,7 +147,7 @@ export default function Navbar() {
                   isActive(l.href) ? "border-l-gold" : "border-l-transparent"
                 }`}
               >
-                {l.label}
+                {linkContent(l)}
               </Link>
             ))}
             <div className="flex gap-3 py-3">
