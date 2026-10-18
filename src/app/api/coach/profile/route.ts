@@ -4,6 +4,7 @@ import { requireCoachProfile } from "@/lib/session";
 import { coachProfileSchema } from "@/lib/validation";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { flagsFromLevels } from "@/lib/skillLevels";
+import { ADULT_ONLY_SPORT_NOTE, SPORT_LABELS, isSportAllowedForCoach } from "@/lib/sports";
 import type { SkillLevel, Sport } from "@/generated/prisma/client";
 
 export async function PATCH(req: Request) {
@@ -19,6 +20,12 @@ export async function PATCH(req: Request) {
   }
 
   const { sports, sportLevels, hourlyRateDollars, ...rest } = parsed.data;
+
+  const notAllowed = sports.filter((sport) => !isSportAllowedForCoach(sport as Sport, profile.isMinorCoach));
+  if (notAllowed.length > 0) {
+    const names = notAllowed.map((sport) => SPORT_LABELS[sport as Sport]).join(", ");
+    return NextResponse.json({ error: `${names}: ${ADULT_ONLY_SPORT_NOTE}` }, { status: 400 });
+  }
 
   // Bio and school name are shown publicly on the coach's profile.
   const blocked = await enforceContactPolicy({

@@ -5,7 +5,7 @@ import { primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 
 const RULES = [
-  "Sessions are always held at a public location chosen by the parent — never a private residence.",
+  "Sessions are always held at a public place the parent chooses — a park, a school or rec center gym, or a dojo or boxing gym that's open to the public. Never a private home. If the place the parent picks charges an entry fee, that's between the family and the venue.",
   "All communication with families happens through CoachConnect messaging — never share your phone number, email, or address.",
   "Never meet or communicate with a child without a parent or guardian's consent on file.",
   "Treat every family with respect. Harassment, discrimination, or inappropriate conduct results in permanent removal.",

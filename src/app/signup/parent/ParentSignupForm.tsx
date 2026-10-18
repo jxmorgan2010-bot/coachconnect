@@ -79,7 +79,7 @@ export default function ParentSignupForm({ referralBonusCents }: { referralBonus
       panelPoints={[
         "Only parent accounts can book or pay — kids can't book themselves",
         "An admin approves every coach before their profile goes live",
-        "You pick the park, gym, or rec center — not the coach",
+        "You pick the place — a park, gym or rec center — not the coach",
       ]}
     >
       <h1 className="text-display-lg mb-2 font-display text-ink">Create a parent account</h1>

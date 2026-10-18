@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
-import { SPORTS, SPORT_LABELS, SPORT_TAG, SPORT_COLOR } from "@/lib/sports";
+import { SPORTS, SPORT_LABELS, SPORT_TAG, SPORT_COLOR, ADULT_ONLY_SPORTS, ADULT_ONLY_SPORT_NOTE, isSportAllowedForCoach } from "@/lib/sports";
 import { SKILL_LEVELS, SKILL_LEVEL_LABELS, SKILL_LEVEL_DESCRIPTIONS } from "@/lib/skillLevels";
 import SportPill from "@/components/SportPill";
 import { BAY_AREA_CITIES } from "@/lib/bayArea";
@@ -31,9 +31,12 @@ export default function ProfileForm({
   onSaved,
   fields = ALL_FIELDS,
   submitLabel = "Save profile",
+  isMinorCoach = false,
 }: {
   initial: ProfileFormValues;
   onSaved: (values: ProfileFormValues) => void;
+  /** Under-18 coaches can't pick ADULT_ONLY_SPORTS; the server refuses them too. */
+  isMinorCoach?: boolean;
   /**
    * Which parts to show. Every value is still sent, so the server validates the whole profile
    * exactly as onboarding does; hidden parts are sent as they were loaded.
@@ -106,14 +109,22 @@ export default function ProfileForm({
             {SPORTS.map((sport) => {
               const selected = values.sports.includes(sport);
               const c = SPORT_COLOR[sport];
+              // A sport already saved can still be unticked, never newly picked.
+              const locked = !isSportAllowedForCoach(sport, isMinorCoach) && !selected;
               return (
                 <button
                   type="button"
                   key={sport}
                   aria-pressed={selected}
+                  disabled={locked}
+                  aria-describedby={locked ? "adult-only-note" : undefined}
                   onClick={() => toggleSport(sport)}
                   className={`flex min-h-11 items-center gap-2 rounded-lg border-2 px-3 text-sm font-bold ${
-                    selected ? "border-ink shadow-patch-xs" : "border-line bg-surface text-ink hover:border-ink"
+                    selected
+                      ? "border-ink shadow-patch-xs"
+                      : locked
+                        ? "cursor-not-allowed border-dashed border-line bg-muted text-muted-foreground"
+                        : "border-line bg-surface text-ink hover:border-ink"
                   }`}
                   style={selected ? { background: c.bg, color: c.fg } : undefined}
                 >
@@ -123,6 +134,11 @@ export default function ProfileForm({
               );
             })}
           </div>
+          {isMinorCoach && (
+            <p id="adult-only-note" className="mt-2 text-sm text-muted-foreground">
+              {ADULT_ONLY_SPORTS.map((s) => SPORT_LABELS[s]).join(", ")}: {ADULT_ONLY_SPORT_NOTE}
+            </p>
+          )}
         </div>
       )}
 

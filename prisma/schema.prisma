@@ -24,6 +24,11 @@ enum Sport {
   PICKLEBALL
   BASEBALL
   SOFTBALL
+  /// Added 2026-10-17. Stored as TEXT in SQLite (no CHECK constraint), so no SQL migration.
+  /// Coaches under 18 can't offer these yet — see ADULT_ONLY_SPORTS in src/lib/sports.ts.
+  MARTIAL_ARTS
+  BOXING
+  WRESTLING
 }
 
 /// A child's skill level in one sport, and the levels a coach takes per sport. Labels,

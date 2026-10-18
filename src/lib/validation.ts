@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SPORTS } from "@/lib/sports";
 import { SKILL_LEVELS } from "@/lib/skillLevels";
 import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
+import { PUBLIC_PLACE_REQUIRED } from "@/lib/sessionPlace";
 import { parseCalendarDate, compareCalendarDates, todayInPacific } from "@/lib/age";
 import {
   ACCOMMODATION_NOTE_MAX,
@@ -39,7 +40,7 @@ export const bookingCreateSchema = z.object({
   sport: z.enum(SPORTS as [string, ...string[]]),
   scheduledAt: z.coerce.date().refine((d) => d.getTime() > Date.now(), "Pick a future date and time."),
   durationMinutes: z.coerce.number().int().min(30).max(180),
-  locationText: z.string().trim().min(5, "Enter a public location, like a park or rec center."),
+  locationText: z.string().trim().min(5, PUBLIC_PLACE_REQUIRED),
   consent: z.literal(true, { error: "Parental consent is required to book." }),
   paymentIntentId: z.string().trim().min(1).optional(),
   // Required only when the selected coach is a minor coach — validated against that fact

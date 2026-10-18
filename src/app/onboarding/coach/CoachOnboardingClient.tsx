@@ -347,7 +347,7 @@ export default function CoachOnboardingClient({
 
         <div className="flex min-w-0 flex-col gap-6">
           <Section id="profile" step={stepNumber("profile")} title="Profile & sports" done={stepFor("profile").done}>
-            <ProfileForm initial={profileValues} onSaved={setProfileValues} />
+            <ProfileForm initial={profileValues} onSaved={setProfileValues} isMinorCoach={profile.isMinorCoach} />
           </Section>
 
           <Section id="availability" step={stepNumber("availability")} title="Availability" done={stepFor("availability").done}>

@@ -6,7 +6,8 @@ import Link from "next/link";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, useStripe, useElements, CardNumberElement } from "@stripe/react-stripe-js";
 import type { SkillLevel, Sport } from "@/generated/prisma/client";
-import { SPORT_LABELS } from "@/lib/sports";
+import { SPORT_LABELS, SPORT_PLACE_EXAMPLE } from "@/lib/sports";
+import { PUBLIC_PLACE_REQUIRED, VENUE_FEE_NOTE } from "@/lib/sessionPlace";
 import { SKILL_LEVEL_LABELS, describeLevels, listLevels } from "@/lib/skillLevels";
 import { calculatePriceBreakdown, formatCents } from "@/lib/money";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
@@ -226,7 +227,7 @@ function BookingFormInner({
       return;
     }
     if (locationText.trim().length < 5) {
-      setError("Enter a public location, like a park or rec center.");
+      setError(PUBLIC_PLACE_REQUIRED);
       return;
     }
     if (coach.isMinorCoach && secondAdultName.trim().length < 2) {
@@ -386,8 +387,8 @@ function BookingFormInner({
       <p className="eyebrow mb-2 text-pitch">Book a session</p>
       <h1 className="text-display-lg font-display text-ink">Book {coach.name}</h1>
       <p className="mt-2 text-muted-foreground">
-        {formatCents(coach.hourlyRateCents).replace(".00", "")}/hr · You choose where you meet — a park, school gym,
-        or rec center.
+        {formatCents(coach.hourlyRateCents).replace(".00", "")}/hr · You choose where you meet — a park, a school or rec
+        center gym, or a dojo or boxing gym.
       </p>
 
       {activePackage && (
@@ -675,14 +676,15 @@ function BookingFormInner({
                 <input
                   id="location"
                   className={inputClass}
-                  placeholder="e.g. Golden Gate Park tennis courts"
+                  placeholder={sport ? SPORT_PLACE_EXAMPLE[sport] : "e.g. the rec center gym"}
                   value={locationText}
                   onChange={(e) => setLocationText(e.target.value)}
                   aria-describedby="location-help"
                   required
                 />
                 <p id="location-help" className="mt-1.5 text-xs text-muted-foreground">
-                  Pick a public spot like a park, school gym, or rec center. You choose — not the coach.
+                  Pick a public place: a park, a school or rec center gym, or a dojo or boxing gym open to the
+                  public. You choose — not the coach. Never a private home. {VENUE_FEE_NOTE}
                 </p>
               </div>
 
