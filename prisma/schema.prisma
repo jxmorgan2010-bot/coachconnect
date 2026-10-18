@@ -29,6 +29,12 @@ enum Sport {
   MARTIAL_ARTS
   BOXING
   WRESTLING
+  /// Added 2026-10-18. Also stored as TEXT with no CHECK constraint, so no SQL migration.
+  GOLF
+  VOLLEYBALL
+  TRACK_AND_FIELD
+  BADMINTON
+  TABLE_TENNIS
 }
 
 /// A child's skill level in one sport, and the levels a coach takes per sport. Labels,
