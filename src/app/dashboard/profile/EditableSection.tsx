@@ -80,19 +80,21 @@ export function ProfileFieldsEditor({
   initial,
   fields,
   submitLabel,
+  isMinorCoach,
 }: {
   initial: ProfileFormValues;
   fields: ProfileFormField[];
   submitLabel: string;
+  isMinorCoach: boolean;
 }) {
   const done = useSectionDone();
-  return <ProfileForm initial={initial} fields={fields} submitLabel={submitLabel} onSaved={done} />;
+  return <ProfileForm initial={initial} fields={fields} submitLabel={submitLabel} onSaved={done} isMinorCoach={isMinorCoach} />;
 }
 
 /** The whole profile form, for a coach who hasn't filled in every basic yet. */
-export function BasicsEditor({ initial }: { initial: ProfileFormValues }) {
+export function BasicsEditor({ initial, isMinorCoach }: { initial: ProfileFormValues; isMinorCoach: boolean }) {
   const router = useRouter();
-  return <ProfileForm initial={initial} submitLabel="Save basics" onSaved={() => router.refresh()} />;
+  return <ProfileForm initial={initial} submitLabel="Save basics" onSaved={() => router.refresh()} isMinorCoach={isMinorCoach} />;
 }
 
 export function AvailabilityEditor({ initial }: { initial: Slot[] }) {

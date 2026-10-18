@@ -116,7 +116,9 @@ export default async function MyCoachProfilePage({
       sportLevels: formValues.sports.map((sport) => ({ sport, levels: sportLevels[sport] ?? [] })),
     }).success;
   const fieldEditor = (fields: ProfileFormField[], submitLabel: string) =>
-    profileComplete ? <ProfileFieldsEditor initial={formValues} fields={fields} submitLabel={submitLabel} /> : undefined;
+    profileComplete ? (
+      <ProfileFieldsEditor initial={formValues} fields={fields} submitLabel={submitLabel} isMinorCoach={profile.isMinorCoach} />
+    ) : undefined;
 
   // Follows the Live / Not live badge, so it doesn't repeat it.
   const statusText = live
@@ -181,7 +183,7 @@ export default async function MyCoachProfilePage({
               Some of your sports, school, location, rate or bio details are missing or need updating, and they save
               together. Once they&apos;re all set, you can edit each section on its own below.
             </p>
-            <BasicsEditor initial={formValues} />
+            <BasicsEditor initial={formValues} isMinorCoach={profile.isMinorCoach} />
           </section>
         )}
 

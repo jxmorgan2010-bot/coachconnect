@@ -16,7 +16,7 @@ const STEPS = [
   },
   {
     title: "Book and pay in the app",
-    body: "You choose the park, gym, or rec center. For a single session your card is held, not charged, until it's over.",
+    body: "You choose the place — a park, a gym, or a rec center. For a single session your card is held, not charged, until it's over.",
   },
   {
     title: "Message without swapping numbers",
