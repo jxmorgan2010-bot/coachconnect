@@ -45,10 +45,10 @@ export async function PATCH(req: Request) {
     }),
     prisma.coachSport.deleteMany({ where: { coachProfileId: profile.id } }),
     prisma.coachSport.createMany({
-      // A sport sent without levels takes every level (the column defaults).
+      // The schema guarantees every sport has levels the coach picked.
       data: sports.map((sport) => {
-        const levels = sportLevels?.find((s) => s.sport === sport)?.levels as SkillLevel[] | undefined;
-        return { coachProfileId: profile.id, sport: sport as Sport, ...(levels ? flagsFromLevels(levels) : {}) };
+        const levels = sportLevels.find((s) => s.sport === sport)!.levels as SkillLevel[];
+        return { coachProfileId: profile.id, sport: sport as Sport, ...flagsFromLevels(levels) };
       }),
     }),
   ]);

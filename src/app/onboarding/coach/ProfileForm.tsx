@@ -18,7 +18,7 @@ export type ProfileFormValues = {
   state: string;
   zip: string;
   sports: Sport[];
-  /** Levels taken per selected sport. A newly picked sport starts with every level. */
+  /** Levels taken per selected sport. A newly picked sport starts with none; the coach picks at least one. */
   sportLevels: Partial<Record<Sport, SkillLevel[]>>;
 };
 
@@ -48,17 +48,22 @@ export default function ProfileForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Set by a save attempt, so sports still missing a level are marked only once that matters.
+  const [checkLevels, setCheckLevels] = useState(false);
   const show = (field: ProfileFormField) => fields.includes(field);
+  const hasLevels = (sport: Sport) => (values.sportLevels[sport] ?? []).length > 0;
 
+  // Levels picked for a sport are kept if it's unticked and ticked again.
   function toggleSport(sport: Sport) {
     setValues((v) => ({
       ...v,
       sports: v.sports.includes(sport) ? v.sports.filter((s) => s !== sport) : [...v.sports, sport],
-      sportLevels: v.sportLevels[sport] ? v.sportLevels : { ...v.sportLevels, [sport]: [...SKILL_LEVELS] },
     }));
   }
 
   function toggleLevel(sport: Sport, level: SkillLevel) {
+    // The missing-level message at the top is stale once the coach starts picking.
+    if (checkLevels) setError(null);
     setValues((v) => {
       const current = v.sportLevels[sport] ?? [];
       const next = current.includes(level) ? current.filter((l) => l !== level) : [...current, level];
@@ -71,9 +76,14 @@ export default function ProfileForm({
     setError(null);
     setSaved(false);
 
-    const missing = values.sports.find((sport) => (values.sportLevels[sport] ?? []).length === 0);
-    if (missing) {
-      setError(`Pick at least one level for ${SPORT_LABELS[missing]}.`);
+    const missing = SPORTS.filter((sport) => values.sports.includes(sport) && !hasLevels(sport));
+    if (missing.length > 0) {
+      setCheckLevels(true);
+      setError(`Pick at least one level for ${missing.map((sport) => SPORT_LABELS[sport]).join(" and ")}.`);
+      // The message at the top can be off screen on a phone; take the coach to the first sport instead.
+      const first = document.getElementById(`levels-${missing[0]}`);
+      first?.scrollIntoView({ block: "center" });
+      first?.querySelector("input")?.focus({ preventScroll: true });
       return;
     }
 
@@ -157,30 +167,49 @@ export default function ProfileForm({
             ))}
           </dl>
           <div className="flex flex-col gap-3">
-            {SPORTS.filter((sport) => values.sports.includes(sport)).map((sport) => (
-              <fieldset key={sport} className="border-t-2 border-line pt-3">
-                <legend className="sr-only">{SPORT_LABELS[sport]} levels</legend>
-                <p aria-hidden className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
-                  <SportPill sport={sport} /> {SPORT_LABELS[sport]}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {SKILL_LEVELS.map((level) => (
-                    <label
-                      key={level}
-                      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border-2 border-line bg-surface px-3 text-sm font-bold text-ink hover:border-ink has-[:checked]:border-ink has-[:checked]:bg-muted"
+            {SPORTS.filter((sport) => values.sports.includes(sport)).map((sport) => {
+              const flagged = checkLevels && !hasLevels(sport);
+              return (
+                <fieldset
+                  key={sport}
+                  id={`levels-${sport}`}
+                  aria-describedby={hasLevels(sport) ? undefined : `levels-${sport}-hint`}
+                  data-missing={flagged || undefined}
+                  className="border-t-2 border-line pt-3"
+                >
+                  <legend className="sr-only">{SPORT_LABELS[sport]} levels</legend>
+                  <p aria-hidden className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
+                    <SportPill sport={sport} /> {SPORT_LABELS[sport]}
+                  </p>
+                  {!hasLevels(sport) && (
+                    <p
+                      id={`levels-${sport}-hint`}
+                      className={`mb-2 text-sm ${flagged ? "font-bold text-danger" : "text-muted-foreground"}`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={(values.sportLevels[sport] ?? []).includes(level)}
-                        onChange={() => toggleLevel(sport, level)}
-                        className="h-4 w-4 accent-[var(--pitch)]"
-                      />
-                      {SKILL_LEVEL_LABELS[level]}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            ))}
+                      Pick at least one level for {SPORT_LABELS[sport]}.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {SKILL_LEVELS.map((level) => (
+                      <label
+                        key={level}
+                        className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border-2 bg-surface px-3 text-sm font-bold text-ink hover:border-ink has-[:checked]:border-ink has-[:checked]:bg-muted ${
+                          flagged ? "border-danger" : "border-line"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={(values.sportLevels[sport] ?? []).includes(level)}
+                          onChange={() => toggleLevel(sport, level)}
+                          className="h-4 w-4 accent-[var(--pitch)]"
+                        />
+                        {SKILL_LEVEL_LABELS[level]}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              );
+            })}
           </div>
         </div>
       )}

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { SPORTS } from "@/lib/sports";
+import type { Sport } from "@/generated/prisma/client";
+import { SPORTS, SPORT_LABELS } from "@/lib/sports";
 import { SKILL_LEVELS } from "@/lib/skillLevels";
 import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
 import { PUBLIC_PLACE_REQUIRED } from "@/lib/sessionPlace";
@@ -187,16 +188,24 @@ export const coachProfileSchema = z.object({
     .max(10)
     .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
   sports: z.array(z.enum(SPORTS as [string, ...string[]])).min(1, "Select at least one sport."),
-  // Levels taken per sport. A sport in `sports` with no entry here takes every level, so an
-  // older client that doesn't send levels keeps the all-levels default.
-  sportLevels: z
-    .array(
-      z.object({
-        sport: z.enum(SPORTS as [string, ...string[]]),
-        levels: z.array(skillLevelEnum).min(1, "Pick at least one level for each sport you coach."),
-      }),
-    )
-    .optional(),
+  // Levels taken per sport. Every sport in `sports` needs an entry with at least one level the
+  // coach picked; nothing defaults to every level.
+  sportLevels: z.array(
+    z.object({
+      sport: z.enum(SPORTS as [string, ...string[]]),
+      levels: z.array(skillLevelEnum).min(1, "Pick at least one level for each sport you coach."),
+    }),
+    { error: "Pick at least one level for each sport you coach." },
+  ),
+}).superRefine((profile, ctx) => {
+  const missing = profile.sports.find((sport) => !profile.sportLevels.some((s) => s.sport === sport));
+  if (missing) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sportLevels"],
+      message: `Pick at least one level for ${SPORT_LABELS[missing as Sport]}.`,
+    });
+  }
 });
 
 /** Empty or whitespace-only text is stored as null. */

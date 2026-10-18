@@ -57,8 +57,18 @@ const profile = {
   sports: ["SOCCER"],
 };
 
-test("coach profile: levels are optional, but a sent sport needs at least one", () => {
-  assert.equal(coachProfileSchema.safeParse(profile).success, true);
+test("coach profile: every sport needs at least one level the coach picked", () => {
+  // No levels sent no longer means every level.
+  const none = coachProfileSchema.safeParse(profile);
+  assert.equal(none.success, false);
+  assert.match(none.error!.issues[0].message, /at least one level/);
+  const partial = coachProfileSchema.safeParse({
+    ...profile,
+    sports: ["SOCCER", "TENNIS"],
+    sportLevels: [{ sport: "SOCCER", levels: ["ADVANCED"] }],
+  });
+  assert.equal(partial.success, false);
+  assert.equal(partial.error!.issues[0].message, "Pick at least one level for Tennis.");
   assert.equal(coachProfileSchema.safeParse({ ...profile, sportLevels: [{ sport: "SOCCER", levels: ["ADVANCED"] }] }).success, true);
   const empty = coachProfileSchema.safeParse({ ...profile, sportLevels: [{ sport: "SOCCER", levels: [] }] });
   assert.equal(empty.success, false);
