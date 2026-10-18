@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getCurrentSession } from "@/lib/session";
 import { getCoachReviewStatus } from "@/lib/coachReview";
 import SubmittedForReviewBanner from "@/components/SubmittedForReviewBanner";
-import { SPORTS, SPORT_TAG, SPORT_COLOR, SPORT_LABELS } from "@/lib/sports";
+import { SPORTS, SPORT_TAG, SPORT_COLOR, SPORT_LABELS, SPORT_GROUPS, sportsInGroup } from "@/lib/sports";
 import { IconShieldCheck, IconMessage, IconPin, IconUsers, IconArrowRight } from "@/components/icons";
 import { goldButtonClass, secondaryButtonClass } from "@/lib/ui";
 
@@ -90,7 +90,7 @@ export default function Home() {
               Push past your limits with athletes who play the game.
             </h1>
             <p className="mt-6 max-w-md text-lg text-white/85">
-              Book your kid 1&#8209;on&#8209;1 time with high school and college athletes. A person checks every coach&apos;s ID
+              Book your kid 1&#8209;on&#8209;1 time with high school and college athletes. An admin approves every coach
               before their profile goes live, and you pay through the app.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -129,28 +129,47 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SPORTS STRIP — roster tags, not icon cards */}
+      {/* SPORTS STRIP — roster tags, not icon cards. Grouped (SPORT_GROUP in lib/sports): a grid on
+          desktop, one swipeable row per group on phones. */}
       <section aria-labelledby="sports-heading" className="border-b-2 border-ink bg-chalk">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 sm:px-6 md:flex-row md:items-center md:gap-6">
-          <h2 id="sports-heading" className="eyebrow shrink-0 text-muted-foreground">
+        <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 md:py-8">
+          <h2 id="sports-heading" className="eyebrow mb-5 text-muted-foreground">
             Browse by sport
           </h2>
-          <div className="flex flex-wrap gap-2.5">
-            {SPORTS.map((sport) => {
-              const c = SPORT_COLOR[sport];
-              return (
-                <Link
-                  key={sport}
-                  href={`/coaches?sport=${sport}`}
-                  aria-label={`${SPORT_LABELS[sport]} coaches`}
-                  className="press flex min-h-11 items-center gap-2 rounded-lg border-2 border-ink px-3 font-display text-sm tracking-wide shadow-patch-xs"
-                  style={{ background: c.bg, color: c.fg }}
+          <div className="grid gap-5 md:grid-cols-2 md:gap-x-10 md:gap-y-6">
+            {SPORT_GROUPS.map((group) => (
+              <div key={group.id} className="min-w-0">
+                <h3
+                  id={`sport-group-${group.id}`}
+                  className="mb-2.5 border-l-4 border-gold pl-2 font-sans text-xs font-bold uppercase leading-none tracking-wide text-ink"
                 >
-                  {SPORT_TAG[sport]}
-                  <span className="hidden font-sans text-xs font-bold opacity-85 xl:inline">{SPORT_LABELS[sport]}</span>
-                </Link>
-              );
-            })}
+                  {group.label}
+                </h3>
+                {/* Phones: bleeds to the screen edge so a cut-off chip shows the row scrolls.
+                    The bottom padding leaves room for the chips' patch shadow. */}
+                <ul
+                  aria-labelledby={`sport-group-${group.id}`}
+                  className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1.5 [scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
+                >
+                  {sportsInGroup(group.id).map((sport) => {
+                    const c = SPORT_COLOR[sport];
+                    return (
+                      <li key={sport} className="shrink-0">
+                        <Link
+                          href={`/coaches?sport=${sport}`}
+                          aria-label={`${SPORT_LABELS[sport]} coaches`}
+                          className="press flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg border-2 border-ink px-3 font-display text-sm tracking-wide shadow-patch-xs"
+                          style={{ background: c.bg, color: c.fg }}
+                        >
+                          {SPORT_TAG[sport]}
+                          <span className="hidden font-sans text-xs font-bold opacity-85 xl:inline">{SPORT_LABELS[sport]}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </section>
