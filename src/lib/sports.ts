@@ -61,7 +61,7 @@ export const SPORT_TAG: Record<Sport, string> = {
 /** One brand color per sport so the roster reads like real team colors, not a single accent repeated. */
 export const SPORT_COLOR: Record<Sport, { bg: string; fg: string }> = {
   BASKETBALL: { bg: "#EFB811", fg: "#10201A" },
-  SOCCER: { bg: "#2F8F52", fg: "#FFFFFF" },
+  SOCCER: { bg: "#277A46", fg: "#FFFFFF" },
   FOOTBALL: { bg: "#10201A", fg: "#FFFFFF" },
   LACROSSE: { bg: "#C6362F", fg: "#FFFFFF" },
   TENNIS: { bg: "#FFCE3D", fg: "#10201A" },

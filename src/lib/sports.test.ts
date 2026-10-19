@@ -45,12 +45,10 @@ function luminance(hex: string) {
 test("sport colours are unique and their text passes WCAG AA", () => {
   const bgs = SPORTS.map((s) => SPORT_COLOR[s].bg.toUpperCase());
   assert.equal(new Set(bgs).size, bgs.length);
-  // Soccer's green predates this check (4.06:1, short of 4.5). Left as is: it's a brand colour.
-  const knownShort = ["SOCCER"];
   for (const sport of SPORTS) {
     const [a, b] = [luminance(SPORT_COLOR[sport].bg), luminance(SPORT_COLOR[sport].fg)].sort((x, y) => y - x);
     const ratio = (a + 0.05) / (b + 0.05);
-    assert.ok(ratio >= (knownShort.includes(sport) ? 4 : 4.5), `${sport}: ${ratio.toFixed(2)}:1`);
+    assert.ok(ratio >= 4.5, `${sport}: ${ratio.toFixed(2)}:1`);
   }
 });
 
