@@ -20,8 +20,8 @@ const KIND_LABEL = {
 
 function SectionTitle({ id, title, count }: { id: string; title: string; count: number }) {
   return (
-    <h2 id={id} className="mb-3 flex items-baseline gap-2 font-display text-3xl text-ink">
-      {title} <span className="font-sans text-sm font-bold text-muted-foreground">{count}</span>
+    <h2 id={id} className="mb-3 font-display text-3xl text-ink">
+      {title} <span className="ml-1 font-sans text-sm font-bold text-muted-foreground">{count}</span>
     </h2>
   );
 }

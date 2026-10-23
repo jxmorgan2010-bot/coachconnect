@@ -98,7 +98,7 @@ export function CancelSessionButton({
       className={`flex w-full flex-col gap-2 rounded-lg border-2 border-ink p-3 ${late ? "bg-danger/10" : "bg-muted"}`}
     >
       <p id={`cancel-${bookingId}-title`} className="text-sm font-bold text-ink">
-        {late ? "Cancel and pay the full price?" : "Cancel this session?"}
+        {!late ? "Cancel this session?" : isPackage ? "Cancel and use up this package session?" : "Cancel and pay the full price?"}
       </p>
       <p className="text-sm text-ink">{parentCancelMessage(outcome, start, chargeCents, isPackage, coachName)}</p>
       {error && <p role="alert" className={errorClass}>{error}</p>}
