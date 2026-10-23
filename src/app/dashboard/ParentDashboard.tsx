@@ -12,6 +12,7 @@ import ReferralPanel from "./ReferralPanel";
 import RatingForm from "./RatingForm";
 import ParentTabs from "./ParentTabs";
 import { MarkCompleteButton } from "./BookingActions";
+import { canMarkComplete } from "@/lib/sessionTiming";
 
 export default async function ParentDashboard({ userId, name }: { userId: string; name: string }) {
   const parentProfile = await prisma.parentProfile.findUnique({
@@ -54,10 +55,10 @@ export default async function ParentDashboard({ userId, name }: { userId: string
   // Derived from the bookings already loaded above — no extra queries.
   const now = new Date();
   const upcoming = bookings
-    .filter((b) => b.status === "CONFIRMED" && b.scheduledAt >= now)
+    .filter((b) => b.status === "CONFIRMED" && !canMarkComplete(b, now))
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
   const nextUp = upcoming[0];
-  const awaitingComplete = bookings.filter((b) => b.status === "CONFIRMED" && b.scheduledAt < now);
+  const awaitingComplete = bookings.filter((b) => b.status === "CONFIRMED" && canMarkComplete(b, now));
   const firstName = name.split(" ")[0];
 
   return (

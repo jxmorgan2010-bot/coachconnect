@@ -11,7 +11,8 @@ import { IconStar, IconArrowRight } from "@/components/icons";
 import ParentTabs from "../ParentTabs";
 import RatingForm from "../RatingForm";
 import SatisfactionGuaranteeNotice from "@/components/SatisfactionGuaranteeNotice";
-import { MarkCompleteButton, NoShowButton, TipForm, QuickRebookButton } from "../BookingActions";
+import { SessionTimingActions, TipForm, QuickRebookButton } from "../BookingActions";
+import { canMarkComplete } from "@/lib/sessionTiming";
 
 const STATUS_VARIANT = {
   PENDING_CONSENT: "warning",
@@ -56,9 +57,9 @@ export default async function MyBookingsPage() {
   // Grouped for scanning; every booking still renders the same actions as before.
   const now = new Date();
   const upcoming = bookings
-    .filter((b) => b.status === "CONFIRMED" && b.scheduledAt >= now)
+    .filter((b) => b.status === "CONFIRMED" && !canMarkComplete(b, now))
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-  const awaiting = bookings.filter((b) => b.status === "CONFIRMED" && b.scheduledAt < now);
+  const awaiting = bookings.filter((b) => b.status === "CONFIRMED" && canMarkComplete(b, now));
   const pending = bookings.filter((b) => b.status === "PENDING_CONSENT");
   const past = bookings.filter((b) => b.status === "COMPLETED");
   const cancelled = bookings.filter((b) => b.status === "CANCELLED");
@@ -110,7 +111,7 @@ export default async function MyBookingsPage() {
                               <p className="font-bold text-ink">{b.coachProfile.user.name}</p>
                               <span className="text-sm text-muted-foreground">· {b.child?.firstName ?? "Session"}</span>
                             </div>
-                            {b.status === "CONFIRMED" && b.scheduledAt < now ? (
+                            {b.status === "CONFIRMED" && canMarkComplete(b, now) ? (
                               <Badge variant="warning">Not marked complete</Badge>
                             ) : (
                               <Badge variant={STATUS_VARIANT[b.status]}>{STATUS_LABEL[b.status]}</Badge>
@@ -137,8 +138,12 @@ export default async function MyBookingsPage() {
 
                       {b.status === "CONFIRMED" && (
                         <div className="flex flex-wrap items-start gap-3 border-t-2 border-line pt-3">
-                          <MarkCompleteButton bookingId={b.id} />
-                          <NoShowButton bookingId={b.id} />
+                          <SessionTimingActions
+                            bookingId={b.id}
+                            scheduledAt={b.scheduledAt.toISOString()}
+                            durationMinutes={b.durationMinutes}
+                            renderedAt={now.toISOString()}
+                          />
                         </div>
                       )}
 

@@ -5,6 +5,7 @@ import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { noShowSchema } from "@/lib/validation";
 import { cancelPaymentIntent } from "@/lib/payment";
 import { sendMockEmail } from "@/lib/mockEmail";
+import { canReportNoShow, formatPacificTime, noShowOpensAt, NO_SHOW_GRACE_MINUTES } from "@/lib/sessionTiming";
 
 const DEFAULT_DETAILS = "Parent reported that the coach did not show up.";
 
@@ -37,6 +38,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   if (booking.dispute) {
     return NextResponse.json({ error: "This session already has an open case." }, { status: 409 });
+  }
+  if (!canReportNoShow(booking)) {
+    return NextResponse.json(
+      { error: `You can report that the coach didn't show from ${formatPacificTime(noShowOpensAt(booking))}, ${NO_SHOW_GRACE_MINUTES} minutes after the start time.` },
+      { status: 400 },
+    );
   }
 
   const body = await req.json().catch(() => ({}));
