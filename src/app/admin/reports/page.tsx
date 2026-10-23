@@ -30,6 +30,15 @@ async function describeTarget(targetType: string, targetId: string): Promise<str
       ? `Support request: ${booking.parentProfile.user.name} <> ${booking.coachProfile.user.name} session`
       : "Support request";
   }
+  if (targetType === "SESSION_PACKAGE") {
+    const pkg = await prisma.sessionPackage.findUnique({
+      where: { id: targetId },
+      include: { coachProfile: { include: { user: true } }, parentProfile: { include: { user: true } } },
+    });
+    return pkg
+      ? `Package refund request: ${pkg.parentProfile.user.name}'s package with ${pkg.coachProfile.user.name} (refund it under Refunds)`
+      : "Package refund request (package deleted)";
+  }
   return targetType;
 }
 
