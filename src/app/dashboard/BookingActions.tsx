@@ -8,6 +8,229 @@ import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, error
 import { formatCents } from "@/lib/money";
 import LevelPicker from "@/components/LevelPicker";
 import { canMarkComplete, canReportNoShow, formatPacificDateTime, formatPacificTime, noShowOpensAt, sessionEndsAt } from "@/lib/sessionTiming";
+import { freeCancelNightLabel, parentCancelOutcome, type ParentCancelOutcome } from "@/lib/cancellation";
+
+/** Exactly what cancelling will do, shown before the parent confirms. */
+function parentCancelMessage(outcome: ParentCancelOutcome, scheduledAt: Date, chargeCents: number, isPackage: boolean, coachName: string) {
+  const coach = coachName.split(" ")[0];
+  if (outcome === "FREE") {
+    return isPackage
+      ? "Cancelling now is free. The session goes back into your package."
+      : chargeCents > 0
+        ? "Cancelling now is free. Your card hold is released, so you won't be charged. Any referral credit you used comes back to your account."
+        : "Cancelling now is free, and the referral credit you used comes back to your account.";
+  }
+  const past = `It's past 11:59 PM PT on ${freeCancelNightLabel(scheduledAt)}, the free-cancellation deadline.`;
+  if (isPackage) return `${past} This session will count as used from your package, and ${coach} is paid for it.`;
+  if (chargeCents > 0) return `${past} Cancelling now charges your card the full ${formatCents(chargeCents)}, and ${coach} is paid for the session.`;
+  return `${past} The referral credit you used for this session won't come back.`;
+}
+
+/**
+ * Parent's cancel button for an upcoming session. The dialog states exactly what will happen
+ * (free, or charged in full) and sends that outcome with the request; if the deadline passed
+ * while it was open, the server refuses and the dialog shows the new terms to confirm again.
+ */
+export function CancelSessionButton({
+  bookingId,
+  scheduledAt,
+  chargeCents,
+  isPackage,
+  coachName,
+}: {
+  bookingId: string;
+  scheduledAt: string;
+  chargeCents: number;
+  isPackage: boolean;
+  coachName: string;
+}) {
+  const router = useRouter();
+  const start = new Date(scheduledAt);
+  const [outcome, setOutcome] = useState<ParentCancelOutcome | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+
+  if (done) return <p role="status" className={successClass}>{done}</p>;
+
+  if (!outcome) {
+    return (
+      <button type="button" onClick={() => setOutcome(parentCancelOutcome(start, new Date()))} className={secondaryButtonClass}>
+        Cancel session
+      </button>
+    );
+  }
+
+  async function confirm() {
+    setError(null);
+    setLoading(true);
+    const res = await fetch(`/api/bookings/${bookingId}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expected: outcome }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      if (data.code === "OUTCOME_CHANGED" && data.outcome) setOutcome(data.outcome);
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    if (data.outcome === "FREE") {
+      setDone(isPackage ? "Cancelled. The session is back in your package." : "Cancelled. You won't be charged.");
+    } else if (isPackage) {
+      setDone("Cancelled. The session counted as used from your package.");
+    } else {
+      setDone(
+        data.stripeOk
+          ? `Cancelled. Your card was charged ${formatCents(chargeCents)}.`
+          : "Cancelled. We couldn't complete the charge right now; our team will follow up.",
+      );
+    }
+    router.refresh();
+  }
+
+  const late = outcome === "LATE";
+  return (
+    <div
+      role="group"
+      aria-labelledby={`cancel-${bookingId}-title`}
+      className={`flex w-full flex-col gap-2 rounded-lg border-2 border-ink p-3 ${late ? "bg-danger/10" : "bg-muted"}`}
+    >
+      <p id={`cancel-${bookingId}-title`} className="text-sm font-bold text-ink">
+        {late ? "Cancel and pay the full price?" : "Cancel this session?"}
+      </p>
+      <p className="text-sm text-ink">{parentCancelMessage(outcome, start, chargeCents, isPackage, coachName)}</p>
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={confirm} className={primaryButtonClass} disabled={loading}>
+          {loading
+            ? "Cancelling..."
+            : late && !isPackage && chargeCents > 0
+              ? `Cancel and pay ${formatCents(chargeCents)}`
+              : "Yes, cancel"}
+        </button>
+        <button type="button" className={secondaryButtonClass} onClick={() => { setOutcome(null); setError(null); }}>
+          Keep session
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Coach's cancel button. The family is never charged when a coach cancels. */
+export function CoachCancelButton({ bookingId, familyName }: { bookingId: string; familyName: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  if (done) return <p role="status" className={successClass}>Cancelled. We&apos;ve let the family know, and they won&apos;t be charged.</p>;
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={`${secondaryButtonClass} text-danger`}>
+        Cancel session
+      </button>
+    );
+  }
+
+  async function confirm() {
+    setError(null);
+    setLoading(true);
+    const res = await fetch(`/api/bookings/${bookingId}/coach-cancel`, { method: "POST" });
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    setDone(true);
+    router.refresh();
+  }
+
+  return (
+    <div role="group" aria-label="Cancel this session" className="flex w-full flex-col gap-2 rounded-lg border-2 border-ink bg-muted p-3">
+      <p className="text-sm font-bold text-ink">Cancel this session?</p>
+      <p className="text-sm text-ink">
+        {familyName} won&apos;t be charged, and we&apos;ll tell them you cancelled. If it&apos;s from a package, the session goes
+        back into it.
+      </p>
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={confirm} className={primaryButtonClass} disabled={loading}>
+          {loading ? "Cancelling..." : "Yes, cancel"}
+        </button>
+        <button type="button" className={secondaryButtonClass} onClick={() => setOpen(false)}>
+          Keep session
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Parent asks an admin to refund a package's unused sessions. */
+export function PackageRefundRequestButton({ packageId, unused, requested }: { packageId: string; unused: number; requested: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [details, setDetails] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(requested);
+
+  if (sent) {
+    return <p role="status" className="text-sm text-muted-foreground">Refund requested. An admin will get back to you.</p>;
+  }
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={`${quietLinkClass} self-start text-muted-foreground`}>
+        Ask for a refund of {unused} unused session{unused === 1 ? "" : "s"}
+      </button>
+    );
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    const res = await fetch(`/api/packages/${packageId}/refund-request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ details }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    setSent(true);
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border-2 border-line bg-chalk p-3">
+      <p className="text-xs text-muted-foreground">
+        An admin reviews each request. If it&apos;s refunded, the unused sessions can no longer be booked.
+      </p>
+      <textarea
+        className={inputClass}
+        rows={2}
+        aria-label="Anything we should know? (optional)"
+        placeholder="Anything we should know? (optional)"
+        value={details}
+        onChange={(e) => setDetails(e.target.value)}
+      />
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className={primaryButtonClass} disabled={loading}>
+          {loading ? "Sending..." : "Send request"}
+        </button>
+        <button type="button" className={secondaryButtonClass} onClick={() => setOpen(false)}>
+          Never mind
+        </button>
+      </div>
+    </form>
+  );
+}
 
 // setTimeout can't wait longer than ~24.8 days; a page open that long just needs a reload.
 const MAX_TIMER_MS = 24 * 60 * 60 * 1000;

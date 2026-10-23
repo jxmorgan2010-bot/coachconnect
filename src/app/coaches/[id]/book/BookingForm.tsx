@@ -13,6 +13,7 @@ import { calculatePriceBreakdown, formatCents } from "@/lib/money";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import LevelPicker from "@/components/LevelPicker";
 import CardSection from "./CardSection";
+import CancellationPolicyNote from "./CancellationPolicyNote";
 
 type ChildOption = { id: string; firstName: string; gradeOrAge: string; levels: Partial<Record<Sport, SkillLevel>> };
 type OpenDay = { date: string; slots: { startsAt: string; label: string }[] };
@@ -738,8 +739,8 @@ function BookingFormInner({
                   </div>
                   <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                     Your card is authorized (held), not charged, when you book. It&apos;s charged when you mark the
-                    session complete. The price includes CoachConnect&apos;s 15% platform fee — nothing is added on top.
-                    Card/digital payment only.
+                    session complete, or if you cancel after the free-cancellation deadline. The price includes
+                    CoachConnect&apos;s 15% platform fee — nothing is added on top. Card/digital payment only.
                   </p>
                 </div>
               )}
@@ -760,6 +761,8 @@ function BookingFormInner({
                   <p className={successClass}>Fully covered by your referral credit — no card needed for this booking.</p>
                 )
               )}
+
+              <CancellationPolicyNote startsAt={time} isPackage={!!activePackage} />
 
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-line bg-surface p-3 text-sm text-ink">
                 <input

@@ -223,7 +223,13 @@ These apply to all work in this project unless a task prompt explicitly says oth
 - Never open, read, print or edit any .env file, except the Stripe test-key check below. Never write secrets to files, commits, PRs or logs.
 - Never touch Vercel settings or the Turso production database. The owner applies production database changes.
 - Never use `prisma db push` or `prisma migrate` against dev.db or production.
-- Never change the payment policy: authorize at booking, capture only when the parent marks the session complete, 48-hour auto-release, platform absorbs bundle and referral discounts.
+- Never change the payment policy (the rules live in `src/lib/cancellation.ts`, `src/lib/bookingCancellation.ts` and `src/lib/refunds.ts`):
+  - Authorize (hold) the card at booking. Capture when the parent marks the session complete, at the 48-hour auto-release, or when the parent cancels late. If the hold has expired (about 7 days), charge the card saved at booking instead.
+  - A parent cancel by 11:59 PM Pacific the night before the session's day is free: the hold is released, or the session goes back into the package.
+  - A parent cancel after that, or a parent no-show (via auto-release), is charged the full price and the coach is paid as if the session happened; a package session counts as used.
+  - A coach cancel at any time, or a coach no-show, is never charged.
+  - After a charge, only an admin can refund it (full or partial, from a dispute or the parent's problem report), waive a late-cancel charge, or refund unused package sessions, and every one is recorded with who, how much and why.
+  - The platform absorbs bundle and referral discounts.
 - Never merge a pull request. The owner merges.
 
 ### Database changes

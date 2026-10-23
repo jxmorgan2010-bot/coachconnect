@@ -11,7 +11,7 @@ import { IconArrowRight, IconMessage } from "@/components/icons";
 import ReferralPanel from "./ReferralPanel";
 import RatingForm from "./RatingForm";
 import ParentTabs from "./ParentTabs";
-import { MarkCompleteButton } from "./BookingActions";
+import { MarkCompleteButton, PackageRefundRequestButton } from "./BookingActions";
 import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
 import { COACH_TIMEZONE } from "@/lib/availability";
 import { sessionsLeft } from "@/lib/bundles";
@@ -23,7 +23,7 @@ export default async function ParentDashboard({ userId, name }: { userId: string
   });
   if (!parentProfile) return null;
 
-  const [bookings, packages] = await Promise.all([
+  const [bookings, packages, openRefundRequests] = await Promise.all([
     prisma.booking.findMany({
       where: { parentProfileId: parentProfile.id },
       include: {
@@ -39,7 +39,12 @@ export default async function ParentDashboard({ userId, name }: { userId: string
       include: { coachProfile: { include: { user: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.report.findMany({
+      where: { reporterId: parentProfile.userId, targetType: "SESSION_PACKAGE", status: "OPEN" },
+      select: { targetId: true },
+    }),
   ]);
+  const refundRequested = new Set(openRefundRequests.map((r) => r.targetId));
 
   const needingRating = bookings.filter((b) => b.status === "COMPLETED" && !b.review);
   const withNotes = bookings.filter((b) => b.status === "COMPLETED" && b.progressNoteAddedAt);
@@ -217,6 +222,9 @@ export default async function ParentDashboard({ userId, name }: { userId: string
                         <Link href={`/coaches/${pkg.coachProfileId}/book?packageId=${pkg.id}`} className={`${secondaryButtonClass} w-full`}>
                           Book next session
                         </Link>
+                        {left > 0 && (
+                          <PackageRefundRequestButton packageId={pkg.id} unused={left} requested={refundRequested.has(pkg.id)} />
+                        )}
                       </div>
                     );
                   })}
