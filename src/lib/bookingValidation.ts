@@ -253,6 +253,8 @@ type CreateConfirmedBookingInput = {
   isFirstSession: boolean;
   stripePaymentIntentId: string | null;
   stripePaymentMethodId: string | null;
+  /** Set by quick rebook; its points are awarded at completion. */
+  bookedViaQuickRebook?: boolean;
 };
 
 /**
@@ -291,6 +293,7 @@ export async function createConfirmedBooking(input: CreateConfirmedBookingInput)
         secondAdultName: input.secondAdultName?.trim() || null,
         stripePaymentIntentId: input.stripePaymentIntentId,
         stripePaymentMethodId: input.stripePaymentMethodId,
+        bookedViaQuickRebook: input.bookedViaQuickRebook ?? false,
       },
     });
 

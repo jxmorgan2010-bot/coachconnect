@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { captureHeldPayment } from "@/lib/payment";
 import { bookingChargeCents } from "@/lib/cancellation";
-import { awardPoints, POINTS_SESSION_COMPLETED } from "@/lib/points";
+import { awardPoints, POINTS_QUICK_REBOOK, POINTS_SESSION_COMPLETED } from "@/lib/points";
 import { canMarkComplete, formatPacificTime, sessionEndsAt } from "@/lib/sessionTiming";
 
 /**
@@ -47,14 +47,24 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const now = new Date();
   const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.booking.update({
-      where: { id },
+    // Guarded on CONFIRMED: a repeated or concurrent request (whose capture finds the payment
+    // already taken) completes nothing and awards no points a second time.
+    const { count } = await tx.booking.updateMany({
+      where: { id, status: "CONFIRMED" },
       data: { status: "COMPLETED", completedAt: now, paymentStatus: "CAPTURED", capturedAt: now, stripePaymentIntentId: paymentIntentId },
     });
+    if (count !== 1) return null;
     await awardPoints(tx, { parentProfileId: booking.parentProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
     await awardPoints(tx, { coachProfileId: booking.coachProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
-    return result;
+    // A quick-rebooked session earns its rebook points only once it actually happened.
+    if (booking.bookedViaQuickRebook) {
+      await awardPoints(tx, { parentProfileId: booking.parentProfileId, action: "QUICK_REBOOK", points: POINTS_QUICK_REBOOK, bookingId: id });
+    }
+    return tx.booking.findUniqueOrThrow({ where: { id } });
   });
+  if (!updated) {
+    return NextResponse.json({ error: "This session was already marked complete." }, { status: 409 });
+  }
 
   return NextResponse.json({ ok: true, booking: updated });
 }
