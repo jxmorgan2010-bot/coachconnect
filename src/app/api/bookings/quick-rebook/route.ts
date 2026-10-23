@@ -11,10 +11,12 @@ import {
 import { nextOccurrenceOf } from "@/lib/rebook";
 import { chargeOffSessionHold, cancelPaymentIntent } from "@/lib/payment";
 import { awardPoints, POINTS_QUICK_REBOOK } from "@/lib/points";
+import { isAllowedLength, lengthLabel, lengthOptions, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
 
 /**
  * One-click "book this coach again" — same coach, child, sport, duration, and location
- * as a prior booking, at the next occurrence of the same weekday/time. Charges the card
+ * as a prior booking, at the next occurrence of the same weekday/time. (If the prior
+ * length can no longer be booked, the parent is asked to pick a current one.) Charges the card
  * on file off-session (no Stripe Elements on this screen) using the payment method saved
  * from that prior booking, which is why bookings are created with
  * setup_future_usage: "off_session" in the first place.
@@ -44,6 +46,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That session has no child on file to rebook for." }, { status: 400 });
   }
 
+  // Same length as last time, unless that length can no longer be booked: then the parent
+  // picks one of the current lengths (the button shows them with prices and retries).
+  const durationMinutes = parsed.data.durationMinutes ?? priorBooking.durationMinutes;
+  if (!isAllowedLength(durationMinutes)) {
+    if (parsed.data.durationMinutes !== undefined) {
+      return NextResponse.json({ error: LENGTH_NOT_ALLOWED_MESSAGE, code: "LENGTH_NOT_ALLOWED" }, { status: 400 });
+    }
+    const coach = await prisma.coachProfile.findUnique({ where: { id: priorBooking.coachProfileId }, select: { hourlyRateCents: true } });
+    return NextResponse.json(
+      {
+        error: `Your last session was ${lengthLabel(priorBooking.durationMinutes)}. Sessions are now 45 minutes, 1 hour, or 1 hour 15 minutes. Pick a length:`,
+        code: "LENGTH_REQUIRED",
+        options: coach?.hourlyRateCents ? lengthOptions(coach.hourlyRateCents) : [],
+      },
+      { status: 400 },
+    );
+  }
+
   const scheduledAt = nextOccurrenceOf(priorBooking.scheduledAt);
 
   let validated;
@@ -53,7 +73,7 @@ export async function POST(req: Request) {
       childId: priorBooking.childId,
       sport: priorBooking.sport,
       scheduledAt,
-      durationMinutes: priorBooking.durationMinutes,
+      durationMinutes,
       locationText: priorBooking.locationText,
       secondAdultName: priorBooking.secondAdultName ?? undefined,
     });
@@ -104,7 +124,7 @@ export async function POST(req: Request) {
     childLevel,
     sport,
     scheduledAt,
-    durationMinutes: priorBooking.durationMinutes,
+    durationMinutes,
     locationText: priorBooking.locationText,
     secondAdultName: priorBooking.secondAdultName,
     priceCents: breakdown.sessionCostCents,
