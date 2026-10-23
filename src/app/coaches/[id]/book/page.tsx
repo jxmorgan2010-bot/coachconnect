@@ -6,6 +6,7 @@ import { levelsFromFlags } from "@/lib/skillLevels";
 import SuspendedBlock from "@/components/SuspendedBlock";
 import NoHoursNotice from "@/components/NoHoursNotice";
 import BookingForm from "./BookingForm";
+import { sessionsLeft } from "@/lib/bundles";
 
 export default async function BookCoachPage({
   params,
@@ -50,7 +51,7 @@ export default async function BookCoachPage({
         id: pkg.id,
         sport: pkg.sport,
         durationMinutes: pkg.durationMinutes,
-        sessionsRemaining: pkg.totalSessions - pkg.sessionsUsed,
+        sessionsRemaining: sessionsLeft(pkg),
         // Kids who have already used this package keep using it even if the coach has since
         // stopped taking their level (the server applies the same rule).
         childIdsUsed: [...new Set(pkg.bookings.flatMap((b) => (b.childId ? [b.childId] : [])))],

@@ -43,3 +43,14 @@ export function perSessionBreakdown(pricePerSessionCents: number, discountPercen
   const platformFeeCents = Math.round(priceCents * PLATFORM_FEE_RATE);
   return { priceCents, discountCents, platformFeeCents };
 }
+
+/** Sessions a parent can still book from a package: not used, and not refunded as money. */
+export function sessionsLeft(pkg: { totalSessions: number; sessionsUsed: number; sessionsCashRefunded: number }): number {
+  return Math.max(0, pkg.totalSessions - pkg.sessionsUsed - pkg.sessionsCashRefunded);
+}
+
+/** What one session of a package cost the parent (its price less the bundle discount). */
+export function paidPerSessionCents(pkg: { pricePerSessionCents: number; discountPercent: number }): number {
+  const { priceCents, discountCents } = perSessionBreakdown(pkg.pricePerSessionCents, pkg.discountPercent);
+  return priceCents - discountCents;
+}

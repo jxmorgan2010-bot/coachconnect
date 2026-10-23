@@ -14,6 +14,7 @@ import ParentTabs from "./ParentTabs";
 import { MarkCompleteButton } from "./BookingActions";
 import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
 import { COACH_TIMEZONE } from "@/lib/availability";
+import { sessionsLeft } from "@/lib/bundles";
 
 export default async function ParentDashboard({ userId, name }: { userId: string; name: string }) {
   const parentProfile = await prisma.parentProfile.findUnique({
@@ -196,7 +197,7 @@ export default async function ParentDashboard({ userId, name }: { userId: string
                 <h2 id="packages" className="mb-3 font-display text-2xl text-ink">Your packages</h2>
                 <div className="flex flex-col gap-3">
                   {packages.map((pkg) => {
-                    const left = pkg.totalSessions - pkg.sessionsUsed;
+                    const left = sessionsLeft(pkg);
                     return (
                       <div key={pkg.id} className="card flex flex-col gap-3 p-4">
                         <div>
