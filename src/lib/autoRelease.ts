@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendMockEmail } from "@/lib/mockEmail";
-import { capturePaymentIntent } from "@/lib/payment";
+import { captureHeldPayment } from "@/lib/payment";
+import { bookingChargeCents } from "@/lib/cancellation";
 import { AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
 import { formatPacificDateTime } from "@/lib/sessionTiming";
 
@@ -26,8 +27,14 @@ export async function runAutoReleaseSweep(now: Date = new Date()) {
     const sessionEndMs = b.scheduledAt.getTime() + b.durationMinutes * 60_000;
     if (sessionEndMs + AUTO_RELEASE_GRACE_HOURS * HOUR > now.getTime()) continue;
 
+    let paymentIntentId: string | null;
     try {
-      await capturePaymentIntent(b.stripePaymentIntentId, b.priceCents - b.discountCents);
+      paymentIntentId = await captureHeldPayment({
+        stripePaymentIntentId: b.stripePaymentIntentId,
+        stripeCustomerId: b.parentProfile.stripeCustomerId,
+        stripePaymentMethodId: b.stripePaymentMethodId,
+        amountCents: bookingChargeCents(b),
+      });
     } catch (err) {
       console.error(`Stripe capture failed during auto-release sweep for booking ${b.id}`, err);
       continue;
@@ -35,7 +42,14 @@ export async function runAutoReleaseSweep(now: Date = new Date()) {
 
     await prisma.booking.update({
       where: { id: b.id },
-      data: { status: "COMPLETED", completedAt: now, paymentStatus: "CAPTURED", capturedAt: now, autoCompleted: true },
+      data: {
+        status: "COMPLETED",
+        completedAt: now,
+        paymentStatus: "CAPTURED",
+        capturedAt: now,
+        autoCompleted: true,
+        stripePaymentIntentId: paymentIntentId,
+      },
     });
 
     sendMockEmail(

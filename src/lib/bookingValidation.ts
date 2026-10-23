@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isCoachLive } from "@/lib/coach";
 import { calculatePriceBreakdown } from "@/lib/money";
-import { perSessionBreakdown } from "@/lib/bundles";
+import { perSessionBreakdown, sessionsLeft } from "@/lib/bundles";
 import { rangesOverlap } from "@/lib/bookingConflicts";
 import { checkSlot, SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { generateMockVideoCallUrl } from "@/lib/videoCall";
@@ -105,7 +105,7 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
   if (!pkg || pkg.parentProfileId !== parentProfile.id) {
     throw new BookingValidationError("Package not found.");
   }
-  if (pkg.status !== "ACTIVE" || pkg.sessionsUsed >= pkg.totalSessions) {
+  if (pkg.status !== "ACTIVE" || sessionsLeft(pkg) <= 0) {
     throw new BookingValidationError("This package has no sessions left.");
   }
   if (!isCoachLive(pkg.coachProfile)) {

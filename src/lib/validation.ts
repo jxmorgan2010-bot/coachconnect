@@ -265,3 +265,21 @@ export const loginSchema = z.object({
   email: z.email(),
   password: z.string().min(1),
 });
+
+/** The outcome the parent was shown in the cancel dialog; the server refuses if it changed. */
+export const parentCancelSchema = z.object({
+  expected: z.enum(["FREE", "LATE"]),
+});
+
+export const adminRefundSchema = z.object({
+  amountCents: z.coerce.number().int("Enter the amount in whole cents."),
+  reason: z.string().trim().min(1, "Say why — the reason is kept with the refund.").max(1000),
+});
+
+export const adminWaiveSchema = z.object({
+  reason: z.string().trim().min(1, "Say why — the reason is kept with the waiver.").max(1000),
+});
+
+export const packageRefundRequestSchema = z.object({
+  details: z.string().trim().max(2000).optional(),
+});

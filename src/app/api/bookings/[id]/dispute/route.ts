@@ -19,8 +19,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!booking || booking.parentProfile.userId !== session.user.id) {
     return NextResponse.json({ error: "Booking not found." }, { status: 404 });
   }
-  if (booking.status !== "COMPLETED") {
-    return NextResponse.json({ error: "Only completed sessions can be disputed." }, { status: 400 });
+  // A late-cancelled session was charged too, so the parent can ask for a refund or a waiver.
+  const chargedLateCancel = booking.status === "CANCELLED" && booking.lateCancellation && booking.paymentStatus !== "AUTHORIZED";
+  if (booking.status !== "COMPLETED" && !chargedLateCancel) {
+    return NextResponse.json({ error: "Only completed or late-cancelled sessions can be disputed." }, { status: 400 });
   }
   if (booking.dispute) {
     return NextResponse.json({ error: "This session already has an open case." }, { status: 409 });

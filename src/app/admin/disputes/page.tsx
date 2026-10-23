@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import AdminHeader from "@/components/AdminHeader";
-import DisputeRow from "./DisputeRow";
+import DisputeRow, { type DisputeData } from "./DisputeRow";
 import { COACH_TIMEZONE } from "@/lib/availability";
+import { bookingChargeCents } from "@/lib/cancellation";
+import { isCardRefundable, waiveOutcomeText } from "@/lib/refunds";
 
 export default async function AdminDisputesPage() {
   const session = await getCurrentSession();
@@ -12,26 +14,34 @@ export default async function AdminDisputesPage() {
 
   const disputes = await prisma.dispute.findMany({
     include: {
-      booking: true,
+      booking: { include: { package: { select: { stripePaymentIntentId: true } }, refunds: true } },
       parentProfile: { include: { user: true } },
       coachProfile: { include: { user: true } },
     },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
 
-  const rows = disputes.map((d) => ({
-    id: d.id,
-    parentName: d.parentProfile.user.name,
-    coachName: d.coachProfile.user.name,
-    sessionDate: d.booking.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: COACH_TIMEZONE }),
-    sessionPriceCents: d.booking.priceCents,
-    paymentStatus: d.booking.paymentStatus,
-    reason: d.reason,
-    details: d.details,
-    status: d.status,
-    refundCents: d.refundCents,
-    adminNote: d.adminNote,
-  }));
+  const rows: DisputeData[] = disputes.map((d) => {
+    const b = d.booking;
+    const refundedCents = b.refunds.reduce((sum, r) => sum + r.amountCents, 0);
+    const waived = b.refunds.some((r) => r.kind === "LATE_CANCEL_WAIVER");
+    return {
+      id: d.id,
+      parentName: d.parentProfile.user.name,
+      coachName: d.coachProfile.user.name,
+      sessionDate: b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: COACH_TIMEZONE }),
+      chargedCents: bookingChargeCents(b),
+      refundedCents,
+      paymentStatus: b.paymentStatus,
+      refundable: isCardRefundable(b, refundedCents),
+      lateCancellation: b.lateCancellation,
+      waiveOutcome: b.lateCancellation && !waived ? waiveOutcomeText(b, refundedCents) : null,
+      reason: d.reason,
+      details: d.details,
+      status: d.status,
+      adminNote: d.adminNote,
+    };
+  });
   const isResolved = (s: string) => s === "REFUNDED" || s === "SIDED_WITH_COACH" || s === "DISMISSED";
   const active = rows.filter((r) => !isResolved(r.status));
   const resolved = rows.filter((r) => isResolved(r.status));
@@ -39,7 +49,8 @@ export default async function AdminDisputesPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-12">
       <AdminHeader title="Disputes">
-        Parents can flag a session as a problem. Issue a refund, side with the coach, or ask both sides for more info.
+        Parents can flag a charged session as a problem, including a late cancellation. Refund all or part of it,
+        waive a late-cancel charge, side with the coach, or ask both sides for more info.
       </AdminHeader>
 
       <div className="flex flex-col gap-10">

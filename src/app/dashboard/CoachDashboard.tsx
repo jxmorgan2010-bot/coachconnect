@@ -11,7 +11,7 @@ import { secondaryButtonClass } from "@/lib/ui";
 import { SPORT_LABELS } from "@/lib/sports";
 import { SKILL_LEVEL_LABELS } from "@/lib/skillLevels";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
-import { ProgressNoteForm } from "./BookingActions";
+import { CoachCancelButton, ProgressNoteForm } from "./BookingActions";
 import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
 import { COACH_TIMEZONE } from "@/lib/availability";
 import VerificationCard, { getVerificationItems } from "./VerificationCard";
@@ -64,7 +64,7 @@ export default async function CoachDashboard({
   function paymentNote(b: (typeof upcoming)[number]) {
     if (b.packageId) return "Prepaid package session.";
     if (b.paymentStatus === "AUTHORIZED") {
-      return "Card held. It's charged when the parent marks the session complete. Coach payouts aren't set up yet.";
+      return "Card held. It's charged when the parent marks the session complete, or if they cancel after 11:59 PM PT the night before. Coach payouts aren't set up yet.";
     }
     return "No card hold on this session.";
   }
@@ -97,6 +97,11 @@ export default async function CoachDashboard({
             {paymentNote(b)}
           </p>
           {/* videoCallUrl is a mock placeholder link, so it isn't shown until a real provider exists. */}
+          {!waiting && (
+            <div className="mt-3">
+              <CoachCancelButton bookingId={b.id} familyName={`${b.parentProfile.user.name.split(" ")[0]}'s family`} />
+            </div>
+          )}
         </div>
       </li>
     );

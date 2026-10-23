@@ -4,10 +4,22 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputClass, secondaryButtonClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 
-export default function DisputeButton({ bookingId }: { bookingId: string }) {
+/**
+ * Opens an admin case on a session. `presetReason` skips the "What happened?" choice, for
+ * asks with only one sensible reason (a waiver request on a late cancellation).
+ */
+export default function DisputeButton({
+  bookingId,
+  presetReason,
+  buttonLabel = "Report a problem",
+}: {
+  bookingId: string;
+  presetReason?: "OTHER";
+  buttonLabel?: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState<string>(presetReason ?? "");
   const [details, setDetails] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,7 +32,7 @@ export default function DisputeButton({ bookingId }: { bookingId: string }) {
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={`${secondaryButtonClass} text-danger`}>
-        Report a problem
+        {buttonLabel}
       </button>
     );
   }
@@ -47,12 +59,14 @@ export default function DisputeButton({ bookingId }: { bookingId: string }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border-2 border-ink bg-danger/10 p-3">
       {error && <p role="alert" className={errorClass}>{error}</p>}
-      <select aria-label="What happened?" className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} required>
-        <option value="" disabled>What happened?</option>
-        <option value="NO_SHOW">Coach didn&apos;t show up</option>
-        <option value="DISSATISFIED">Not satisfied with the session</option>
-        <option value="OTHER">Other issue</option>
-      </select>
+      {!presetReason && (
+        <select aria-label="What happened?" className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} required>
+          <option value="" disabled>What happened?</option>
+          <option value="NO_SHOW">Coach didn&apos;t show up</option>
+          <option value="DISSATISFIED">Not satisfied with the session</option>
+          <option value="OTHER">Other issue</option>
+        </select>
+      )}
       <textarea
         aria-label="Details for the admin"
         className={inputClass}
