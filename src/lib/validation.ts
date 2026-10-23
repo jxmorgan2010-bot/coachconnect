@@ -64,6 +64,8 @@ export const packageConfirmSchema = z.object({
 
 export const quickRebookSchema = z.object({
   bookingId: z.string().trim().min(1),
+  // Only sent when the earlier session's length can no longer be booked (LENGTH_REQUIRED).
+  durationMinutes: z.coerce.number().int().optional(),
 });
 
 export const pointsRedeemSchema = z.object({

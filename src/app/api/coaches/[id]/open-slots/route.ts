@@ -8,8 +8,12 @@ import {
   COACH_TIMEZONE,
   SLOT_HOLDING_STATUS_FILTER,
 } from "@/lib/availability";
+import { LEGACY_PACKAGE_LENGTHS, SESSION_LENGTHS } from "@/lib/sessionLengths";
 
-const ALLOWED_DURATIONS = new Set([30, 60, 90, 120]);
+// The bookable lengths, plus the older lengths a prepaid package may still have (booking
+// from such a package keeps its length). Read-only: every route that creates a booking or
+// package checks the length itself.
+const ALLOWED_DURATIONS = new Set<number>([...SESSION_LENGTHS, ...LEGACY_PACKAGE_LENGTHS]);
 const MAX_DAYS = 42;
 
 /**

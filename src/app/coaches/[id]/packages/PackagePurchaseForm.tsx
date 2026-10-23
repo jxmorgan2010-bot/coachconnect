@@ -11,8 +11,8 @@ import { calculateBundlePricing } from "@/lib/bundles";
 import { formatCents } from "@/lib/money";
 import { inputClass, labelClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 import CardSection from "../book/CardSection";
-
-const DURATIONS = [30, 60, 90, 120];
+import LengthPicker from "@/components/LengthPicker";
+import { DEFAULT_SESSION_LENGTH, packageLengthOptions } from "@/lib/sessionLengths";
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
@@ -41,7 +41,7 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
   const elements = useElements();
 
   const [sport, setSport] = useState<Sport>(coach.sports[0]);
-  const [duration, setDuration] = useState(60);
+  const [duration, setDuration] = useState<number>(DEFAULT_SESSION_LENGTH);
   const [zip, setZip] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -165,13 +165,26 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
             </p>
           </div>
 
-          <div>
-            <label className={labelClass} htmlFor="duration">Session length</label>
-            <select id="duration" className={inputClass} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-              {DURATIONS.map((d) => (
-                <option key={d} value={d}>{d} minutes</option>
-              ))}
-            </select>
+          <div className="sm:col-span-2">
+            <LengthPicker
+              name="duration"
+              legend={
+                <>
+                  Session length{" "}
+                  <span className="font-normal text-muted-foreground">
+                    · {coach.name.split(" ")[0]}&apos;s rate is {formatCents(coach.hourlyRateCents)}/hr
+                  </span>
+                </>
+              }
+              options={packageLengthOptions(coach.hourlyRateCents).map((o) => ({
+                minutes: o.minutes,
+                label: o.label,
+                price: formatCents(o.pricing.totalChargedCents),
+                note: `${o.pricing.sessionCount} × ${formatCents(o.pricing.pricePerSessionCents)}, save ${formatCents(o.pricing.savingsCents)}`,
+              }))}
+              value={duration}
+              onChange={setDuration}
+            />
           </div>
         </div>
 

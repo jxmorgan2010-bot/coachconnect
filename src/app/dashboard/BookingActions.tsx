@@ -7,6 +7,7 @@ import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import { formatCents } from "@/lib/money";
 import LevelPicker from "@/components/LevelPicker";
+import LengthPicker from "@/components/LengthPicker";
 import { canMarkComplete, canReportNoShow, formatPacificDateTime, formatPacificTime, noShowOpensAt, sessionEndsAt } from "@/lib/sessionTiming";
 import { freeCancelNightLabel, parentCancelOutcome, type ParentCancelOutcome } from "@/lib/cancellation";
 
@@ -415,10 +416,17 @@ export function QuickRebookButton({
   // Set when the server asks for the child's level (LEVEL_REQUIRED): pick it here, save, retry.
   const [levelNeeded, setLevelNeeded] = useState<{ childId: string; sport: Sport; prompt: string } | null>(null);
   const [levelDraft, setLevelDraft] = useState<SkillLevel | null>(null);
+  // Set when the earlier session's length can no longer be booked (LENGTH_REQUIRED).
+  const [lengthNeeded, setLengthNeeded] = useState<{ prompt: string; options: { minutes: number; label: string; priceCents: number }[] } | null>(null);
+  const [lengthDraft, setLengthDraft] = useState<number | null>(null);
 
   async function onClick() {
     setError(null);
     setErrorCode(null);
+    if (lengthNeeded && !lengthDraft) {
+      setError("Choose a length first.");
+      return;
+    }
     setLoading(true);
 
     if (levelNeeded) {
@@ -444,11 +452,15 @@ export function QuickRebookButton({
     const res = await fetch("/api/bookings/quick-rebook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId }),
+      body: JSON.stringify({ bookingId, ...(lengthDraft ? { durationMinutes: lengthDraft } : {}) }),
     });
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
+      if (data.code === "LENGTH_REQUIRED" && Array.isArray(data.options)) {
+        setLengthNeeded({ prompt: data.error, options: data.options });
+        return;
+      }
       if (data.code === "LEVEL_REQUIRED" && data.childId && data.sport) {
         setLevelNeeded({ childId: data.childId, sport: data.sport, prompt: data.error });
         setLevelDraft(null);
@@ -472,6 +484,17 @@ export function QuickRebookButton({
       {errorCode === "LEVEL_NOT_ACCEPTED" && (
         <Link href="/dashboard/family" className={`${quietLinkClass} text-pitch`}>Update levels on your family page</Link>
       )}
+      {lengthNeeded && (
+        <div className="w-full max-w-md">
+          <LengthPicker
+            name={`rebook-length-${bookingId}`}
+            legend={lengthNeeded.prompt}
+            options={lengthNeeded.options.map((o) => ({ ...o, price: formatCents(o.priceCents) }))}
+            value={lengthDraft}
+            onChange={setLengthDraft}
+          />
+        </div>
+      )}
       {levelNeeded && (
         <div className="w-full max-w-md">
           <LevelPicker
@@ -483,7 +506,13 @@ export function QuickRebookButton({
         </div>
       )}
       <button onClick={onClick} className={secondaryButtonClass} disabled={loading} aria-describedby={secondAdultName ? `rebook-adult-${bookingId}` : undefined}>
-        {loading ? "Rebooking..." : levelNeeded ? "Save level and rebook" : `Quick rebook with ${coachName}`}
+        {loading
+          ? "Rebooking..."
+          : levelNeeded
+            ? "Save level and rebook"
+            : lengthNeeded
+              ? `Rebook for ${lengthNeeded.options.find((o) => o.minutes === lengthDraft)?.label ?? "this length"}`
+              : `Quick rebook with ${coachName}`}
       </button>
       {secondAdultName && (
         <p id={`rebook-adult-${bookingId}`} className="max-w-xs text-xs text-muted-foreground">
