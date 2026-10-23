@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canMarkComplete, canReportNoShow, formatPacificTime, noShowOpensAt, sessionEndsAt } from "./sessionTiming";
+import {
+  canMarkComplete,
+  canReportNoShow,
+  formatPacificDateTime,
+  formatPacificTime,
+  noShowOpensAt,
+  sessionEndsAt,
+} from "./sessionTiming";
 
 // Sat 2026-10-24, 4:30 PM PDT (UTC-7), one hour.
 const session = { scheduledAt: new Date("2026-10-24T23:30:00Z"), durationMinutes: 60 };
@@ -34,6 +41,8 @@ test("times are shown in Pacific, in both daylight and standard time", () => {
   assert.equal(formatPacificTime(sessionEndsAt(session)), "5:30 PM PT");
   // Sat 2026-12-05, 9:00 AM PST (UTC-8).
   assert.equal(formatPacificTime(at("2026-12-05T17:00:00Z")), "9:00 AM PT");
+  // 4:30 PM on Oct 24 in Pacific is already Oct 25 in UTC; the date must stay Oct 24.
+  assert.equal(formatPacificDateTime(at("2026-10-25T00:30:00Z")), "Oct 24, 5:30 PM PT");
 });
 
 test("a session across the November clock change still ends an hour after it starts", () => {

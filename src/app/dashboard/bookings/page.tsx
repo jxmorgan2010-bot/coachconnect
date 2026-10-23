@@ -12,7 +12,7 @@ import ParentTabs from "../ParentTabs";
 import RatingForm from "../RatingForm";
 import SatisfactionGuaranteeNotice from "@/components/SatisfactionGuaranteeNotice";
 import { SessionTimingActions, TipForm, QuickRebookButton } from "../BookingActions";
-import { canMarkComplete } from "@/lib/sessionTiming";
+import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
 
 const STATUS_VARIANT = {
   PENDING_CONSENT: "warning",
@@ -118,7 +118,7 @@ export default async function MyBookingsPage() {
                             )}
                           </div>
                           <p className="mt-1.5 text-sm text-muted-foreground">
-                            {b.scheduledAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} ·{" "}
+                            {formatPacificTime(b.scheduledAt)} ·{" "}
                             {b.durationMinutes} min · {b.locationText}
                           </p>
                           <p className="mt-1.5 text-sm">

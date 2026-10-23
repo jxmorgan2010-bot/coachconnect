@@ -12,7 +12,8 @@ import { SPORT_LABELS } from "@/lib/sports";
 import { SKILL_LEVEL_LABELS } from "@/lib/skillLevels";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { ProgressNoteForm } from "./BookingActions";
-import { canMarkComplete } from "@/lib/sessionTiming";
+import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
+import { COACH_TIMEZONE } from "@/lib/availability";
 import VerificationCard, { getVerificationItems } from "./VerificationCard";
 
 export default async function CoachDashboard({
@@ -88,7 +89,7 @@ export default async function CoachDashboard({
             <span className="font-display text-lg leading-none text-pitch">{formatCents(b.priceCents - b.discountCents)}</span>
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {b.scheduledAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · {b.durationMinutes} min ·{" "}
+            {formatPacificTime(b.scheduledAt)} · {b.durationMinutes} min ·{" "}
             {b.locationText}
           </p>
           <p className="mt-1.5 text-xs font-bold text-muted-foreground">
@@ -233,7 +234,7 @@ export default async function CoachDashboard({
                       <SportPill sport={b.sport} /> {b.child?.firstName ?? "Session"}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
+                      {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: COACH_TIMEZONE })} ·{" "}
                       {b.parentProfile.user.name}&apos;s family
                     </p>
                   </div>

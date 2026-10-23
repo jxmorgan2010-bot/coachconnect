@@ -1,4 +1,6 @@
-/** Calendar-tile date stamp used on session lists: short month over a big day number. */
+import { COACH_TIMEZONE, toPacificParts } from "@/lib/availability";
+
+/** Calendar-tile date stamp used on session lists: short month over a big day number, in Pacific. */
 export default function DateTile({ date, muted = false }: { date: Date; muted?: boolean }) {
   return (
     <div
@@ -7,11 +9,11 @@ export default function DateTile({ date, muted = false }: { date: Date; muted?: 
       }`}
     >
       <span className={`eyebrow w-full py-1 ${muted ? "bg-line text-ink" : "bg-ink text-white"}`}>
-        {date.toLocaleDateString("en-US", { month: "short" })}
+        {date.toLocaleDateString("en-US", { month: "short", timeZone: COACH_TIMEZONE })}
       </span>
-      <span className="font-display py-1 text-2xl leading-none">{date.getDate()}</span>
+      <span className="font-display py-1 text-2xl leading-none">{Number(toPacificParts(date).date.slice(8))}</span>
       <span className="pb-1 text-[10px] font-bold uppercase">
-        {date.toLocaleDateString("en-US", { weekday: "short" })}
+        {date.toLocaleDateString("en-US", { weekday: "short", timeZone: COACH_TIMEZONE })}
       </span>
     </div>
   );

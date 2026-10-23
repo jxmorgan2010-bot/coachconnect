@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { sendMockEmail } from "@/lib/mockEmail";
 import { capturePaymentIntent } from "@/lib/payment";
 import { AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
+import { formatPacificDateTime } from "@/lib/sessionTiming";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -45,7 +46,7 @@ export async function runAutoReleaseSweep(now: Date = new Date()) {
     sendMockEmail(
       b.coachProfile.user.email,
       "Payment released",
-      `Your session on ${b.scheduledAt.toLocaleString()} was auto-completed after ${AUTO_RELEASE_GRACE_HOURS} hours with no response from the parent, and payment has been released.`,
+      `Your session on ${formatPacificDateTime(b.scheduledAt)} was auto-completed after ${AUTO_RELEASE_GRACE_HOURS} hours with no response from the parent, and payment has been released.`,
     );
     releasedCount++;
   }

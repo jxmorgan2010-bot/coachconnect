@@ -7,7 +7,7 @@ import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import { formatCents } from "@/lib/money";
 import LevelPicker from "@/components/LevelPicker";
-import { canMarkComplete, canReportNoShow, formatPacificTime, noShowOpensAt, sessionEndsAt } from "@/lib/sessionTiming";
+import { canMarkComplete, canReportNoShow, formatPacificDateTime, formatPacificTime, noShowOpensAt, sessionEndsAt } from "@/lib/sessionTiming";
 
 // setTimeout can't wait longer than ~24.8 days; a page open that long just needs a reload.
 const MAX_TIMER_MS = 24 * 60 * 60 * 1000;
@@ -235,7 +235,7 @@ export function QuickRebookButton({
       setErrorCode(data.code ?? null);
       return;
     }
-    setSuccess(new Date(data.scheduledAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+    setSuccess(formatPacificDateTime(new Date(data.scheduledAt)));
     router.refresh();
   }
 

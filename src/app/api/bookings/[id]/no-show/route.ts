@@ -5,7 +5,7 @@ import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { noShowSchema } from "@/lib/validation";
 import { cancelPaymentIntent } from "@/lib/payment";
 import { sendMockEmail } from "@/lib/mockEmail";
-import { canReportNoShow, formatPacificTime, noShowOpensAt, NO_SHOW_GRACE_MINUTES } from "@/lib/sessionTiming";
+import { canReportNoShow, formatPacificDateTime, formatPacificTime, noShowOpensAt, NO_SHOW_GRACE_MINUTES } from "@/lib/sessionTiming";
 
 const DEFAULT_DETAILS = "Parent reported that the coach did not show up.";
 
@@ -108,7 +108,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   sendMockEmail(
     booking.coachProfile.user.email,
     "Session flagged as a no-show",
-    `The parent for your ${booking.scheduledAt.toLocaleString()} session reported that it didn't happen. This has been flagged for admin review.`,
+    `The parent for your ${formatPacificDateTime(booking.scheduledAt)} session reported that it didn't happen. This has been flagged for admin review.`,
   );
 
   return NextResponse.json({ ok: true });

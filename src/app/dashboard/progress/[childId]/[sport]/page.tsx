@@ -7,6 +7,7 @@ import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import SportPill from "@/components/SportPill";
 import { quietLinkClass } from "@/lib/ui";
 import type { Sport } from "@/generated/prisma/client";
+import { COACH_TIMEZONE } from "@/lib/availability";
 
 export default async function ProgressHistoryPage({
   params,
@@ -85,7 +86,7 @@ export default async function ProgressHistoryPage({
               {notes.map((b) => (
                 <li key={b.id}>
                   <p className="text-xs font-bold text-muted-foreground">
-                    {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} with{" "}
+                    {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: COACH_TIMEZONE })} with{" "}
                     {b.coachProfile.user.name}
                   </p>
                   <p className="mt-1 text-sm text-ink">

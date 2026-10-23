@@ -12,7 +12,8 @@ import ReferralPanel from "./ReferralPanel";
 import RatingForm from "./RatingForm";
 import ParentTabs from "./ParentTabs";
 import { MarkCompleteButton } from "./BookingActions";
-import { canMarkComplete } from "@/lib/sessionTiming";
+import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
+import { COACH_TIMEZONE } from "@/lib/availability";
 
 export default async function ParentDashboard({ userId, name }: { userId: string; name: string }) {
   const parentProfile = await prisma.parentProfile.findUnique({
@@ -106,7 +107,7 @@ export default async function ParentDashboard({ userId, name }: { userId: string
                       <p className="font-bold text-ink">{nextUp.child?.firstName ?? "Session"} with {nextUp.coachProfile.user.name}</p>
                     </div>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                      {nextUp.scheduledAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} ·{" "}
+                      {formatPacificTime(nextUp.scheduledAt)} ·{" "}
                       {nextUp.durationMinutes} min · {nextUp.locationText}
                     </p>
                     {upcoming.length > 1 && (
@@ -134,7 +135,7 @@ export default async function ParentDashboard({ userId, name }: { userId: string
                       <p className="font-bold text-ink">Did this session happen?</p>
                       <p className="text-sm text-muted-foreground">
                         {b.child?.firstName ?? "Session"} with {b.coachProfile.user.name} ·{" "}
-                        {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Marking it
+                        {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: COACH_TIMEZONE })}. Marking it
                         complete pays the coach.
                       </p>
                     </div>
@@ -166,7 +167,7 @@ export default async function ParentDashboard({ userId, name }: { userId: string
                         {entries.map((b) => (
                           <li key={b.id}>
                             <p className="text-xs font-bold text-muted-foreground">
-                              {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })} with {b.coachProfile.user.name}
+                              {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: COACH_TIMEZONE })} with {b.coachProfile.user.name}
                             </p>
                             <p className="mt-0.5 text-sm text-ink">
                               <span className="font-bold">Worked on: </span>

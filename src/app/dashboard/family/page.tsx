@@ -12,6 +12,7 @@ import { secondaryButtonClass, quietLinkClass } from "@/lib/ui";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import ParentTabs from "../ParentTabs";
 import ChildLevelsCard from "./ChildLevelsCard";
+import { formatPacificTime } from "@/lib/sessionTiming";
 
 const STATUS_VARIANT = {
   PENDING_CONSENT: "warning",
@@ -119,7 +120,7 @@ export default async function FamilyDashboardPage() {
                     <Badge variant={STATUS_VARIANT[b.status]}>{formatCents(b.priceCents - b.discountCents)}</Badge>
                   </div>
                   <p className="mt-1.5 text-sm text-muted-foreground">
-                    {b.scheduledAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · {b.locationText}
+                    {formatPacificTime(b.scheduledAt)} · {b.locationText}
                   </p>
                 </div>
               </li>

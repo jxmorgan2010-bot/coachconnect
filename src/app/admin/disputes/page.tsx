@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import AdminHeader from "@/components/AdminHeader";
 import DisputeRow from "./DisputeRow";
+import { COACH_TIMEZONE } from "@/lib/availability";
 
 export default async function AdminDisputesPage() {
   const session = await getCurrentSession();
@@ -22,7 +23,7 @@ export default async function AdminDisputesPage() {
     id: d.id,
     parentName: d.parentProfile.user.name,
     coachName: d.coachProfile.user.name,
-    sessionDate: d.booking.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    sessionDate: d.booking.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: COACH_TIMEZONE }),
     sessionPriceCents: d.booking.priceCents,
     paymentStatus: d.booking.paymentStatus,
     reason: d.reason,

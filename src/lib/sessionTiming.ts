@@ -8,7 +8,7 @@
  * Bookings are stored as UTC instants, so comparing instants is already correct for the
  * coach's Pacific schedule (DST included). Pacific only matters when showing the time.
  */
-import { formatSlotLabel, toPacificParts } from "@/lib/availability";
+import { COACH_TIMEZONE, formatSlotLabel, toPacificParts } from "@/lib/availability";
 
 export const NO_SHOW_GRACE_MINUTES = 15;
 
@@ -33,4 +33,10 @@ export function canReportNoShow(b: Pick<Timed, "scheduledAt">, now: Date = new D
 /** "5:30 PM PT", independent of the server's or browser's own timezone. */
 export function formatPacificTime(instant: Date): string {
   return `${formatSlotLabel(toPacificParts(instant).minutes)} PT`;
+}
+
+/** "Oct 24, 4:30 PM PT", for emails and messages that name a session's date and time. */
+export function formatPacificDateTime(instant: Date): string {
+  const date = instant.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: COACH_TIMEZONE });
+  return `${date}, ${formatPacificTime(instant)}`;
 }
