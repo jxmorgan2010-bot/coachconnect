@@ -7,28 +7,84 @@ import { getStripe } from "@/lib/stripe";
  * the relevant Stripe id is null.
  */
 
-export async function capturePaymentIntent(stripePaymentIntentId: string | null, amountCents: number, label = "session") {
+/**
+ * Charges a booking's held card for `amountCents` (completion, auto-release, late cancel).
+ *
+ * Stripe cancels an uncaptured hold after about 7 days, so a session booked further ahead
+ * can reach this point with no live hold. A CONFIRMED booking's hold is only ever cancelled
+ * by that expiry, so in that case the card saved at booking (setup_future_usage) is charged
+ * off-session instead. Returns the PaymentIntent that now holds the money: the same id, the
+ * new charge's id, or null when the booking never had a card hold (covered by credit).
+ * Throws if Stripe declines, so callers can leave the booking flagged for an admin.
+ */
+export async function captureHeldPayment({
+  stripePaymentIntentId,
+  stripeCustomerId,
+  stripePaymentMethodId,
+  amountCents,
+  label = "session",
+}: {
+  stripePaymentIntentId: string | null;
+  stripeCustomerId: string | null;
+  stripePaymentMethodId: string | null;
+  amountCents: number;
+  label?: string;
+}): Promise<string | null> {
   if (!stripePaymentIntentId) {
     console.log(`💳 [payment] No card hold to capture (${label}) — session total was covered without a charge.`);
-    return;
+    return null;
   }
   const stripe = getStripe();
-  await stripe.paymentIntents.capture(stripePaymentIntentId, { amount_to_capture: amountCents });
-  console.log(`💳 [payment] Captured $${(amountCents / 100).toFixed(2)} (${label}) — intent ${stripePaymentIntentId}`);
+  const intent = await stripe.paymentIntents.retrieve(stripePaymentIntentId);
+
+  // A retried request after an earlier capture went through.
+  if (intent.status === "succeeded") return intent.id;
+
+  if (intent.status === "requires_capture") {
+    await stripe.paymentIntents.capture(intent.id, { amount_to_capture: amountCents });
+    console.log(`💳 [payment] Captured $${(amountCents / 100).toFixed(2)} (${label}) — intent ${intent.id}`);
+    return intent.id;
+  }
+
+  if (intent.status === "canceled" && stripeCustomerId && stripePaymentMethodId) {
+    const charge = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: "usd",
+      customer: stripeCustomerId,
+      payment_method: stripePaymentMethodId,
+      off_session: true,
+      confirm: true,
+      metadata: { ...intent.metadata, replacesExpiredHold: intent.id },
+    });
+    if (charge.status !== "succeeded") {
+      throw new Error(`Off-session charge ${charge.id} for an expired hold ended as ${charge.status}.`);
+    }
+    console.log(`💳 [payment] Hold ${intent.id} had expired; charged $${(amountCents / 100).toFixed(2)} (${label}) off-session — intent ${charge.id}`);
+    return charge.id;
+  }
+
+  throw new Error(`PaymentIntent ${intent.id} can't be charged (status ${intent.status}, no saved card to fall back on).`);
 }
 
+/** Releases a card hold. A hold Stripe already cancelled (it expired) counts as released. */
 export async function cancelPaymentIntent(stripePaymentIntentId: string | null) {
   if (!stripePaymentIntentId) return;
   const stripe = getStripe();
-  await stripe.paymentIntents.cancel(stripePaymentIntentId);
+  try {
+    await stripe.paymentIntents.cancel(stripePaymentIntentId);
+  } catch (err) {
+    const alreadyCancelled = (err as { payment_intent?: { status?: string } }).payment_intent?.status === "canceled";
+    if (!alreadyCancelled) throw err;
+  }
   console.log(`💳 [payment] Cancelled/voided hold — intent ${stripePaymentIntentId} — parent was never charged`);
 }
 
-export async function refundCapturedPayment(stripePaymentIntentId: string | null, amountCents: number) {
-  if (!stripePaymentIntentId) return;
+/** Refunds part or all of a captured payment. Returns Stripe's refund id. */
+export async function refundCapturedPayment(stripePaymentIntentId: string, amountCents: number): Promise<string> {
   const stripe = getStripe();
-  await stripe.refunds.create({ payment_intent: stripePaymentIntentId, amount: amountCents });
-  console.log(`💳 [payment] Refunded $${(amountCents / 100).toFixed(2)} — intent ${stripePaymentIntentId}`);
+  const refund = await stripe.refunds.create({ payment_intent: stripePaymentIntentId, amount: amountCents });
+  console.log(`💳 [payment] Refunded $${(amountCents / 100).toFixed(2)} — intent ${stripePaymentIntentId} — refund ${refund.id}`);
+  return refund.id;
 }
 
 /** Tips are charged off-session against the card saved during booking, no further customer action needed. */
