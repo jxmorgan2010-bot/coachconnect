@@ -1,12 +1,83 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import { formatCents } from "@/lib/money";
 import LevelPicker from "@/components/LevelPicker";
+import { canMarkComplete, canReportNoShow, formatPacificDateTime, formatPacificTime, noShowOpensAt, sessionEndsAt } from "@/lib/sessionTiming";
+
+// setTimeout can't wait longer than ~24.8 days; a page open that long just needs a reload.
+const MAX_TIMER_MS = 24 * 60 * 60 * 1000;
+
+function msUntil(instantMs: number): number {
+  return Math.max(0, instantMs - Date.now());
+}
+
+/**
+ * "Mark session complete" and "Coach didn't show" for a confirmed session, each shown only
+ * once the server will accept it (see src/lib/sessionTiming.ts). Starts from the server's
+ * clock so hydration matches, then re-renders itself when the next action opens, so a
+ * parent waiting at the field doesn't have to reload.
+ */
+export function SessionTimingActions({
+  bookingId,
+  scheduledAt,
+  durationMinutes,
+  renderedAt,
+}: {
+  bookingId: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  renderedAt: string;
+}) {
+  const [now, setNow] = useState(() => new Date(renderedAt));
+  const session = { scheduledAt: new Date(scheduledAt), durationMinutes };
+  const noShowAt = noShowOpensAt(session);
+  const endsAt = sessionEndsAt(session);
+  const noShowOpen = canReportNoShow(session, now);
+  const completeOpen = canMarkComplete(session, now);
+
+  const nowMs = now.getTime();
+  const noShowMs = noShowAt.getTime();
+  const endsMs = endsAt.getTime();
+  useEffect(() => {
+    const next = [noShowMs, endsMs].find((t) => t > nowMs);
+    if (next === undefined) return;
+    const delay = msUntil(next);
+    if (delay > MAX_TIMER_MS) return;
+    const timer = setTimeout(() => setNow(new Date()), delay);
+    return () => clearTimeout(timer);
+  }, [nowMs, noShowMs, endsMs]);
+
+  if (completeOpen) {
+    return (
+      <>
+        <MarkCompleteButton bookingId={bookingId} />
+        <NoShowButton bookingId={bookingId} />
+      </>
+    );
+  }
+
+  const endTime = formatPacificTime(endsAt);
+  if (noShowOpen) {
+    return (
+      <>
+        <NoShowButton bookingId={bookingId} />
+        <p className="self-center text-sm text-muted-foreground">You can mark it complete after {endTime}.</p>
+      </>
+    );
+  }
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      Coach not there by {formatPacificTime(noShowAt)}? You can report it here then. You can mark the session complete
+      after {endTime}.
+    </p>
+  );
+}
 
 export function MarkCompleteButton({ bookingId }: { bookingId: string }) {
   const router = useRouter();
@@ -164,7 +235,7 @@ export function QuickRebookButton({
       setErrorCode(data.code ?? null);
       return;
     }
-    setSuccess(new Date(data.scheduledAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+    setSuccess(formatPacificDateTime(new Date(data.scheduledAt)));
     router.refresh();
   }
 

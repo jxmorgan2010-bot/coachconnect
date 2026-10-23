@@ -7,6 +7,7 @@ import BarList from "@/components/BarList";
 import AdminHeader from "@/components/AdminHeader";
 import ReminderSweepButton from "./ReminderSweepButton";
 import AutoReleaseSweepButton from "./AutoReleaseSweepButton";
+import { COACH_TIMEZONE } from "@/lib/availability";
 
 export default async function AdminAnalyticsPage() {
   const session = await getCurrentSession();
@@ -25,7 +26,7 @@ export default async function AdminAnalyticsPage() {
   for (const b of bookings) {
     bySport.set(b.sport, (bySport.get(b.sport) ?? 0) + 1);
 
-    const monthKey = b.scheduledAt.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const monthKey = b.scheduledAt.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: COACH_TIMEZONE });
     const netCents = b.priceCents - b.discountCents;
     byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + netCents);
 
