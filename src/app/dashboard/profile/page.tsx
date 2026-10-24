@@ -36,6 +36,8 @@ const historySelect = {
   scheduledAt: true,
   sport: true,
   status: true,
+  cancelledBy: true,
+  lateCancellation: true,
   childLevel: true,
   child: { select: { firstName: true } },
 } as const;
@@ -88,6 +90,8 @@ export default async function MyCoachProfilePage({
     scheduledAt: b.scheduledAt,
     sport: b.sport,
     status: b.status,
+    cancelledBy: b.cancelledBy,
+    lateCancellation: b.lateCancellation,
     childLevel: b.childLevel,
     childFirstName: b.child?.firstName ?? null,
   });

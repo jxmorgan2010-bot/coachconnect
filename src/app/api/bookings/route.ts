@@ -12,6 +12,7 @@ import { generateMockVideoCallUrl } from "@/lib/videoCall";
 import { rangesOverlap } from "@/lib/bookingConflicts";
 import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { getStripe } from "@/lib/stripe";
+import { sessionsLeft } from "@/lib/bundles";
 
 export async function POST(req: Request) {
   const session = await getCurrentSession();
@@ -172,7 +173,7 @@ async function handlePackageBooking(
       where: { id: pkg.id },
       data: {
         sessionsUsed,
-        status: sessionsUsed >= pkg.totalSessions ? "DEPLETED" : "ACTIVE",
+        status: sessionsLeft({ ...pkg, sessionsUsed }) <= 0 ? "DEPLETED" : "ACTIVE",
       },
     });
 

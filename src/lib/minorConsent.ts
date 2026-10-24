@@ -417,6 +417,7 @@ async function cancelBookingsAfterRevocation(
           status: "CANCELLED",
           cancelledAt: now,
           cancelReason: REVOKED_CANCEL_REASON,
+          cancelledBy: "PLATFORM",
           ...(b.packageId ? { paymentStatus: "REFUNDED" as const } : {}),
         },
       });

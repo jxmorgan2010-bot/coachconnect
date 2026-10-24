@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { BookingStatus, SkillLevel, Sport } from "@/generated/prisma/client";
+import type { BookingStatus, CancelledBy, SkillLevel, Sport } from "@/generated/prisma/client";
 import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
 import { SPORT_LABELS } from "@/lib/sports";
@@ -12,6 +12,8 @@ export type HistoryBooking = {
   scheduledAt: Date;
   sport: Sport;
   status: BookingStatus;
+  cancelledBy: CancelledBy | null;
+  lateCancellation: boolean;
   childLevel: SkillLevel | null;
   childFirstName: string | null;
 };
@@ -19,7 +21,7 @@ export type HistoryBooking = {
 const TZ = "America/Los_Angeles";
 
 function BookingRow({ b, now }: { b: HistoryBooking; now: Date }) {
-  const status = bookingHistoryStatus(b.status, b.scheduledAt, now);
+  const status = bookingHistoryStatus(b.status, b.scheduledAt, now, b);
   const year = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", timeZone: TZ });
   return (
     <li className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-4 py-3 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:items-center">

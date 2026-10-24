@@ -11,8 +11,9 @@ import { IconStar, IconArrowRight } from "@/components/icons";
 import ParentTabs from "../ParentTabs";
 import RatingForm from "../RatingForm";
 import SatisfactionGuaranteeNotice from "@/components/SatisfactionGuaranteeNotice";
-import { SessionTimingActions, TipForm, QuickRebookButton } from "../BookingActions";
+import { CancelSessionButton, SessionTimingActions, TipForm, QuickRebookButton } from "../BookingActions";
 import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
+import { bookingChargeCents, canParentCancel, freeCancelPolicyText, parentCancelOutcome } from "@/lib/cancellation";
 
 const STATUS_VARIANT = {
   PENDING_CONSENT: "warning",
@@ -33,7 +34,42 @@ const PAYMENT_LABEL: Record<string, string> = {
   CAPTURED: "Payment charged",
   CANCELLED: "Never charged",
   REFUNDED: "Refunded",
+  PARTIALLY_REFUNDED: "Partly refunded",
 };
+
+type CancelledBooking = {
+  cancelledAt: Date | null;
+  cancelledBy: "PARENT" | "COACH" | "PLATFORM" | null;
+  lateCancellation: boolean;
+  packageId: string | null;
+  paymentStatus: string;
+  priceCents: number;
+  discountCents: number;
+  refunds: { kind: string }[];
+  coachProfile: { user: { name: string } };
+};
+
+/** What happened to the money when a session was cancelled, in the parent's words. */
+function cancelledMessage(b: CancelledBooking): string {
+  if (b.lateCancellation) {
+    if (b.refunds.some((r) => r.kind === "LATE_CANCEL_WAIVER")) {
+      return b.packageId
+        ? "You cancelled after the free-cancellation deadline. An admin waived it, so the session went back into your package."
+        : "You cancelled after the free-cancellation deadline. An admin waived the charge, so you didn't pay for it.";
+    }
+    if (b.packageId) return "You cancelled after the free-cancellation deadline, so it counted as used from your package.";
+    if (b.paymentStatus === "AUTHORIZED") return "You cancelled after the free-cancellation deadline. We're following up about the charge.";
+    return `You cancelled after the free-cancellation deadline, so you were charged ${formatCents(bookingChargeCents(b))}.`;
+  }
+  const money = b.packageId ? "The session went back into your package." : "You won't be charged for it.";
+  if (b.cancelledBy === "PARENT") return `You cancelled before the deadline. ${money}`;
+  if (b.cancelledBy === "COACH") return `${b.coachProfile.user.name} cancelled this session. ${money}`;
+  // Platform-cancelled (cancelReason is admin-facing; parents get the plain version).
+  if (b.cancelledBy === "PLATFORM" || b.cancelledAt) {
+    return `CoachConnect cancelled this session because the coach is no longer available. ${money}`;
+  }
+  return "This session was cancelled.";
+}
 
 export default async function MyBookingsPage() {
   const session = await getCurrentSession();
@@ -50,6 +86,7 @@ export default async function MyBookingsPage() {
       child: true,
       review: true,
       dispute: true,
+      refunds: { select: { kind: true } },
     },
     orderBy: { scheduledAt: "desc" },
   });
@@ -138,6 +175,24 @@ export default async function MyBookingsPage() {
 
                       {b.status === "CONFIRMED" && (
                         <div className="flex flex-wrap items-start gap-3 border-t-2 border-line pt-3">
+                          {canParentCancel(b, now) && (
+                            <>
+                              <p className="w-full text-sm text-muted-foreground">
+                                {parentCancelOutcome(b.scheduledAt, now) === "FREE"
+                                  ? `${freeCancelPolicyText(b.scheduledAt)}.`
+                                  : b.packageId
+                                    ? "Past the free-cancellation deadline: cancelling now counts the session as used."
+                                    : "Past the free-cancellation deadline: cancelling now charges the full price."}
+                              </p>
+                              <CancelSessionButton
+                                bookingId={b.id}
+                                scheduledAt={b.scheduledAt.toISOString()}
+                                chargeCents={netPriceCents}
+                                isPackage={!!b.packageId}
+                                coachName={b.coachProfile.user.name}
+                              />
+                            </>
+                          )}
                           <SessionTimingActions
                             bookingId={b.id}
                             scheduledAt={b.scheduledAt.toISOString()}
@@ -190,19 +245,22 @@ export default async function MyBookingsPage() {
                       )}
 
                       {b.status === "CANCELLED" && (
-                        <div className="border-t-2 border-line pt-3">
-                          {b.dispute ? (
+                        <div className="flex flex-col gap-3 border-t-2 border-line pt-3">
+                          {b.dispute?.reason === "NO_SHOW" ? (
                             <p className="text-sm font-bold text-warning">
                               Case open: {b.dispute.status.replaceAll("_", " ").toLowerCase()} — {b.dispute.details}
                             </p>
-                          ) : b.cancelledAt ? (
-                            // Platform-cancelled (cancelReason is admin-facing; parents get the plain version)
-                            <p className="text-sm text-muted-foreground">
-                              CoachConnect cancelled this session because the coach is no longer available.{" "}
-                              {b.packageId ? "The session went back into your package." : "You won't be charged for it."}
+                          ) : (
+                            <p className="text-sm text-muted-foreground">{cancelledMessage(b)}</p>
+                          )}
+                          {b.dispute && b.dispute.reason !== "NO_SHOW" ? (
+                            <p className="text-sm font-bold text-warning">
+                              Case open: {b.dispute.status.replaceAll("_", " ").toLowerCase()}
                             </p>
                           ) : (
-                            <p className="text-sm text-muted-foreground">This session was cancelled.</p>
+                            b.lateCancellation &&
+                            (b.paymentStatus === "CAPTURED" || b.paymentStatus === "PARTIALLY_REFUNDED") &&
+                            !b.dispute && <SatisfactionGuaranteeNotice bookingId={b.id} lateCancel />
                           )}
                         </div>
                       )}

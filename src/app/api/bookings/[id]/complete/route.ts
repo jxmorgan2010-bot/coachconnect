@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
-import { capturePaymentIntent } from "@/lib/payment";
+import { captureHeldPayment } from "@/lib/payment";
+import { bookingChargeCents } from "@/lib/cancellation";
 import { awardPoints, POINTS_SESSION_COMPLETED } from "@/lib/points";
 import { canMarkComplete, formatPacificTime, sessionEndsAt } from "@/lib/sessionTiming";
 
@@ -31,8 +32,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     );
   }
 
+  let paymentIntentId: string | null;
   try {
-    await capturePaymentIntent(booking.stripePaymentIntentId, booking.priceCents - booking.discountCents);
+    paymentIntentId = await captureHeldPayment({
+      stripePaymentIntentId: booking.stripePaymentIntentId,
+      stripeCustomerId: booking.parentProfile.stripeCustomerId,
+      stripePaymentMethodId: booking.stripePaymentMethodId,
+      amountCents: bookingChargeCents(booking),
+    });
   } catch (err) {
     console.error("Stripe capture failed", err);
     return NextResponse.json({ error: "We couldn't charge the card on file. Please try again or contact support." }, { status: 502 });
@@ -42,7 +49,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.booking.update({
       where: { id },
-      data: { status: "COMPLETED", completedAt: now, paymentStatus: "CAPTURED", capturedAt: now },
+      data: { status: "COMPLETED", completedAt: now, paymentStatus: "CAPTURED", capturedAt: now, stripePaymentIntentId: paymentIntentId },
     });
     await awardPoints(tx, { parentProfileId: booking.parentProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
     await awardPoints(tx, { coachProfileId: booking.coachProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
