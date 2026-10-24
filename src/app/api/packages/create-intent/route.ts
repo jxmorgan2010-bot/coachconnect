@@ -6,6 +6,7 @@ import { isCoachLive } from "@/lib/coach";
 import { ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactPolicy";
 import { calculateBundlePricing } from "@/lib/bundles";
 import { getStripe } from "@/lib/stripe";
+import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
 
 /**
  * Step 1 of a package purchase: validate the coach/sport, price the bundle, and stand up
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
   const data = parsed.data;
+  if (!isAllowedLength(data.durationMinutes)) {
+    return NextResponse.json({ error: LENGTH_NOT_ALLOWED_MESSAGE }, { status: 400 });
+  }
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },

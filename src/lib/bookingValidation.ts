@@ -8,6 +8,7 @@ import { generateMockVideoCallUrl } from "@/lib/videoCall";
 import { enforceContactPolicy, rejectIfSuspended, ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactPolicy";
 import { SKILL_LEVEL_LABELS, levelsFromFlags, listLevels } from "@/lib/skillLevels";
 import { SPORT_LABELS } from "@/lib/sports";
+import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
 import type { Child, ParentProfile, SkillLevel, Sport } from "@/generated/prisma/client";
 
 export class BookingValidationError extends Error {
@@ -42,6 +43,10 @@ export type BookingRequestInput = {
  * actually created (to close the race window and never trust client-supplied pricing).
  */
 export async function validateBookingRequest(parentProfile: ParentProfile, data: BookingRequestInput) {
+  // Single sessions and quick rebook. (A package session keeps its package's length.)
+  if (!isAllowedLength(data.durationMinutes)) {
+    throw new BookingValidationError(LENGTH_NOT_ALLOWED_MESSAGE, 400, "LENGTH_NOT_ALLOWED");
+  }
   await assertParentMayBook(parentProfile, data.locationText);
 
   const child = await prisma.child.findUnique({ where: { id: data.childId } });
