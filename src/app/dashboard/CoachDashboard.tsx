@@ -12,6 +12,8 @@ import { SPORT_LABELS } from "@/lib/sports";
 import { SKILL_LEVEL_LABELS } from "@/lib/skillLevels";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { ProgressNoteForm } from "./BookingActions";
+import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
+import { COACH_TIMEZONE } from "@/lib/availability";
 import VerificationCard, { getVerificationItems } from "./VerificationCard";
 
 export default async function CoachDashboard({
@@ -51,10 +53,10 @@ export default async function CoachDashboard({
     .filter((b) => b.child)
     .map((b) => ({ childId: b.childId!, childName: b.child!.firstName, sport: b.sport }));
 
-  // Derived from the bookings already loaded — past CONFIRMED sessions are waiting on the parent.
+  // Derived from the bookings already loaded — ended CONFIRMED sessions are waiting on the parent.
   const now = new Date();
-  const comingUp = upcoming.filter((b) => b.scheduledAt >= now);
-  const awaitingParent = upcoming.filter((b) => b.scheduledAt < now);
+  const comingUp = upcoming.filter((b) => !canMarkComplete(b, now));
+  const awaitingParent = upcoming.filter((b) => canMarkComplete(b, now));
   const live = isCoachLive(profile);
   const verificationItems = getVerificationItems(profile, expiryState);
 
@@ -87,7 +89,7 @@ export default async function CoachDashboard({
             <span className="font-display text-lg leading-none text-pitch">{formatCents(b.priceCents - b.discountCents)}</span>
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {b.scheduledAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · {b.durationMinutes} min ·{" "}
+            {formatPacificTime(b.scheduledAt)} · {b.durationMinutes} min ·{" "}
             {b.locationText}
           </p>
           <p className="mt-1.5 text-xs font-bold text-muted-foreground">
@@ -232,7 +234,7 @@ export default async function CoachDashboard({
                       <SportPill sport={b.sport} /> {b.child?.firstName ?? "Session"}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
+                      {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: COACH_TIMEZONE })} ·{" "}
                       {b.parentProfile.user.name}&apos;s family
                     </p>
                   </div>

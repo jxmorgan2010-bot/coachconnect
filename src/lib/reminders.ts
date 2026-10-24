@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendMockEmail } from "@/lib/mockEmail";
+import { formatPacificDateTime } from "@/lib/sessionTiming";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -29,12 +30,12 @@ export async function runReminderSweep(now: Date = new Date()) {
     sendMockEmail(
       b.parentProfile.user.email,
       "Session reminder: tomorrow",
-      `Your session with ${b.coachProfile.user.name} for ${b.child?.firstName ?? "your child"} is scheduled for ${b.scheduledAt.toLocaleString()}.`,
+      `Your session with ${b.coachProfile.user.name} for ${b.child?.firstName ?? "your child"} is scheduled for ${formatPacificDateTime(b.scheduledAt)}.`,
     );
     sendMockEmail(
       b.coachProfile.user.email,
       "Session reminder: tomorrow",
-      `Your session with ${b.parentProfile.user.name}'s family is scheduled for ${b.scheduledAt.toLocaleString()}.`,
+      `Your session with ${b.parentProfile.user.name}'s family is scheduled for ${formatPacificDateTime(b.scheduledAt)}.`,
     );
     await prisma.booking.update({ where: { id: b.id }, data: { reminder24SentAt: now } });
     sent24h++;
@@ -53,12 +54,12 @@ export async function runReminderSweep(now: Date = new Date()) {
     sendMockEmail(
       b.parentProfile.user.email,
       "Session reminder: starting soon",
-      `Your session with ${b.coachProfile.user.name} starts at ${b.scheduledAt.toLocaleString()} at ${b.locationText}.`,
+      `Your session with ${b.coachProfile.user.name} starts at ${formatPacificDateTime(b.scheduledAt)} at ${b.locationText}.`,
     );
     sendMockEmail(
       b.coachProfile.user.email,
       "Session reminder: starting soon",
-      `Your session with ${b.parentProfile.user.name}'s family starts at ${b.scheduledAt.toLocaleString()} at ${b.locationText}.`,
+      `Your session with ${b.parentProfile.user.name}'s family starts at ${formatPacificDateTime(b.scheduledAt)} at ${b.locationText}.`,
     );
     await prisma.booking.update({ where: { id: b.id }, data: { reminder1hSentAt: now } });
     sent1h++;

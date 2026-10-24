@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { capturePaymentIntent } from "@/lib/payment";
 import { awardPoints, POINTS_SESSION_COMPLETED } from "@/lib/points";
+import { canMarkComplete, formatPacificTime, sessionEndsAt } from "@/lib/sessionTiming";
 
 /**
  * Only the parent can mark a session complete — this is what releases the
@@ -22,6 +23,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
   if (booking.status !== "CONFIRMED") {
     return NextResponse.json({ error: "Only confirmed sessions can be marked complete." }, { status: 400 });
+  }
+  if (!canMarkComplete(booking)) {
+    return NextResponse.json(
+      { error: `You can mark this session complete after it ends, at ${formatPacificTime(sessionEndsAt(booking))}.` },
+      { status: 400 },
+    );
   }
 
   try {
