@@ -8,9 +8,13 @@ import {
   BookingValidationError,
   SECOND_ADULT_REQUIRED_MESSAGE,
 } from "@/lib/bookingValidation";
-import { nextOccurrenceOf } from "@/lib/rebook";
+import { nextOccurrences } from "@/lib/rebook";
 import { chargeOffSessionHold, cancelPaymentIntent } from "@/lib/payment";
-import { awardPoints, POINTS_QUICK_REBOOK } from "@/lib/points";
+import { rangesOverlap } from "@/lib/bookingConflicts";
+import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
+
+// How many weeks ahead quick rebook looks for a week the parent doesn't already have booked.
+const REBOOK_WEEKS_TO_TRY = 4;
 import { isAllowedLength, lengthLabel, lengthOptions, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
 
 /**
@@ -64,7 +68,29 @@ export async function POST(req: Request) {
     );
   }
 
-  const scheduledAt = nextOccurrenceOf(priorBooking.scheduledAt);
+  // Same weekday and Pacific time, at least a week after the prior session (which may itself
+  // still be upcoming). Weeks this parent already has booked with the coach at that time
+  // are skipped; a slot someone else holds is left for the validation below to report.
+  const now = new Date();
+  const ownUpcoming = await prisma.booking.findMany({
+    where: {
+      parentProfileId: parentProfile.id,
+      coachProfileId: priorBooking.coachProfileId,
+      status: SLOT_HOLDING_STATUS_FILTER,
+      scheduledAt: { gte: now },
+    },
+    select: { scheduledAt: true, durationMinutes: true },
+  });
+  const candidates = nextOccurrences(priorBooking.scheduledAt, now, REBOOK_WEEKS_TO_TRY);
+  const scheduledAt = candidates.find(
+    (c) => !ownUpcoming.some((b) => rangesOverlap(c, durationMinutes, b.scheduledAt, b.durationMinutes)),
+  );
+  if (!scheduledAt) {
+    return NextResponse.json(
+      { error: `You already have this time booked for the next ${REBOOK_WEEKS_TO_TRY} weeks. Use the regular booking form to pick a later date.` },
+      { status: 409 },
+    );
+  }
 
   let validated;
   try {
@@ -133,6 +159,8 @@ export async function POST(req: Request) {
     isFirstSession,
     stripePaymentIntentId,
     stripePaymentMethodId,
+    // Its QUICK_REBOOK points are awarded when the parent marks it complete (see the complete route).
+    bookedViaQuickRebook: true,
   });
 
   if (!booking) {
@@ -141,10 +169,6 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: "That time was just booked by someone else. Try the regular booking form." }, { status: 409 });
   }
-
-  await prisma.$transaction(async (tx) => {
-    await awardPoints(tx, { parentProfileId: parentProfile.id, action: "QUICK_REBOOK", points: POINTS_QUICK_REBOOK, bookingId: booking.id });
-  });
 
   return NextResponse.json({ ok: true, bookingId: booking.id, scheduledAt: booking.scheduledAt });
 }
