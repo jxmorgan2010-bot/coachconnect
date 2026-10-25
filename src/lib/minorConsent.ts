@@ -467,10 +467,10 @@ async function cancelBookingsAfterRevocation(
 }
 
 /**
- * The only way an admin sets a coach's ID verification status. Approving a minor coach
- * requires the Minor Coach tier to be on and a completed, unrevoked consent — checked
- * here on the server inside the same transaction as the write, so hiding the button is
- * never the only guard.
+ * The only way an admin sets a coach's ID verification status. Approving any coach requires
+ * an uploaded ID photo, and approving a minor coach also requires the Minor Coach tier to be
+ * on and a completed, unrevoked consent — both checked here on the server inside the same
+ * transaction as the write, so hiding the button is never the only guard.
  */
 export async function setIdVerificationStatus(
   coachProfileId: string,
@@ -480,6 +480,10 @@ export async function setIdVerificationStatus(
   await prisma.$transaction(async (tx) => {
     const profile = await tx.coachProfile.findUnique({ where: { id: coachProfileId } });
     if (!profile) throw new MinorConsentError("Coach not found.", 404);
+    // Every coach, any type: nothing to approve without an ID photo.
+    if (status === "APPROVED" && !profile.idPhotoPath) {
+      throw new MinorConsentError("This coach hasn't uploaded an ID photo, so there's nothing to approve.", 409);
+    }
     if (status === "APPROVED" && profile.isMinorCoach) {
       if (!minorCoachesEnabled) {
         throw new MinorConsentError("This coach is under 18, and the Minor Coach tier is off, so they can't be approved.", 403);

@@ -128,6 +128,9 @@ export default function CoachOnboardingClient({
     schoolLevel: profile.schoolLevel ?? "",
     schoolName: profile.schoolName ?? "",
     gradYear: profile.gradYear ? String(profile.gradYear) : "",
+    yearsCoaching: profile.yearsCoaching === null ? "" : String(profile.yearsCoaching),
+    certifications: profile.certifications ?? "",
+    playingHistory: profile.playingHistory ?? "",
     hourlyRateDollars: profile.hourlyRateCents ? String(profile.hourlyRateCents / 100) : "",
     city: profile.city ?? "",
     state: profile.state ?? "",
@@ -137,6 +140,7 @@ export default function CoachOnboardingClient({
   });
 
   const profileComplete = isCoachProfileComplete({
+    coachType: profile.coachType,
     bio: profileValues.bio || null,
     schoolLevel: (profileValues.schoolLevel || null) as CoachProfile["schoolLevel"],
     schoolName: profileValues.schoolName || null,
@@ -347,7 +351,12 @@ export default function CoachOnboardingClient({
 
         <div className="flex min-w-0 flex-col gap-6">
           <Section id="profile" step={stepNumber("profile")} title="Profile & sports" done={stepFor("profile").done}>
-            <ProfileForm initial={profileValues} onSaved={setProfileValues} isMinorCoach={profile.isMinorCoach} />
+            <ProfileForm
+              initial={profileValues}
+              onSaved={setProfileValues}
+              isMinorCoach={profile.isMinorCoach}
+              coachType={profile.coachType}
+            />
           </Section>
 
           <Section id="availability" step={stepNumber("availability")} title="Availability" done={stepFor("availability").done}>
@@ -365,6 +374,8 @@ export default function CoachOnboardingClient({
               <UploadsLockedNotice what="your school ID and profile photo" />
             ) : (
               <VerificationUploads
+                coachType={profile.coachType}
+                idDocumentType={profile.idDocumentType}
                 hasIdPhoto={Boolean(profile.idPhotoPath)}
                 idStatus={profile.idVerificationStatus}
                 profilePhotoUrl={profile.profilePhotoUrl}

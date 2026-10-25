@@ -32,6 +32,10 @@ export type CoachRowData = {
   name: string;
   email: string;
   hasIdPhoto: boolean;
+  /** "Student-athlete" or "Experienced coach"; null until experienced coaches are switched on or exist. */
+  coachTypeLabel: string | null;
+  /** "School ID", "Driver's license"...; null when there's no ID or types aren't shown (see coachTypeLabel). */
+  idTypeLabel: string | null;
   /** A new profile photo is waiting in "Photos to review". */
   hasPendingPhoto: boolean;
   idVerificationStatus: IdVerificationStatus;
@@ -204,6 +208,7 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
           <Badge variant={coach.profileComplete ? "success" : "neutral"}>
             {coach.profileComplete ? "Profile complete" : "Profile incomplete"}
           </Badge>
+          {coach.coachTypeLabel && <Badge>{coach.coachTypeLabel}</Badge>}
           <Badge variant={ID_BADGE[idStatus]}>ID: {idStatus.toLowerCase()}</Badge>
           {!showMinor && (
             <Badge variant={BGC_BADGE[bgcStatus]}>Background: {bgcStatus.toLowerCase().replace("_", " ")}</Badge>
@@ -240,7 +245,11 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
             id={`verify-${coach.id}`}
             rows={2}
             className={inputClass}
-            placeholder="e.g. School ID name and DOB match signup; called parent at number on file"
+            placeholder={
+              coach.idTypeLabel && coach.idTypeLabel !== "School ID"
+                ? `e.g. ${coach.idTypeLabel} name and DOB match signup`
+                : "e.g. School ID name and DOB match signup; called parent at number on file"
+            }
             value={verifyMethod}
             onChange={(e) => {
               setVerifyMethod(e.target.value);
@@ -344,14 +353,17 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
         <div role="group" aria-label={`ID actions for ${coach.name}`} className="flex flex-wrap items-center gap-2">
           <span className="eyebrow w-24 shrink-0 text-muted-foreground">ID</span>
           {coach.hasIdPhoto ? (
-            <a
-              href={`/api/admin/coaches/${coach.id}/id-photo`}
-              className={secondaryButtonClass}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View ID
-            </a>
+            <>
+              <a
+                href={`/api/admin/coaches/${coach.id}/id-photo`}
+                className={secondaryButtonClass}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View ID
+              </a>
+              {coach.idTypeLabel && <span className="text-sm font-bold text-ink">{coach.idTypeLabel}</span>}
+            </>
           ) : (
             <span className="text-sm text-muted-foreground">Not uploaded</span>
           )}

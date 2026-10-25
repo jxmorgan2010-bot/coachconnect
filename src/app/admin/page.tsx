@@ -6,6 +6,8 @@ import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { ageInWholeYears, coachAgeBand, describeCalendarDate, storedDateToCalendarDate, todayInPacific } from "@/lib/age";
 import { coachConsentStatus, REVOKED_CANCEL_REASON } from "@/lib/minorConsent";
 import { formatCents } from "@/lib/money";
+import { COACH_TYPE_LABELS, idDocumentLabel } from "@/lib/coachTypes";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 import AdminHeader from "@/components/AdminHeader";
 import AdminCoachRow, { type CoachRowData } from "./AdminCoachRow";
 import PhotoReviewItem, { type PhotoReviewData } from "./PhotoReviewItem";
@@ -18,6 +20,7 @@ function toRow(
   const today = todayInPacific();
   const birth = p.dateOfBirth ? storedDateToCalendarDate(p.dateOfBirth) : null;
   const band = birth ? coachAgeBand(birth, today) : null;
+  const showTypes = EXPERIENCED_COACHES_ENABLED || p.coachType === "EXPERIENCED";
 
   let consent: CoachRowData["consent"] = null;
   if (p.isMinorCoach) {
@@ -59,13 +62,16 @@ function toRow(
     name: p.user.name,
     email: p.user.email,
     hasIdPhoto: Boolean(p.idPhotoPath),
+    // Coach and ID types only show once experienced coaches exist, so the page is unchanged before then.
+    coachTypeLabel: showTypes ? COACH_TYPE_LABELS[p.coachType] : null,
+    idTypeLabel: showTypes && p.idPhotoPath ? idDocumentLabel(p) : null,
     hasPendingPhoto: Boolean(p.pendingProfilePhotoUrl),
     idVerificationStatus: p.idVerificationStatus,
     backgroundCheckStatus: p.backgroundCheckStatus,
     backgroundCheckExpiresAt: p.backgroundCheckExpiresAt ? p.backgroundCheckExpiresAt.toISOString() : null,
     backgroundCheckRef: p.backgroundCheckRef,
     isSuspended: p.isSuspended,
-    profileComplete: Boolean(p.bio && p.schoolName && p.hourlyRateCents),
+    profileComplete: Boolean(p.bio && (p.coachType === "EXPERIENCED" || p.schoolName) && p.hourlyRateCents),
     dateOfBirth: birth ? describeCalendarDate(birth) : null,
     ageLabel:
       birth && band

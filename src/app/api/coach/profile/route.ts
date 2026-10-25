@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
-import { coachProfileSchema } from "@/lib/validation";
+import { coachProfileSchema, experiencedCoachProfileSchema } from "@/lib/validation";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { flagsFromLevels } from "@/lib/skillLevels";
 import { ADULT_ONLY_SPORT_NOTE, SPORT_LABELS, isSportAllowedForCoach } from "@/lib/sports";
@@ -14,7 +14,9 @@ export async function PATCH(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const parsed = coachProfileSchema.safeParse(body);
+  // Experienced coaches have no school fields; which form applies comes from the saved type.
+  const parsed =
+    profile.coachType === "EXPERIENCED" ? experiencedCoachProfileSchema.safeParse(body) : coachProfileSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
@@ -27,11 +29,11 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: `${names}: ${ADULT_ONLY_SPORT_NOTE}` }, { status: 400 });
   }
 
-  // Bio and school name are shown publicly on the coach's profile.
+  // All of these are shown publicly on the coach's profile.
   const blocked = await enforceContactPolicy({
     userId: profile.userId,
     context: "BIO",
-    fields: [rest.bio, rest.schoolName],
+    fields: "schoolName" in rest ? [rest.bio, rest.schoolName] : [rest.bio, rest.certifications, rest.playingHistory],
   });
   if (blocked) return blocked;
 

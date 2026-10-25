@@ -7,9 +7,10 @@ import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
 import LevelTags from "@/components/LevelTags";
 import ProfilePhotoUploader from "@/components/ProfilePhotoUploader";
-import CoachProfileHeader, { schoolLine } from "@/components/coach-profile/CoachProfileHeader";
+import CoachProfileHeader, { coachLine } from "@/components/coach-profile/CoachProfileHeader";
 import AvailabilityList from "@/components/coach-profile/AvailabilityList";
 import AccommodationsList from "@/components/coach-profile/AccommodationsList";
+import ExperienceList, { hasAnyExperience } from "@/components/coach-profile/ExperienceList";
 import RecommendationsList from "@/components/coach-profile/RecommendationsList";
 import ReviewsSection from "@/components/coach-profile/ReviewsSection";
 import VideoClips, { videoClips } from "@/components/coach-profile/VideoClips";
@@ -20,7 +21,7 @@ import EditableSection, { AvailabilityEditor, BasicsEditor, ProfileFieldsEditor 
 import AccommodationsForm from "./AccommodationsForm";
 import BookingHistory from "./BookingHistory";
 import { getBackgroundCheckExpiryState, hasVerifiedVideoBio, isCoachLive } from "@/lib/coach";
-import { coachProfileSchema } from "@/lib/validation";
+import { coachProfileSchema, experiencedCoachProfileSchema } from "@/lib/validation";
 import { accommodationsFromProfile, hasAnyAccommodations } from "@/lib/accommodations";
 import { reviewerName } from "@/lib/reviews";
 import { BOOKING_HISTORY_PAGE_SIZE, parsePage, pastWhere, upcomingWhere } from "@/lib/bookingHistory";
@@ -28,7 +29,7 @@ import { getCoachSessionsCompleted } from "@/lib/stats";
 import { isTopCoach } from "@/lib/points";
 import { levelsFromFlags } from "@/lib/skillLevels";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
-import { BIO_VIDEO_UPLOADS_ENABLED } from "@/lib/features";
+import { BIO_VIDEO_UPLOADS_ENABLED, EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui";
 
 const historySelect = {
@@ -101,6 +102,9 @@ export default async function MyCoachProfilePage({
     schoolLevel: profile.schoolLevel ?? "",
     schoolName: profile.schoolName ?? "",
     gradYear: profile.gradYear ? String(profile.gradYear) : "",
+    yearsCoaching: profile.yearsCoaching === null ? "" : String(profile.yearsCoaching),
+    certifications: profile.certifications ?? "",
+    playingHistory: profile.playingHistory ?? "",
     hourlyRateDollars: profile.hourlyRateCents ? String(profile.hourlyRateCents / 100) : "",
     city: profile.city ?? "",
     state: profile.state ?? "",
@@ -113,15 +117,22 @@ export default async function MyCoachProfilePage({
   // or values from before a rule existed) they're edited in one form at the top, with every field
   // and its error in view.
   const { sportLevels, ...formRest } = formValues;
+  const experienced = profile.coachType === "EXPERIENCED";
   const profileComplete =
     profile.sports.length > 0 &&
-    coachProfileSchema.safeParse({
+    (experienced ? experiencedCoachProfileSchema : coachProfileSchema).safeParse({
       ...formRest,
       sportLevels: formValues.sports.map((sport) => ({ sport, levels: sportLevels[sport] ?? [] })),
     }).success;
   const fieldEditor = (fields: ProfileFormField[], submitLabel: string) =>
     profileComplete ? (
-      <ProfileFieldsEditor initial={formValues} fields={fields} submitLabel={submitLabel} isMinorCoach={profile.isMinorCoach} />
+      <ProfileFieldsEditor
+        initial={formValues}
+        fields={fields}
+        submitLabel={submitLabel}
+        isMinorCoach={profile.isMinorCoach}
+        coachType={profile.coachType}
+      />
     ) : undefined;
 
   // Follows the Live / Not live badge, so it doesn't repeat it.
@@ -165,6 +176,7 @@ export default async function MyCoachProfilePage({
         coach={{
           name: profile.user.name,
           photoUrl: profile.profilePhotoUrl,
+          coachType: profile.coachType,
           schoolLevel: profile.schoolLevel,
           schoolName: profile.schoolName,
           gradYear: profile.gradYear,
@@ -184,10 +196,10 @@ export default async function MyCoachProfilePage({
           <section aria-labelledby="basics-title" className="card p-5 sm:p-6">
             <h2 id="basics-title" className="font-display text-3xl text-ink">Update your basics</h2>
             <p className="mt-1 mb-4 text-sm text-muted-foreground">
-              Some of your sports, school, location, rate or bio details are missing or need updating, and they save
-              together. Once they&apos;re all set, you can edit each section on its own below.
+              Some of your sports, {experienced ? "" : "school, "}location, rate or bio details are missing or need
+              updating, and they save together. Once they&apos;re all set, you can edit each section on its own below.
             </p>
-            <BasicsEditor initial={formValues} isMinorCoach={profile.isMinorCoach} />
+            <BasicsEditor initial={formValues} isMinorCoach={profile.isMinorCoach} coachType={profile.coachType} />
           </section>
         )}
 
@@ -200,9 +212,33 @@ export default async function MyCoachProfilePage({
             />
           </EditableSection>
 
-          <EditableSection id="school" title="School & location" editor={fieldEditor(["school", "location"], "Save school & location")}>
-            <p className="text-ink">{schoolLine(profile) || <span className="text-muted-foreground">Not filled in yet.</span>}</p>
-          </EditableSection>
+          {experienced ? (
+            <>
+              <EditableSection id="school" title="Location" editor={fieldEditor(["location"], "Save location")}>
+                <p className="text-ink">{coachLine(profile) || <span className="text-muted-foreground">Not filled in yet.</span>}</p>
+              </EditableSection>
+
+              <EditableSection
+                id="experience"
+                title="Coaching experience"
+                note={EXPERIENCED_COACHES_ENABLED ? undefined : "Families don't see this section right now."}
+                editor={fieldEditor(["experience"], "Save experience")}
+              >
+                {hasAnyExperience(profile) ? (
+                  <ExperienceList experience={profile} firstName={firstName} />
+                ) : (
+                  <p className="text-muted-foreground">
+                    Nothing added yet. Years coaching, certifications and playing history are optional.
+                    {EXPERIENCED_COACHES_ENABLED && " This section stays hidden from families until you add something."}
+                  </p>
+                )}
+              </EditableSection>
+            </>
+          ) : (
+            <EditableSection id="school" title="School & location" editor={fieldEditor(["school", "location"], "Save school & location")}>
+              <p className="text-ink">{coachLine(profile) || <span className="text-muted-foreground">Not filled in yet.</span>}</p>
+            </EditableSection>
+          )}
 
           <EditableSection id="sports" title="Sports & levels" editor={fieldEditor(["sports"], "Save sports & levels")}>
             {profile.sports.length === 0 ? (

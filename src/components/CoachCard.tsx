@@ -9,10 +9,13 @@ import SportPill from "@/components/SportPill";
 import LevelTags from "@/components/LevelTags";
 import Badge from "@/components/Badge";
 import CoachPhotoPlaceholder from "@/components/CoachPhotoPlaceholder";
+import { COACH_TYPE_LABELS, coachKindLabel } from "@/lib/coachTypes";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 export default function CoachCard({ coach }: { coach: CoachCardData }) {
   const primarySport = coach.sports[0];
   const pinned = coach.priorBookingCount >= PRIORITY_REBOOK_THRESHOLD;
+  const kindLine = [coachKindLabel(coach), coach.city ? `${coach.city}, ${coach.state}` : null].filter(Boolean).join(" · ");
 
   return (
     <Link
@@ -63,10 +66,7 @@ export default function CoachCard({ coach }: { coach: CoachCardData }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="font-display text-2xl leading-none text-ink">{coach.name}</h3>
-            <p className="mt-1 text-xs font-bold text-muted-foreground">
-              {coach.schoolLevel === "COLLEGE" ? "College athlete" : "High school athlete"}
-              {coach.city ? ` · ${coach.city}, ${coach.state}` : ""}
-            </p>
+            {kindLine && <p className="mt-1 text-xs font-bold text-muted-foreground">{kindLine}</p>}
           </div>
           {coach.hourlyRateCents && (
             <div className="shrink-0 rounded-lg border-2 border-ink bg-chalk px-2 py-1 text-center leading-none">
@@ -88,8 +88,9 @@ export default function CoachCard({ coach }: { coach: CoachCardData }) {
           )}
         </ul>
 
-        {(coach.videoVerified || coach.isMinorCoach || isTopCoach(coach.lifetimePoints)) && (
+        {(EXPERIENCED_COACHES_ENABLED || coach.videoVerified || coach.isMinorCoach || isTopCoach(coach.lifetimePoints)) && (
           <div className="flex flex-wrap gap-1.5">
+            {EXPERIENCED_COACHES_ENABLED && <Badge>{COACH_TYPE_LABELS[coach.coachType]}</Badge>}
             {isTopCoach(coach.lifetimePoints) && <Badge variant="accent">Top Coach</Badge>}
             {coach.videoVerified && <Badge variant="accent">Video intro</Badge>}
             {coach.isMinorCoach && <Badge variant="accent">Minor Coach</Badge>}

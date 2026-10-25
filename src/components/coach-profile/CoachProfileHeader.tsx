@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { CoachSport, SchoolLevel } from "@/generated/prisma/client";
+import type { CoachSport, CoachType, SchoolLevel } from "@/generated/prisma/client";
 import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
 import LevelTags from "@/components/LevelTags";
@@ -7,11 +7,14 @@ import CoachPhotoPlaceholder from "@/components/CoachPhotoPlaceholder";
 import { IconShieldCheck } from "@/components/icons";
 import { levelsFromFlags } from "@/lib/skillLevels";
 import { SPORT_COLOR } from "@/lib/sports";
+import { COACH_TYPE_LABELS, coachKindLabel } from "@/lib/coachTypes";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 export type CoachHeaderData = {
   name: string;
   /** The approved photo only. A photo waiting for review is never shown here. */
   photoUrl: string | null;
+  coachType: CoachType;
   schoolLevel: SchoolLevel | null;
   schoolName: string | null;
   gradYear: number | null;
@@ -25,12 +28,15 @@ export type CoachHeaderData = {
   minorCoach: boolean;
 };
 
-/** One line under the name: school level, school, class year and city. */
-export function schoolLine(c: Pick<CoachHeaderData, "schoolLevel" | "schoolName" | "gradYear" | "city" | "state">): string {
+/** One line under the name: kind of coach, then school and class year (student-athletes) and city. */
+export function coachLine(
+  c: Pick<CoachHeaderData, "coachType" | "schoolLevel" | "schoolName" | "gradYear" | "city" | "state">,
+): string {
+  const student = c.coachType === "STUDENT_ATHLETE";
   return [
-    c.schoolLevel === "COLLEGE" ? "College athlete" : c.schoolLevel === "HIGH_SCHOOL" ? "High school athlete" : null,
-    c.schoolName,
-    c.gradYear ? `Class of ${c.gradYear}` : null,
+    coachKindLabel(c),
+    student ? c.schoolName : null,
+    student && c.gradYear ? `Class of ${c.gradYear}` : null,
     c.city ? `${c.city}${c.state ? `, ${c.state}` : ""}` : null,
   ]
     .filter(Boolean)
@@ -41,7 +47,7 @@ export function schoolLine(c: Pick<CoachHeaderData, "schoolLevel" | "schoolName"
 export default function CoachProfileHeader({ coach }: { coach: CoachHeaderData }) {
   const primarySport = coach.sports[0]?.sport;
   const bandColor = primarySport ? SPORT_COLOR[primarySport] : { bg: "var(--pitch)", fg: "#FFFFFF" };
-  const line = schoolLine(coach);
+  const line = coachLine(coach);
 
   return (
     <div className="texture-hatch border-b-2 border-ink" style={{ background: bandColor.bg, color: bandColor.fg }}>
@@ -72,6 +78,7 @@ export default function CoachProfileHeader({ coach }: { coach: CoachHeaderData }
             {coach.idVerified && (
               <Badge variant="neutral" icon={<IconShieldCheck className="h-3.5 w-3.5 text-pitch" />}>ID verified</Badge>
             )}
+            {EXPERIENCED_COACHES_ENABLED && <Badge variant="neutral">{COACH_TYPE_LABELS[coach.coachType]}</Badge>}
             {coach.topCoach && <Badge variant="accent">Top Coach</Badge>}
             {coach.recommended && <Badge variant="accent">Recommended by a coach</Badge>}
             {coach.videoVerified && <Badge variant="accent">Video intro</Badge>}
