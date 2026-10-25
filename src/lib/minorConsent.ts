@@ -467,22 +467,35 @@ async function cancelBookingsAfterRevocation(
 }
 
 /**
- * The only way an admin sets a coach's ID verification status. Approving any coach requires
- * an uploaded ID photo, and approving a minor coach also requires the Minor Coach tier to be
- * on and a completed, unrevoked consent — both checked here on the server inside the same
- * transaction as the write, so hiding the button is never the only guard.
+ * The only way an admin sets a coach's ID verification status. Approving any coach requires an
+ * uploaded ID photo that this admin has opened (isCurrentIdViewed, checked against the path read
+ * here, so an ID re-uploaded in the meantime doesn't count), and approving a minor coach also
+ * requires the Minor Coach tier to be on and a completed, unrevoked consent. All checked here on
+ * the server inside the same transaction as the write, so hiding the button is never the only guard.
  */
 export async function setIdVerificationStatus(
   coachProfileId: string,
   status: "APPROVED" | "REJECTED",
-  { minorCoachesEnabled }: { minorCoachesEnabled: boolean },
+  {
+    minorCoachesEnabled,
+    isCurrentIdViewed,
+  }: { minorCoachesEnabled: boolean; isCurrentIdViewed: (idPhotoPath: string) => boolean },
 ) {
   await prisma.$transaction(async (tx) => {
     const profile = await tx.coachProfile.findUnique({ where: { id: coachProfileId } });
     if (!profile) throw new MinorConsentError("Coach not found.", 404);
-    // Every coach, any type: nothing to approve without an ID photo.
-    if (status === "APPROVED" && !profile.idPhotoPath) {
-      throw new MinorConsentError("This coach hasn't uploaded an ID photo, so there's nothing to approve.", 409);
+    // Every coach, any type: nothing to approve without an ID photo, and the approving admin must
+    // have opened this exact one.
+    if (status === "APPROVED") {
+      if (!profile.idPhotoPath) {
+        throw new MinorConsentError("This coach hasn't uploaded an ID photo, so there's nothing to approve.", 409);
+      }
+      if (!isCurrentIdViewed(profile.idPhotoPath)) {
+        throw new MinorConsentError(
+          "Open this coach's current ID before approving it. If you opened it more than 2 hours ago, or they've uploaded a new one since, open it again.",
+          409,
+        );
+      }
     }
     if (status === "APPROVED" && profile.isMinorCoach) {
       if (!minorCoachesEnabled) {

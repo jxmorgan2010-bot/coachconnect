@@ -31,6 +31,9 @@ import {
   CONSENT_LINK_TTL_DAYS,
 } from "./minorConsent";
 
+// These tests cover consent. Opening the ID first (src/lib/idReview.ts) is taken as done here.
+const viewed = () => true;
+
 const url = process.env.DATABASE_URL ?? "";
 if (process.env.MINOR_CONSENT_DB_TEST !== "1" || !url.startsWith("file:") || /(^|[\\/:])dev\.db$/.test(url)) {
   throw new Error("Refusing to run: set MINOR_CONSENT_DB_TEST=1 and point DATABASE_URL at a scratch copy (not dev.db).");
@@ -191,20 +194,20 @@ test("signing stores the full signature record and the consent cache", async () 
 
 test("admin approval of a minor is blocked on the server without completed consent", async () => {
   const { profile } = await makeCoach();
-  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true }), 409, /consent/);
+  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true, isCurrentIdViewed: viewed }), 409, /consent/);
 
   const { token } = await createConsentRequest({ coachProfileId: profile.id, guardianName: "Pat", guardianEmail: "pat@example.test" });
-  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true }), 409, /consent/);
+  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true, isCurrentIdViewed: viewed }), 409, /consent/);
 
   await completeConsent(token, signature(), meta);
-  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: false }), 403, /tier is off/);
-  await setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true });
+  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: false, isCurrentIdViewed: viewed }), 403, /tier is off/);
+  await setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true, isCurrentIdViewed: viewed });
   assert.equal((await prisma.coachProfile.findUniqueOrThrow({ where: { id: profile.id } })).idVerificationStatus, "APPROVED");
 
   // Rejecting is never blocked, and adults are unaffected.
-  await setIdVerificationStatus(profile.id, "REJECTED", { minorCoachesEnabled: true });
+  await setIdVerificationStatus(profile.id, "REJECTED", { minorCoachesEnabled: true, isCurrentIdViewed: viewed });
   const adult = await makeCoach({ minor: false });
-  await setIdVerificationStatus(adult.profile.id, "APPROVED", { minorCoachesEnabled: false });
+  await setIdVerificationStatus(adult.profile.id, "APPROVED", { minorCoachesEnabled: false, isCurrentIdViewed: viewed });
 });
 
 test("a minor can't upload ID or photos until consent is signed", async () => {
@@ -222,7 +225,7 @@ test("revoking consent unpublishes the profile and cancels upcoming sessions", a
   const { profile } = await makeCoach();
   const { token } = await createConsentRequest({ coachProfileId: profile.id, guardianName: "Pat", guardianEmail: "pat@example.test" });
   const { revokeToken } = await completeConsent(token, signature(), meta);
-  await setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true });
+  await setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true, isCurrentIdViewed: viewed });
   await prisma.coachProfile.update({ where: { id: profile.id }, data: { minorBackgroundCheckNote: "School ID + call with parent" } });
   const loadLive = async () =>
     isCoachLive(await prisma.coachProfile.findUniqueOrThrow({ where: { id: profile.id }, include: { user: true } }));
@@ -293,7 +296,7 @@ test("revoking consent unpublishes the profile and cancels upcoming sessions", a
   assert.equal((await prisma.parentProfile.findUniqueOrThrow({ where: { id: parent.id } })).creditCents, 500);
 
   // Approval is blocked again, and revoking twice changes nothing.
-  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true }), 409);
+  await rejectsWith(setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true, isCurrentIdViewed: viewed }), 409);
   const again = await revokeConsent(revokeToken, meta, { voidHold });
   assert.equal(again.alreadyRevoked, true);
   assert.equal((await prisma.parentProfile.findUniqueOrThrow({ where: { id: parent.id } })).creditCents, 500);
@@ -313,7 +316,7 @@ async function liveConsentedMinor() {
   const { profile } = await makeCoach();
   const { token } = await createConsentRequest({ coachProfileId: profile.id, guardianName: "Pat", guardianEmail: "pat@example.test" });
   const { revokeToken } = await completeConsent(token, signature(), meta);
-  await setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true });
+  await setIdVerificationStatus(profile.id, "APPROVED", { minorCoachesEnabled: true, isCurrentIdViewed: viewed });
   await prisma.coachProfile.update({ where: { id: profile.id }, data: { minorBackgroundCheckNote: "Checked" } });
   return { profile, revokeToken };
 }

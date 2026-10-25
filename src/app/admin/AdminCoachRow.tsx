@@ -129,6 +129,9 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
   const [verifiedAt, setVerifiedAt] = useState(coach.ageIdentityVerifiedAt);
   const [verifySaved, setVerifySaved] = useState(Boolean(coach.ageIdentityVerificationMethod));
   const [issued, setIssued] = useState<{ link: string; sendTo: string; expiresAt: string | null } | null>(null);
+  // Approve needs the ID opened first. Opening it from this row enables the button; the server
+  // checks the cookie the ID route sets (src/lib/idReview.ts), which is what actually enforces it.
+  const [idOpened, setIdOpened] = useState(false);
 
   const showMinor = minorCoachesEnabled && coach.isMinorCoach;
   // Mirrors the server rule in setIdVerificationStatus; the server is what actually enforces it.
@@ -359,6 +362,8 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
                 className={secondaryButtonClass}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() => setIdOpened(true)}
+                onAuxClick={() => setIdOpened(true)}
               >
                 View ID
               </a>
@@ -370,8 +375,10 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
           {idStatus !== "APPROVED" && (
             <button
               onClick={() => setId("APPROVED")}
-              disabled={loading || !coach.hasIdPhoto || Boolean(approvalBlockedReason)}
-              aria-describedby={approvalBlockedReason ? `approve-blocked-${coach.id}` : undefined}
+              disabled={loading || !coach.hasIdPhoto || !idOpened || Boolean(approvalBlockedReason)}
+              aria-describedby={
+                approvalBlockedReason ? `approve-blocked-${coach.id}` : coach.hasIdPhoto && !idOpened ? `approve-open-${coach.id}` : undefined
+              }
               className={primaryButtonClass}
             >
               Approve
@@ -381,6 +388,11 @@ export default function AdminCoachRow({ coach, minorCoachesEnabled }: { coach: C
             <button onClick={() => setId("REJECTED")} disabled={loading} className={`${secondaryButtonClass} text-danger`}>
               Reject
             </button>
+          )}
+          {!approvalBlockedReason && coach.hasIdPhoto && !idOpened && idStatus !== "APPROVED" && (
+            <p id={`approve-open-${coach.id}`} className="w-full text-xs font-bold text-muted-foreground">
+              Open the ID before approving it.
+            </p>
           )}
           {approvalBlockedReason && idStatus !== "APPROVED" && (
             <p id={`approve-blocked-${coach.id}`} className="w-full text-xs font-bold text-muted-foreground">
