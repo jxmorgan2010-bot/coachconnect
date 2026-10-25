@@ -64,6 +64,8 @@ export const packageConfirmSchema = z.object({
 
 export const quickRebookSchema = z.object({
   bookingId: z.string().trim().min(1),
+  // Only sent when the earlier session's length can no longer be booked (LENGTH_REQUIRED).
+  durationMinutes: z.coerce.number().int().optional(),
 });
 
 export const pointsRedeemSchema = z.object({
@@ -264,4 +266,22 @@ export const waitlistSchema = z.object({
 export const loginSchema = z.object({
   email: z.email(),
   password: z.string().min(1),
+});
+
+/** The outcome the parent was shown in the cancel dialog; the server refuses if it changed. */
+export const parentCancelSchema = z.object({
+  expected: z.enum(["FREE", "LATE"]),
+});
+
+export const adminRefundSchema = z.object({
+  amountCents: z.coerce.number().int("Enter the amount in whole cents."),
+  reason: z.string().trim().min(1, "Say why — the reason is kept with the refund.").max(1000),
+});
+
+export const adminWaiveSchema = z.object({
+  reason: z.string().trim().min(1, "Say why — the reason is kept with the waiver.").max(1000),
+});
+
+export const packageRefundRequestSchema = z.object({
+  details: z.string().trim().max(2000).optional(),
 });

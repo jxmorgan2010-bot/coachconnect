@@ -87,6 +87,8 @@ enum ReportTargetType {
   PARENT_PROFILE
   MESSAGE
   SUPPORT_REQUEST
+  // A parent asking for a refund of a package's unused sessions; targetId is the SessionPackage id.
+  SESSION_PACKAGE
 }
 
 enum PaymentStatus {
@@ -94,6 +96,24 @@ enum PaymentStatus {
   CAPTURED
   CANCELLED
   REFUNDED
+  // An admin refunded part of a captured payment (see Refund).
+  PARTIALLY_REFUNDED
+}
+
+/// Who cancelled a booking. PLATFORM is CoachConnect itself (e.g. a guardian revoking consent).
+enum CancelledBy {
+  PARENT
+  COACH
+  PLATFORM
+}
+
+enum RefundKind {
+  // An admin refund of a charged session, from a dispute or a parent's problem report.
+  REFUND
+  // An admin waiving a late-cancellation charge (emergencies, weather).
+  LATE_CANCEL_WAIVER
+  // An admin refunding a package's unused sessions.
+  PACKAGE_UNUSED
 }
 
 enum ReportStatus {
@@ -157,6 +177,7 @@ model User {
   suspensionReason String?
   flaggedAttempts  FlaggedAttempt[] @relation("FlaggedAttemptUser")
   clearedAttempts  FlaggedAttempt[] @relation("FlaggedAttemptClearedBy")
+  refundsIssued    Refund[]
 }
 
 /// One row per piece of text that matched the contact-sharing filter.
@@ -368,6 +389,9 @@ model SessionPackage {
   // Sessions given back to the package after a no-show on a bundled booking — see the
   // packageId branch of POST /api/bookings/[id]/no-show. Audit/display only.
   sessionsRefunded      Int           @default(0)
+  // Unused sessions an admin refunded as money (see Refund, kind PACKAGE_UNUSED). They can
+  // no longer be booked: sessions left = totalSessions - sessionsUsed - sessionsCashRefunded.
+  sessionsCashRefunded  Int           @default(0)
   pricePerSessionCents  Int
   discountPercent       Int
   totalChargedCents     Int
@@ -376,6 +400,7 @@ model SessionPackage {
   createdAt             DateTime      @default(now())
 
   bookings              Booking[]
+  refunds               Refund[]
 }
 
 /**
@@ -524,6 +549,14 @@ model Booking {
   // revoking consent). A no-show cancellation leaves these null; its Dispute says why.
   cancelledAt       DateTime?
   cancelReason      String?
+  // Who cancelled (parent, coach or platform). Null on no-shows and older cancellations.
+  cancelledBy       CancelledBy?
+  // A parent cancellation after the free-cancel deadline (11:59 PM Pacific the night before),
+  // which charges the full price. Stored as decided at the time, not re-derived later.
+  lateCancellation  Boolean       @default(false)
+  // Made with quick rebook. Its QUICK_REBOOK points are awarded when the parent marks it
+  // complete, not at booking, so a cancelled rebook earns nothing.
+  bookedViaQuickRebook Boolean    @default(false)
 
   paymentStatus     PaymentStatus @default(AUTHORIZED)
   capturedAt        DateTime?
@@ -560,6 +593,7 @@ model Booking {
   review              Review?
   dispute             Dispute?
   pointsTransactions  PointsTransaction[]
+  refunds             Refund[]
 }
 
 model Review {
@@ -643,4 +677,34 @@ model Dispute {
   adminNote       String?
   createdAt       DateTime      @default(now())
   resolvedAt      DateTime?
+
+  refunds         Refund[]
+}
+
+/**
+ * One admin money (or package-session) return: who did it, how much, and why. Refunds of a
+ * session go through Stripe against the booking's PaymentIntent, or the package's for a
+ * bundled session. The ledger outlives the booking, package or dispute it was for.
+ */
+model Refund {
+  id             String          @id @default(cuid())
+  kind           RefundKind
+  bookingId      String?
+  booking        Booking?        @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  packageId      String?
+  package        SessionPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  disputeId      String?
+  dispute        Dispute?        @relation(fields: [disputeId], references: [id], onDelete: SetNull)
+  // Money returned through Stripe. 0 when only a package session (or referral credit) went back.
+  amountCents    Int
+  // Package sessions given back (a waived late cancel) or refunded as money (unused sessions).
+  sessionCount   Int             @default(0)
+  reason         String
+  refundedById   String
+  refundedBy     User            @relation(fields: [refundedById], references: [id])
+  stripeRefundId String?
+  createdAt      DateTime        @default(now())
+
+  @@index([bookingId])
+  @@index([packageId])
 }

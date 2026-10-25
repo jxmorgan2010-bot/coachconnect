@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/session";
 import { packageConfirmSchema } from "@/lib/validation";
 import { calculateBundlePricing, BUNDLE_SESSION_COUNT, BUNDLE_DISCOUNT_PERCENT } from "@/lib/bundles";
 import { getStripe } from "@/lib/stripe";
+import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
 import type { Sport } from "@/generated/prisma/client";
 
 /**
@@ -46,6 +47,10 @@ export async function POST(req: Request) {
   const coachProfileId = intent.metadata.coachProfileId;
   const sport = intent.metadata.sport as Sport;
   const durationMinutes = Number(intent.metadata.durationMinutes);
+  // create-intent already refuses other lengths; this catches an intent made before that.
+  if (!isAllowedLength(durationMinutes)) {
+    return NextResponse.json({ error: `${LENGTH_NOT_ALLOWED_MESSAGE} Contact support about this payment.` }, { status: 400 });
+  }
 
   const coach = await prisma.coachProfile.findUnique({ where: { id: coachProfileId } });
   if (!coach || !coach.hourlyRateCents) {

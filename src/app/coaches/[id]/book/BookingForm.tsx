@@ -13,6 +13,9 @@ import { calculatePriceBreakdown, formatCents } from "@/lib/money";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
 import LevelPicker from "@/components/LevelPicker";
 import CardSection from "./CardSection";
+import CancellationPolicyNote from "./CancellationPolicyNote";
+import LengthPicker from "@/components/LengthPicker";
+import { DEFAULT_SESSION_LENGTH, SESSION_LENGTHS, lengthLabel, lengthOptions } from "@/lib/sessionLengths";
 
 type ChildOption = { id: string; firstName: string; gradeOrAge: string; levels: Partial<Record<Sport, SkillLevel>> };
 type OpenDay = { date: string; slots: { startsAt: string; label: string }[] };
@@ -27,7 +30,6 @@ type CoachInfo = {
 };
 type ActivePackage = { id: string; sport: Sport; durationMinutes: number; sessionsRemaining: number; childIdsUsed: string[] };
 
-const DURATIONS = [30, 60, 90, 120];
 
 // Open times come from the server (/api/coaches/[id]/open-slots), computed with the same
 // rules the server enforces when the booking is created: coach's posted Pacific hours,
@@ -92,7 +94,7 @@ function BookingFormInner({
   const [date, setDate] = useState("");
   // The exact UTC instant of the chosen slot, as returned by the server.
   const [time, setTime] = useState("");
-  const [duration, setDuration] = useState(activePackage?.durationMinutes ?? 60);
+  const [duration, setDuration] = useState<number>(activePackage?.durationMinutes ?? DEFAULT_SESSION_LENGTH);
   const [locationText, setLocationText] = useState("");
   const [zip, setZip] = useState("");
   const [consent, setConsent] = useState(false);
@@ -548,23 +550,31 @@ function BookingFormInner({
               <legend className={legendClass}>
                 <span className={stepClass} aria-hidden>02</span> When
               </legend>
-              <div className="sm:max-w-xs">
-                <label className={labelClass} htmlFor="duration">Length</label>
-                <select
-                  id="duration"
-                  className={inputClass}
-                  value={duration}
-                  disabled={!!activePackage}
-                  onChange={(e) => {
-                    setDuration(Number(e.target.value));
-                    setTime("");
-                  }}
-                >
-                  {DURATIONS.map((d) => (
-                    <option key={d} value={d}>{d} minutes</option>
-                  ))}
-                </select>
-              </div>
+              {activePackage ? (
+                <p className="text-sm text-ink">
+                  <span className="font-bold">Length:</span> {lengthLabel(activePackage.durationMinutes)}, set by your package.
+                </p>
+              ) : (
+                <div className="sm:max-w-md">
+                  <LengthPicker
+                    name="duration"
+                    legend={
+                      <>
+                        Length{" "}
+                        <span className="font-normal text-muted-foreground">
+                          · {coach.name.split(" ")[0]}&apos;s rate is {formatCents(coach.hourlyRateCents)}/hr
+                        </span>
+                      </>
+                    }
+                    options={lengthOptions(coach.hourlyRateCents).map((o) => ({ ...o, price: formatCents(o.priceCents) }))}
+                    value={duration}
+                    onChange={(minutes) => {
+                      setDuration(minutes);
+                      setTime("");
+                    }}
+                  />
+                </div>
+              )}
 
               <div role="group" aria-labelledby="day-label">
                 <p id="day-label" className={labelClass}>Day</p>
@@ -574,8 +584,10 @@ function BookingFormInner({
                   </p>
                 ) : openDays.length === 0 ? (
                   <p className="rounded-lg border-2 border-dashed border-line px-4 py-3 text-sm text-muted-foreground">
-                    No open times for a {duration}-minute session in these four weeks.
-                    {duration > 30 ? " A shorter session may fit, or try later dates." : " Try later dates, or message the coach."}
+                    No open times for a {lengthLabel(duration)} session in these four weeks.
+                    {!activePackage && duration > SESSION_LENGTHS[0]
+                      ? " A shorter session may fit, or try later dates."
+                      : " Try later dates, or message the coach."}
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
@@ -723,7 +735,7 @@ function BookingFormInner({
                 // Receipt: dashed rules, totals in display type
                 <div className="rounded-lg border-2 border-ink bg-chalk p-4 text-sm">
                   <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Session cost ({duration} min)</span>
+                    <span className="text-muted-foreground">Session cost ({lengthLabel(duration)})</span>
                     <span className="font-bold text-ink">{formatCents(breakdown.sessionCostCents)}</span>
                   </div>
                   {discountCents > 0 && (
@@ -738,8 +750,8 @@ function BookingFormInner({
                   </div>
                   <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                     Your card is authorized (held), not charged, when you book. It&apos;s charged when you mark the
-                    session complete. The price includes CoachConnect&apos;s 15% platform fee — nothing is added on top.
-                    Card/digital payment only.
+                    session complete, or if you cancel after the free-cancellation deadline. The price includes
+                    CoachConnect&apos;s 15% platform fee — nothing is added on top. Card/digital payment only.
                   </p>
                 </div>
               )}
@@ -760,6 +772,8 @@ function BookingFormInner({
                   <p className={successClass}>Fully covered by your referral credit — no card needed for this booking.</p>
                 )
               )}
+
+              <CancellationPolicyNote startsAt={time} isPackage={!!activePackage} />
 
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-line bg-surface p-3 text-sm text-ink">
                 <input

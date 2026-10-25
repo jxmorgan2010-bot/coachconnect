@@ -29,7 +29,7 @@ const PARENT_EARN_RULES = [
   { label: "Mark a session complete", points: POINTS_SESSION_COMPLETED },
   { label: "Leave a review", points: POINTS_REVIEW_LEFT },
   { label: "A parent signs up with your referral code", points: POINTS_REFERRAL_SIGNUP },
-  { label: "Quick rebook a coach", points: POINTS_QUICK_REBOOK },
+  { label: "Quick rebook a coach, once that session is completed", points: POINTS_QUICK_REBOOK },
 ];
 
 export default async function PointsPage() {

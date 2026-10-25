@@ -30,6 +30,11 @@ test("booking history statuses", () => {
   assert.equal(bookingHistoryStatus("CONFIRMED", past, now).label, "Waiting for the parent to mark it complete");
   assert.equal(bookingHistoryStatus("COMPLETED", past, now).label, "Completed");
   assert.equal(bookingHistoryStatus("CANCELLED", future, now).label, "Cancelled");
+  const cancelled = (cancelledBy: "PARENT" | "COACH", lateCancellation = false) =>
+    bookingHistoryStatus("CANCELLED", future, now, { cancelledBy, lateCancellation }).label;
+  assert.equal(cancelled("COACH"), "You cancelled");
+  assert.equal(cancelled("PARENT"), "Family cancelled");
+  assert.equal(cancelled("PARENT", true), "Family cancelled late · paid");
   assert.equal(bookingHistoryStatus("PENDING_CONSENT", future, now).label, "Pending");
 });
 

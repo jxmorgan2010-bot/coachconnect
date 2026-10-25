@@ -1,4 +1,4 @@
-import type { BookingStatus } from "@/generated/prisma/client";
+import type { BookingStatus, CancelledBy } from "@/generated/prisma/client";
 
 /**
  * The coach's private booking history on /dashboard/profile. Upcoming: sessions still ahead and
@@ -22,11 +22,20 @@ export function pastWhere(coachProfileId: string, now: Date) {
 
 export type HistoryStatus = { label: string; variant: "success" | "accent" | "warning" | "neutral" };
 
-export function bookingHistoryStatus(status: BookingStatus, scheduledAt: Date, now: Date): HistoryStatus {
+export function bookingHistoryStatus(
+  status: BookingStatus,
+  scheduledAt: Date,
+  now: Date,
+  cancellation: { cancelledBy: CancelledBy | null; lateCancellation: boolean } = { cancelledBy: null, lateCancellation: false },
+): HistoryStatus {
   switch (status) {
     case "COMPLETED":
       return { label: "Completed", variant: "success" };
     case "CANCELLED":
+      // A late family cancel is charged in full and paid to the coach like a completed session.
+      if (cancellation.lateCancellation) return { label: "Family cancelled late · paid", variant: "success" };
+      if (cancellation.cancelledBy === "COACH") return { label: "You cancelled", variant: "neutral" };
+      if (cancellation.cancelledBy === "PARENT") return { label: "Family cancelled", variant: "neutral" };
       return { label: "Cancelled", variant: "neutral" };
     case "PENDING_CONSENT":
       return { label: "Pending", variant: "warning" };
