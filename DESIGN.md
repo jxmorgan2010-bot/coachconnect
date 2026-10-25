@@ -205,7 +205,7 @@ These apply to all work in this project unless a task prompt explicitly says oth
 - Use real, specific, plain copy ("Book a session", "See coaches near you").
 
 ### Audience and states
-- Primary users: parents on phones, and coaches aged 16-23. Large tap targets, readable type, plain language.
+- Primary users: parents on phones, and coaches: student-athletes aged 16-23 and experienced adult coaches 18 and older. Large tap targets, readable type, plain language.
 - Design every page for empty, one-item, and many-item states. The production database starts with zero coaches.
 - No stock photos or AI-generated people. Coach photos are user-uploaded; use designed placeholders for missing photos.
 
