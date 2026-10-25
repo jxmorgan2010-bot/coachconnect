@@ -51,6 +51,22 @@ enum SchoolLevel {
   COLLEGE
 }
 
+// Student-athletes verify with a school ID; experienced coaches (18+, behind
+// EXPERIENCED_COACHES_ENABLED in src/lib/features.ts) with a government photo ID.
+enum CoachType {
+  STUDENT_ATHLETE
+  EXPERIENCED
+}
+
+// What kind of ID is in idPhotoPath. NULL on IDs uploaded before this column existed, which
+// were all school IDs.
+enum IdDocumentType {
+  SCHOOL_ID
+  DRIVERS_LICENSE
+  STATE_ID
+  PASSPORT
+}
+
 enum IdVerificationStatus {
   PENDING
   APPROVED
@@ -272,6 +288,14 @@ model CoachProfile {
 
   profilePhotoUrl  String?
   idPhotoPath      String?
+  idDocumentType   IdDocumentType?
+
+  // Chosen at signup and fixed after. Experienced coaches skip the school fields above and may
+  // fill in these three instead: self-reported, shown on the profile as unverified.
+  coachType        CoachType @default(STUDENT_ATHLETE)
+  yearsCoaching    Int?
+  certifications   String?
+  playingHistory   String?
 
   // A new profile photo waits here until an admin approves it; profilePhotoUrl (the one
   // families see) doesn't change until then. profilePhotoRejectedAt is set when an admin
