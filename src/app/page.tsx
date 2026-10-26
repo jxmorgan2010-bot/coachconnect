@@ -6,6 +6,7 @@ import SubmittedForReviewBanner from "@/components/SubmittedForReviewBanner";
 import { SPORTS, SPORT_TAG, SPORT_COLOR, SPORT_LABELS, SPORT_GROUPS, sportsInGroup } from "@/lib/sports";
 import { IconShieldCheck, IconMessage, IconPin, IconUsers, IconArrowRight } from "@/components/icons";
 import { goldButtonClass, secondaryButtonClass } from "@/lib/ui";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 // Every line on this page has to be something the app actually does today.
 // Background checks are a placeholder, so they are not claimed anywhere here.
@@ -87,11 +88,14 @@ export default function Home() {
               Bay Area · {SPORTS.length} sports · 1-on-1
             </p>
             <h1 className="text-display-xl max-w-[15ch] font-display">
-              Push past your limits with athletes who play the game.
+              {EXPERIENCED_COACHES_ENABLED
+                ? "Push past your limits with coaches who know the game."
+                : "Push past your limits with athletes who play the game."}
             </h1>
             <p className="mt-6 max-w-md text-lg text-white/85">
-              Book your kid 1&#8209;on&#8209;1 time with high school and college athletes. An admin approves every coach
-              before their profile goes live, and you pay through the app.
+              Book your kid 1&#8209;on&#8209;1 time with{" "}
+              {EXPERIENCED_COACHES_ENABLED ? "student-athletes and experienced coaches" : "high school and college athletes"}.
+              An admin approves every coach before their profile goes live, and you pay through the app.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/coaches" className={goldButtonClass}>
@@ -229,7 +233,9 @@ export default function Home() {
       <section className="bg-gold texture-hatch-dark">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center md:justify-between md:py-16">
           <div>
-            <h2 className="text-display-lg font-display text-ink">Played varsity? Coach your sport.</h2>
+            <h2 className="text-display-lg font-display text-ink">
+              {EXPERIENCED_COACHES_ENABLED ? "Played varsity or coached for years? Coach your sport." : "Played varsity? Coach your sport."}
+            </h2>
             <p className="mt-3 max-w-md text-ink/85">
               Set your own rate and your own hours. During the beta, coach payouts aren&apos;t set up yet.
             </p>

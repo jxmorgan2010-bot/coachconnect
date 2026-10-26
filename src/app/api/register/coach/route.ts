@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { coachRegisterSchema } from "@/lib/validation";
 import { evaluateCoachAgeEligibility } from "@/lib/coach";
 import { calendarDateToStoredDate } from "@/lib/age";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -14,12 +15,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: issue?.message ?? "Invalid input.", outOfArea }, { status: 400 });
   }
 
-  const { name, email, password, dateOfBirth, zip } = parsed.data;
+  const { name, email, password, dateOfBirth, zip, coachType } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
+  // Signup only offers the choice while the switch is on; this stops a hand-made request.
+  if (coachType === "EXPERIENCED" && !EXPERIENCED_COACHES_ENABLED) {
+    return NextResponse.json({ error: "CoachConnect isn't accepting experienced coaches yet." }, { status: 403 });
+  }
+
   // Nothing is stored for an applicant who isn't eligible. UNDER_18_NOT_ACCEPTED (the
-  // Minor Coach tier is off) is a notice, not a failure — signup shows it as one.
-  const eligibility = evaluateCoachAgeEligibility(dateOfBirth);
+  // Minor Coach tier is off) and EXPERIENCED_UNDER_18 are notices, not failures — signup
+  // shows them as such.
+  const eligibility = evaluateCoachAgeEligibility(dateOfBirth, { coachType });
   if (!eligibility.ok) {
     return NextResponse.json({ error: eligibility.reason, code: eligibility.code }, { status: 422 });
   }
@@ -41,6 +48,7 @@ export async function POST(req: Request) {
         create: {
           dateOfBirth: calendarDateToStoredDate(dateOfBirth),
           isMinorCoach: eligibility.isMinor,
+          coachType,
           zip,
         },
       },

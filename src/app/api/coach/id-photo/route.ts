@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCoachProfile } from "@/lib/session";
 import { idPhotoResponse } from "@/lib/storage";
 
-/** The signed-in coach's own school ID photo, streamed from the private store. Admins use /api/admin/coaches/[id]/id-photo. */
+/** The signed-in coach's own ID photo (school or government), streamed from the private store. Admins use /api/admin/coaches/[id]/id-photo. */
 export async function GET() {
   const profile = await requireCoachProfile();
   if (!profile) {

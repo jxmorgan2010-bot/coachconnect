@@ -13,8 +13,8 @@ import {
 } from "./uploadRules";
 
 /**
- * Coach uploads live in two Vercel Blob stores: a private one for school ID photos and a
- * public one for profile photos and bio videos. Files go straight from the browser to the
+ * Coach uploads live in two Vercel Blob stores: a private one for ID photos (school or
+ * government) and a public one for profile photos and bio videos. Files go straight from the browser to the
  * store (so Vercel's ~4.5 MB request limit doesn't apply):
  *
  *   1. POST /api/coach/upload-token: the server checks the coach, picks the pathname and issues
@@ -129,7 +129,9 @@ export async function deleteStoredCoachFile(kind: UploadKind, value: string | nu
   try {
     await del(pathname, { token: storeToken(UPLOAD_RULES[kind].access) });
   } catch (err) {
-    console.error(`[storage] Couldn't delete ${kind} file ${pathname}:`, err);
+    // ID paths stay out of the logs, and so does the error, in case it echoes the path.
+    if (kind === "id") console.error(`[storage] Couldn't delete a replaced ID file (${err instanceof Error ? err.name : "unknown error"}).`);
+    else console.error(`[storage] Couldn't delete ${kind} file ${pathname}:`, err);
   }
 }
 

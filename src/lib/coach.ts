@@ -1,4 +1,4 @@
-import type { CoachProfile, Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
+import type { CoachProfile, CoachType, Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { coachAgeBand, describeCalendarDate, todayInPacific, type CalendarDate } from "@/lib/age";
 
@@ -6,6 +6,7 @@ export type CoachCardData = {
   id: string;
   name: string;
   bio: string | null;
+  coachType: CoachType;
   schoolLevel: SchoolLevel | null;
   gradYear: number | null;
   hourlyRateCents: number | null;
@@ -110,22 +111,34 @@ export function hasVerifiedVideoBio(
 
 export type CoachAgeEligibility =
   | { ok: true; isMinor: boolean }
-  | { ok: false; code: "UNDER_18_NOT_ACCEPTED" | "TOO_YOUNG"; reason: string };
+  | { ok: false; code: "UNDER_18_NOT_ACCEPTED" | "TOO_YOUNG" | "EXPERIENCED_UNDER_18"; reason: string };
 
 /**
  * Decides whether a date of birth clears the bar to sign up as a coach at all, and if so,
  * whether they land in the standard 18+ flow or the Minor Coach flow (calendar-date rules
  * in src/lib/age.ts). The Minor Coach branch only applies when ENABLE_MINOR_COACHES is on;
  * otherwise anyone under 18 gets UNDER_18_NOT_ACCEPTED, which signup shows as a friendly
- * notice rather than an error. Both inputs default to the real values and are parameters
- * only so tests can pin them.
+ * notice rather than an error. Experienced coaches must be adults whatever the flag says: the
+ * Minor Coach tier is for student-athletes only. today and minorCoachesEnabled default to the
+ * real values and are parameters only so tests can pin them.
  */
 export function evaluateCoachAgeEligibility(
   birth: CalendarDate,
-  { today = todayInPacific(), minorCoachesEnabled = ENABLE_MINOR_COACHES }: { today?: CalendarDate; minorCoachesEnabled?: boolean } = {},
+  {
+    today = todayInPacific(),
+    minorCoachesEnabled = ENABLE_MINOR_COACHES,
+    coachType = "STUDENT_ATHLETE",
+  }: { today?: CalendarDate; minorCoachesEnabled?: boolean; coachType?: CoachType } = {},
 ): CoachAgeEligibility {
   const age = coachAgeBand(birth, today);
   if (age.band === "ADULT") return { ok: true, isMinor: false };
+  if (coachType === "EXPERIENCED") {
+    return {
+      ok: false,
+      code: "EXPERIENCED_UNDER_18",
+      reason: `Experienced coaches need to be 18 or older. You can sign up as one on or after ${describeCalendarDate(age.adultOn)}.`,
+    };
+  }
   if (!minorCoachesEnabled) {
     return {
       ok: false,
@@ -143,19 +156,14 @@ export function evaluateCoachAgeEligibility(
   return { ok: true, isMinor: true };
 }
 
+/** Experienced coaches have no school fields, and their experience fields are optional. */
 export function isCoachProfileComplete(
   profile: Pick<
     CoachProfile,
-    "bio" | "schoolLevel" | "schoolName" | "gradYear" | "hourlyRateCents" | "city" | "state"
+    "coachType" | "bio" | "schoolLevel" | "schoolName" | "gradYear" | "hourlyRateCents" | "city" | "state"
   >,
 ) {
-  return Boolean(
-    profile.bio &&
-      profile.schoolLevel &&
-      profile.schoolName &&
-      profile.gradYear &&
-      profile.hourlyRateCents &&
-      profile.city &&
-      profile.state,
-  );
+  const shared = Boolean(profile.bio && profile.hourlyRateCents && profile.city && profile.state);
+  if (profile.coachType === "EXPERIENCED") return shared;
+  return shared && Boolean(profile.schoolLevel && profile.schoolName && profile.gradYear);
 }

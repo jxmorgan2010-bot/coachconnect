@@ -15,6 +15,8 @@ import CoachCard from "@/components/CoachCard";
 import type { CoachCardData } from "@/lib/coach";
 import { hasVerifiedVideoBio, SELF_SERVE_CHECK_REF_PREFIX } from "@/lib/coach";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
+import { COACH_TYPES, COACH_TYPE_FILTER_LABELS, isCoachType } from "@/lib/coachTypes";
 import { PRIORITY_REBOOK_THRESHOLD } from "@/lib/rebook";
 import { getCurrentSession } from "@/lib/session";
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, goldButtonClass, quietLinkClass } from "@/lib/ui";
@@ -28,6 +30,7 @@ type SearchParams = {
   location?: string;
   maxPrice?: string;
   day?: string;
+  type?: string;
   excludeCoachId?: string;
 };
 
@@ -44,6 +47,8 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
   const maxPrice = params.maxPrice ? Number(params.maxPrice) : undefined;
   const day = params.day !== undefined && params.day !== "" ? Number(params.day) : undefined;
   const excludeCoachId = params.excludeCoachId?.trim();
+  // Ignored while experienced coaches are switched off, like the hidden filter itself.
+  const typeFilter = EXPERIENCED_COACHES_ENABLED && isCoachType(params.type) ? params.type : undefined;
 
   const session = await getCurrentSession();
   let priorBookingCounts = new Map<string, number>();
@@ -119,6 +124,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
         ...(locationFilter ? [{ city: locationFilter }] : []),
         ...(maxPrice ? [{ hourlyRateCents: { lte: Math.round(maxPrice * 100) } }] : []),
         ...(day !== undefined ? [{ availability: { some: { dayOfWeek: day } } }] : []),
+        ...(typeFilter ? [{ coachType: typeFilter }] : []),
         ...(excludeCoachId ? [{ NOT: { id: excludeCoachId } }] : []),
       ],
     },
@@ -139,6 +145,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
         id: p.id,
         name: p.user.name,
         bio: p.bio,
+        coachType: p.coachType,
         schoolLevel: p.schoolLevel,
         gradYear: p.gradYear,
         hourlyRateCents: p.hourlyRateCents,
@@ -166,7 +173,9 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
       return bRating - aRating;
     });
 
-  const hasFilters = Boolean(sportFilter || explicitLevel || kid || locationFilter || maxPrice || day !== undefined || excludeCoachId);
+  const hasFilters = Boolean(
+    sportFilter || explicitLevel || kid || locationFilter || maxPrice || day !== undefined || typeFilter || excludeCoachId,
+  );
   const activeFilterLabels = [
     sportFilter && SPORT_LABELS[sportFilter],
     explicitLevel && SKILL_LEVEL_LABELS[explicitLevel],
@@ -174,6 +183,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
     locationFilter,
     maxPrice && `max $${maxPrice}/hr`,
     day !== undefined && DAYS[day],
+    typeFilter && COACH_TYPE_FILTER_LABELS[typeFilter],
   ].filter(Boolean) as string[];
 
   return (
@@ -183,8 +193,10 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
           <p className="eyebrow mb-3 text-gold-bright">Bay Area</p>
           <h1 className="text-display-xl font-display">Find your coach</h1>
           <p className="mt-4 max-w-xl text-white/85">
-            High school and college athletes who coach 1&#8209;on&#8209;1. A person on our team has reviewed every
-            listed coach&apos;s ID.
+            {EXPERIENCED_COACHES_ENABLED
+              ? "Student-athletes and experienced adult coaches, 1‑on‑1."
+              : "High school and college athletes who coach 1‑on‑1."}{" "}
+            A person on our team has reviewed every listed coach&apos;s ID.
           </p>
         </div>
       </div>
@@ -193,7 +205,9 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
         {/* Nothing to filter on an empty roster, so the form only shows once there's a reason to use it */}
         {(coaches.length > 0 || hasFilters) && (
         <form
-          className="card mb-10 grid grid-cols-2 gap-x-3 gap-y-4 p-4 sm:p-5 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto] lg:items-end"
+          className={`card mb-10 grid grid-cols-2 gap-x-3 gap-y-4 p-4 sm:p-5 lg:items-end ${
+            EXPERIENCED_COACHES_ENABLED ? "lg:grid-cols-[repeat(6,minmax(0,1fr))_auto]" : "lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]"
+          }`}
           method="get"
           aria-label="Filter coaches"
         >
@@ -260,6 +274,18 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
             </select>
           </div>
 
+          {EXPERIENCED_COACHES_ENABLED && (
+            <div>
+              <label className={labelClass} htmlFor="type">Coach type</label>
+              <select id="type" name="type" defaultValue={typeFilter ?? ""} className={inputClass}>
+                <option value="">Any type</option>
+                {COACH_TYPES.map((t) => (
+                  <option key={t} value={t}>{COACH_TYPE_FILTER_LABELS[t]}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
 
           <div className="col-span-2 flex items-center justify-end gap-4 lg:col-span-1">
             {hasFilters && (
@@ -272,7 +298,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
             </button>
           </div>
 
-          <details className="col-span-2 -mt-2 text-sm lg:col-span-6">
+          <details className={`col-span-2 -mt-2 text-sm ${EXPERIENCED_COACHES_ENABLED ? "lg:col-span-7" : "lg:col-span-6"}`}>
             <summary className="inline-flex min-h-11 cursor-pointer items-center font-bold text-pitch">What do the levels mean?</summary>
             <dl className="mt-1 grid max-w-2xl gap-x-4 gap-y-1.5 sm:grid-cols-[auto_1fr]">
               {SKILL_LEVELS.map((level) => (
@@ -318,7 +344,8 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
               <h2 className="text-display-md font-display text-ink">No coaches are listed yet</h2>
               <p className="max-w-lg text-muted-foreground">
                 Coaches show up here as soon as an admin approves their ID. Check back soon — or if you played in
-                high school or college, you could be one of the first.
+                high school or college{EXPERIENCED_COACHES_ENABLED && ", or you've coached before"}, you could be one
+                of the first.
               </p>
               <Link href="/signup/coach" className={goldButtonClass}>
                 Build your coach profile <IconArrowRight className="h-4 w-4" />

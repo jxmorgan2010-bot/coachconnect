@@ -15,6 +15,8 @@ import NoHoursNotice from "@/components/NoHoursNotice";
 import CoachProfileHeader from "@/components/coach-profile/CoachProfileHeader";
 import AvailabilityList from "@/components/coach-profile/AvailabilityList";
 import AccommodationsList from "@/components/coach-profile/AccommodationsList";
+import ExperienceList, { hasAnyExperience } from "@/components/coach-profile/ExperienceList";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 import RecommendationsList from "@/components/coach-profile/RecommendationsList";
 import ReviewsSection from "@/components/coach-profile/ReviewsSection";
 import VideoClips, { videoClips } from "@/components/coach-profile/VideoClips";
@@ -110,6 +112,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
         coach={{
           name: profile.user.name,
           photoUrl: profile.profilePhotoUrl,
+          coachType: profile.coachType,
           schoolLevel: profile.schoolLevel,
           schoolName: profile.schoolName,
           gradYear: profile.gradYear,
@@ -248,6 +251,13 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
             <section>
               <h2 className="mb-3 font-display text-3xl text-ink">Scouting report</h2>
               <p className="max-w-prose whitespace-pre-line text-ink/85">{profile.bio}</p>
+            </section>
+          )}
+
+          {EXPERIENCED_COACHES_ENABLED && profile.coachType === "EXPERIENCED" && hasAnyExperience(profile) && (
+            <section aria-labelledby="experience">
+              <h2 id="experience" className="mb-3 font-display text-3xl text-ink">Coaching experience</h2>
+              <ExperienceList experience={profile} firstName={firstName} />
             </section>
           )}
 

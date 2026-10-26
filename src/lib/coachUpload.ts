@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob/client";
 import { UPLOAD_RULES, checkUploadFile, type BioVideoClipType, type UploadKind } from "./uploadRules";
+import type { GovernmentIdType } from "./coachTypes";
 
 /** Browser side of the coach upload flow described in lib/storage.ts. */
 
@@ -31,8 +32,15 @@ export async function uploadCoachFile(
   {
     clipType,
     durationSeconds,
+    documentType,
     onProgress,
-  }: { clipType?: BioVideoClipType; durationSeconds?: number; onProgress?: (percentage: number) => void } = {},
+  }: {
+    clipType?: BioVideoClipType;
+    durationSeconds?: number;
+    /** IDs from experienced coaches: which government ID it is. */
+    documentType?: GovernmentIdType;
+    onProgress?: (percentage: number) => void;
+  } = {},
 ): Promise<UploadResult> {
   const problem = checkUploadFile(kind, file);
   if (problem) return { ok: false, error: problem };
@@ -53,7 +61,7 @@ export async function uploadCoachFile(
       return { ok: false, error: "The upload didn't finish. Check your connection and try again." };
     }
 
-    const saved = await postJson(CONFIRM_URL[kind], { pathname: blob.pathname, clipType, durationSeconds });
+    const saved = await postJson(CONFIRM_URL[kind], { pathname: blob.pathname, clipType, durationSeconds, documentType });
     if (!saved.ok) return { ok: false, error: errorFrom(saved.data) };
     return { ok: true, url: typeof saved.data.url === "string" ? saved.data.url : undefined };
   } catch {

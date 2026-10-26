@@ -13,7 +13,7 @@ export type UploadKind = "id" | "photo" | "video";
 export const UPLOAD_KINDS: readonly UploadKind[] = ["id", "photo", "video"];
 
 type UploadRule = {
-  /** School IDs go to the private store; photos and videos to the public one. */
+  /** ID photos (school or government) go to the private store; photos and videos to the public one. */
   access: "private" | "public";
   /** Top-level folder in the store. Files land at `<folder>/<coachProfileId>/<name>-<random>.<ext>`. */
   folder: string;

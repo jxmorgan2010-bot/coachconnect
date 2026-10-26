@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SupportWidget from "@/components/SupportWidget";
 import SuspensionNotice from "@/components/SuspensionNotice";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 const anton = Anton({
   variable: "--font-anton",
@@ -19,11 +20,17 @@ const karla = Karla({
   weight: ["400", "500", "600", "700", "800"],
 });
 
-export const metadata: Metadata = {
-  title: "CoachConnect — 1-on-1 coaching from student athletes",
-  description:
-    "Book 1-on-1 sports sessions in the Bay Area with high school and college athletes. An admin approves every coach before their profile goes live, and you pay through the app.",
-};
+export const metadata: Metadata = EXPERIENCED_COACHES_ENABLED
+  ? {
+      title: "CoachConnect — 1-on-1 sports coaching in the Bay Area",
+      description:
+        "Book 1-on-1 sports sessions in the Bay Area with student-athletes and experienced adult coaches. An admin approves every coach before their profile goes live, and you pay through the app.",
+    }
+  : {
+      title: "CoachConnect — 1-on-1 coaching from student athletes",
+      description:
+        "Book 1-on-1 sports sessions in the Bay Area with high school and college athletes. An admin approves every coach before their profile goes live, and you pay through the app.",
+    };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

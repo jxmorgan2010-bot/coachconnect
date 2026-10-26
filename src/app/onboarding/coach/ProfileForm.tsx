@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
+import type { CoachType, Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
 import { SPORTS, SPORT_LABELS, SPORT_TAG, SPORT_COLOR, ADULT_ONLY_SPORTS, ADULT_ONLY_SPORT_NOTE, isSportAllowedForCoach } from "@/lib/sports";
 import { SKILL_LEVELS, SKILL_LEVEL_LABELS, SKILL_LEVEL_DESCRIPTIONS } from "@/lib/skillLevels";
 import SportPill from "@/components/SportPill";
 import { BAY_AREA_CITIES } from "@/lib/bayArea";
+import { CERTIFICATIONS_MAX, MAX_YEARS_COACHING, PLAYING_HISTORY_MAX } from "@/lib/coachTypes";
 import { inputClass, labelClass, primaryButtonClass, errorClass, successClass } from "@/lib/ui";
 
 export type ProfileFormValues = {
@@ -13,6 +14,10 @@ export type ProfileFormValues = {
   schoolLevel: SchoolLevel | "";
   schoolName: string;
   gradYear: string;
+  /** Experienced coaches only, all optional. */
+  yearsCoaching: string;
+  certifications: string;
+  playingHistory: string;
   hourlyRateDollars: string;
   city: string;
   state: string;
@@ -22,9 +27,12 @@ export type ProfileFormValues = {
   sportLevels: Partial<Record<Sport, SkillLevel[]>>;
 };
 
-/** Parts of the form. My profile edits one at a time; onboarding shows them all. */
-export type ProfileFormField = "sports" | "school" | "location" | "rate" | "bio";
-const ALL_FIELDS: ProfileFormField[] = ["sports", "school", "location", "rate", "bio"];
+/**
+ * Parts of the form. My profile edits one at a time; onboarding shows them all. "school" is for
+ * student-athletes and "experience" for experienced coaches; each shows only for its own type.
+ */
+export type ProfileFormField = "sports" | "school" | "experience" | "location" | "rate" | "bio";
+const ALL_FIELDS: ProfileFormField[] = ["sports", "school", "experience", "location", "rate", "bio"];
 
 export default function ProfileForm({
   initial,
@@ -32,8 +40,11 @@ export default function ProfileForm({
   fields = ALL_FIELDS,
   submitLabel = "Save profile",
   isMinorCoach = false,
+  coachType,
 }: {
   initial: ProfileFormValues;
+  /** Decides school fields or experience fields. The server checks against the saved type too. */
+  coachType: CoachType;
   onSaved: (values: ProfileFormValues) => void;
   /** Under-18 coaches can't pick ADULT_ONLY_SPORTS; the server refuses them too. */
   isMinorCoach?: boolean;
@@ -50,7 +61,9 @@ export default function ProfileForm({
   const [loading, setLoading] = useState(false);
   // Set by a save attempt, so sports still missing a level are marked only once that matters.
   const [checkLevels, setCheckLevels] = useState(false);
-  const show = (field: ProfileFormField) => fields.includes(field);
+  const show = (field: ProfileFormField) =>
+    fields.includes(field) &&
+    (field === "school" ? coachType === "STUDENT_ATHLETE" : field === "experience" ? coachType === "EXPERIENCED" : true);
   const hasLevels = (sport: Sport) => (values.sportLevels[sport] ?? []).length > 0;
 
   // Levels picked for a sport are kept if it's unticked and ticked again.
@@ -255,6 +268,52 @@ export default function ProfileForm({
             />
           </div>
         </>
+      )}
+
+      {show("experience") && (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            All optional. Families see these on your profile as shared by you, with a note that CoachConnect
+            hasn&apos;t verified them.
+          </p>
+          <div className="sm:max-w-48">
+            <label className={labelClass} htmlFor="yearsCoaching">Years of coaching experience</label>
+            <input
+              id="yearsCoaching"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={MAX_YEARS_COACHING}
+              step={1}
+              className={inputClass}
+              value={values.yearsCoaching}
+              onChange={(e) => setValues((v) => ({ ...v, yearsCoaching: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="certifications">Certifications</label>
+            <input
+              id="certifications"
+              maxLength={CERTIFICATIONS_MAX}
+              placeholder="e.g. US Soccer D license, CPR and first aid"
+              className={inputClass}
+              value={values.certifications}
+              onChange={(e) => setValues((v) => ({ ...v, certifications: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="playingHistory">Playing history</label>
+            <textarea
+              id="playingHistory"
+              rows={3}
+              maxLength={PLAYING_HISTORY_MAX}
+              placeholder="e.g. Four years of varsity basketball, then two seasons in a men's league"
+              className={inputClass}
+              value={values.playingHistory}
+              onChange={(e) => setValues((v) => ({ ...v, playingHistory: e.target.value }))}
+            />
+          </div>
+        </div>
       )}
 
       {(show("location") || show("rate")) && (

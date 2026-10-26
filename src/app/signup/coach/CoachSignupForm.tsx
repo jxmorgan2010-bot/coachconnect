@@ -9,12 +9,28 @@ import { IconWhistle } from "@/components/icons";
 import { inputClass, labelClass, goldButtonClass, errorClass, quietLinkClass } from "@/lib/ui";
 import { PLATFORM_FEE_RATE } from "@/lib/money";
 import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
+import type { CoachType } from "@/generated/prisma/client";
+
+const COACH_TYPE_OPTIONS: { value: CoachType; label: string; description: string }[] = [
+  {
+    value: "STUDENT_ATHLETE",
+    label: "Student-athlete",
+    description: "You play in high school or college. You'll verify with your school ID.",
+  },
+  {
+    value: "EXPERIENCED",
+    label: "Experienced coach",
+    description: "You're 18 or older and have played or coached. You'll verify with a driver's license, state ID or passport.",
+  },
+];
 
 export default function CoachSignupForm({
   minorCoachesEnabled,
+  experiencedCoachesEnabled,
   todayPacific,
 }: {
   minorCoachesEnabled: boolean;
+  experiencedCoachesEnabled: boolean;
   /** "YYYY-MM-DD" — the latest date of birth the date picker allows. */
   todayPacific: string;
 }) {
@@ -25,6 +41,8 @@ export default function CoachSignupForm({
   const [confirm, setConfirm] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [zip, setZip] = useState("");
+  // With experienced coaches off there's nothing to choose.
+  const [coachType, setCoachType] = useState<CoachType | null>(experiencedCoachesEnabled ? null : "STUDENT_ATHLETE");
   const [error, setError] = useState<string | null>(null);
   const [outOfArea, setOutOfArea] = useState(false);
   // Under 18 while the Minor Coach tier is off: a notice, not an error.
@@ -36,6 +54,10 @@ export default function CoachSignupForm({
     setError(null);
     setOutOfArea(false);
 
+    if (!coachType) {
+      setError("Choose student-athlete or experienced coach.");
+      return;
+    }
     if (password !== confirm) {
       setError("Passwords don't match.");
       return;
@@ -46,10 +68,10 @@ export default function CoachSignupForm({
       const res = await fetch("/api/register/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, dateOfBirth, zip }),
+        body: JSON.stringify({ name, email, password, dateOfBirth, zip, coachType }),
       });
       const data = await res.json();
-      if (data.code === "UNDER_18_NOT_ACCEPTED") {
+      if (data.code === "UNDER_18_NOT_ACCEPTED" || data.code === "EXPERIENCED_UNDER_18") {
         setNotAcceptedYet(data.error);
         setLoading(false);
         return;
@@ -81,7 +103,9 @@ export default function CoachSignupForm({
       panelIcon={<IconWhistle className="h-7 w-7" />}
       panelTitle="Set your rate. Coach your sport."
       panelPoints={[
-        "Build a profile with your school, sport, and rate",
+        experiencedCoachesEnabled
+          ? "Build a profile with your sport, your rate, and your school or coaching experience"
+          : "Build a profile with your school, sport, and rate",
         "An admin approves your profile before families can find you",
         `A ${Math.round(PLATFORM_FEE_RATE * 100)}% platform fee comes out of each session price. During the beta, coach payouts aren't set up yet.`,
       ]}
@@ -130,6 +154,32 @@ export default function CoachSignupForm({
               </>
             )}
           </p>
+        )}
+
+        {experiencedCoachesEnabled && (
+          <fieldset className="flex flex-col gap-2">
+            <legend className={labelClass}>What kind of coach are you?</legend>
+            {COACH_TYPE_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border-2 border-line bg-surface px-3.5 py-2.5 hover:border-ink has-[:checked]:border-ink has-[:checked]:bg-muted"
+              >
+                <input
+                  type="radio"
+                  name="coachType"
+                  value={option.value}
+                  checked={coachType === option.value}
+                  onChange={() => setCoachType(option.value)}
+                  required
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--pitch)]"
+                />
+                <span className="text-sm">
+                  <span className="font-bold text-ink">{option.label}</span>
+                  <span className="block text-muted-foreground">{option.description}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
         )}
 
         <div>

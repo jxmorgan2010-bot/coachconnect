@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { IconUsers, IconWhistle, IconArrowRight } from "@/components/icons";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
+import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 export default function SignupChooser() {
   return (
@@ -33,9 +34,13 @@ export default function SignupChooser() {
           <span className="grid h-12 w-12 place-items-center rounded-lg border-2 border-ink bg-ink text-gold">
             <IconWhistle className="h-6 w-6" />
           </span>
-          <h2 className="text-display-md font-display">I&apos;m a student athlete</h2>
+          <h2 className="text-display-md font-display">
+            {EXPERIENCED_COACHES_ENABLED ? "I want to coach" : "I'm a student athlete"}
+          </h2>
           <p className="text-ink/85">
-            Build a coach profile, get your ID approved, and start offering paid sessions.
+            {EXPERIENCED_COACHES_ENABLED
+              ? "Student-athlete or experienced coach: build a profile, get your ID approved, and start offering paid sessions."
+              : "Build a coach profile, get your ID approved, and start offering paid sessions."}
           </p>
           {/* Signup rejects under-18s while the Minor Coach tier is off — say so before the form */}
           {!ENABLE_MINOR_COACHES && (

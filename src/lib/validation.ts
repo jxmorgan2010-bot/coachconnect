@@ -5,6 +5,7 @@ import { SKILL_LEVELS } from "@/lib/skillLevels";
 import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
 import { PUBLIC_PLACE_REQUIRED } from "@/lib/sessionPlace";
 import { parseCalendarDate, compareCalendarDates, todayInPacific } from "@/lib/age";
+import { CERTIFICATIONS_MAX, MAX_YEARS_COACHING, PLAYING_HISTORY_MAX } from "@/lib/coachTypes";
 import {
   ACCOMMODATION_NOTE_MAX,
   LANGUAGE_CODES,
@@ -136,6 +137,9 @@ export const coachRegisterSchema = z.object({
     .min(5, "Enter a 5-digit zip code.")
     .max(10)
     .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
+  // Leaving it out means student-athlete. The register route refuses EXPERIENCED while
+  // EXPERIENCED_COACHES_ENABLED is off.
+  coachType: z.enum(["STUDENT_ATHLETE", "EXPERIENCED"]).default("STUDENT_ATHLETE"),
 });
 
 /** The teen names the parent/guardian who should receive the consent link. */
@@ -173,11 +177,20 @@ export const minorVerificationNoteSchema = z.object({
   note: z.string().trim().min(1, "Enter a note describing the verification performed.").max(2000),
 });
 
-export const coachProfileSchema = z.object({
+/** Empty or whitespace-only text is stored as null. */
+const optionalText = (max: number, message: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, message)
+    .nullish()
+    .transform((value) => value || null);
+
+// Profile fields every coach fills in. The school fields (student-athletes) or the experience
+// fields (experienced coaches) go on top: see coachProfileSchema and
+// experiencedCoachProfileSchema. Which applies comes from the coach's saved type, never the request.
+const coachProfileBase = z.object({
   bio: z.string().trim().min(30, "Bio should be at least 30 characters.").max(2000),
-  schoolLevel: z.enum(["HIGH_SCHOOL", "COLLEGE"]),
-  schoolName: z.string().trim().min(2, "School name is required."),
-  gradYear: z.coerce.number().int().min(new Date().getFullYear()).max(new Date().getFullYear() + 8),
   hourlyRateDollars: z.coerce.number().min(5, "Minimum rate is $5/hr.").max(500, "Max rate is $500/hr."),
   // Bay Area only at launch — city is a fixed select (see BAY_AREA_CITIES) rather than
   // free text so it can't drift from the list the coach search filter matches against.
@@ -199,7 +212,9 @@ export const coachProfileSchema = z.object({
     }),
     { error: "Pick at least one level for each sport you coach." },
   ),
-}).superRefine((profile, ctx) => {
+});
+
+function requireLevelsForEverySport(profile: { sports: string[]; sportLevels: { sport: string }[] }, ctx: z.RefinementCtx) {
   const missing = profile.sports.find((sport) => !profile.sportLevels.some((s) => s.sport === sport));
   if (missing) {
     ctx.addIssue({
@@ -208,16 +223,34 @@ export const coachProfileSchema = z.object({
       message: `Pick at least one level for ${SPORT_LABELS[missing as Sport]}.`,
     });
   }
-});
+}
 
-/** Empty or whitespace-only text is stored as null. */
-const optionalText = (max: number, message: string) =>
-  z
-    .string()
-    .trim()
-    .max(max, message)
-    .nullish()
-    .transform((value) => value || null);
+/** Student-athletes. */
+export const coachProfileSchema = coachProfileBase
+  .extend({
+    schoolLevel: z.enum(["HIGH_SCHOOL", "COLLEGE"]),
+    schoolName: z.string().trim().min(2, "School name is required."),
+    gradYear: z.coerce.number().int().min(new Date().getFullYear()).max(new Date().getFullYear() + 8),
+  })
+  .superRefine(requireLevelsForEverySport);
+
+/** Experienced coaches: no school fields, and three optional, self-reported ones instead. */
+export const experiencedCoachProfileSchema = coachProfileBase
+  .extend({
+    // A blank box means "not said" and is stored as null, not 0.
+    yearsCoaching: z.preprocess(
+      (value) => (value === "" || value === undefined ? null : value),
+      z.coerce
+        .number({ error: "Enter years of coaching as a whole number." })
+        .int("Enter years of coaching as a whole number.")
+        .min(0, "Years of coaching can't be negative.")
+        .max(MAX_YEARS_COACHING, `Enter ${MAX_YEARS_COACHING} years or fewer.`)
+        .nullable(),
+    ),
+    certifications: optionalText(CERTIFICATIONS_MAX, `Keep certifications under ${CERTIFICATIONS_MAX} characters.`),
+    playingHistory: optionalText(PLAYING_HISTORY_MAX, `Keep playing history under ${PLAYING_HISTORY_MAX} characters.`),
+  })
+  .superRefine(requireLevelsForEverySport);
 
 export const accommodationsSchema = z
   .object({

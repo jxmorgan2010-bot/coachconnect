@@ -4,6 +4,7 @@ import { createContext, useContext, useId, useState, useTransition, type ReactNo
 import { useRouter } from "next/navigation";
 import type { ProfileFormField, ProfileFormValues } from "@/app/onboarding/coach/ProfileForm";
 import ProfileForm from "@/app/onboarding/coach/ProfileForm";
+import type { CoachType } from "@/generated/prisma/client";
 import AvailabilityForm, { type Slot } from "@/app/onboarding/coach/AvailabilityForm";
 import { secondaryButtonClass, quietLinkClass } from "@/lib/ui";
 
@@ -81,20 +82,47 @@ export function ProfileFieldsEditor({
   fields,
   submitLabel,
   isMinorCoach,
+  coachType,
 }: {
   initial: ProfileFormValues;
   fields: ProfileFormField[];
   submitLabel: string;
   isMinorCoach: boolean;
+  coachType: CoachType;
 }) {
   const done = useSectionDone();
-  return <ProfileForm initial={initial} fields={fields} submitLabel={submitLabel} onSaved={done} isMinorCoach={isMinorCoach} />;
+  return (
+    <ProfileForm
+      initial={initial}
+      fields={fields}
+      submitLabel={submitLabel}
+      onSaved={done}
+      isMinorCoach={isMinorCoach}
+      coachType={coachType}
+    />
+  );
 }
 
 /** The whole profile form, for a coach who hasn't filled in every basic yet. */
-export function BasicsEditor({ initial, isMinorCoach }: { initial: ProfileFormValues; isMinorCoach: boolean }) {
+export function BasicsEditor({
+  initial,
+  isMinorCoach,
+  coachType,
+}: {
+  initial: ProfileFormValues;
+  isMinorCoach: boolean;
+  coachType: CoachType;
+}) {
   const router = useRouter();
-  return <ProfileForm initial={initial} submitLabel="Save basics" onSaved={() => router.refresh()} isMinorCoach={isMinorCoach} />;
+  return (
+    <ProfileForm
+      initial={initial}
+      submitLabel="Save basics"
+      onSaved={() => router.refresh()}
+      isMinorCoach={isMinorCoach}
+      coachType={coachType}
+    />
+  );
 }
 
 export function AvailabilityEditor({ initial }: { initial: Slot[] }) {

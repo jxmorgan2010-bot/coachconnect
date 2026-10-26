@@ -13,3 +13,12 @@
 export const BIO_VIDEO_UPLOADS_ENABLED = false;
 
 export const BIO_VIDEO_PAUSED_MESSAGE = "Bio video uploads are paused during the beta.";
+
+/**
+ * Experienced coaches: any adult 18 or older, verified with a government photo ID instead of a
+ * school ID. While off, signup only offers the student-athlete path (the register route refuses
+ * the other), and the coach-type badges, search filter, self-reported experience section and
+ * the copy that mentions experienced coaches are hidden, so the site reads as student-athletes
+ * only. Experienced coaches who signed up while it was on stay listed and can finish onboarding.
+ */
+export const EXPERIENCED_COACHES_ENABLED = false;
