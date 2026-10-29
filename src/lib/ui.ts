@@ -19,4 +19,6 @@ export const quietLinkClass =
   "inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-bold underline-offset-4 hover:underline";
 
 export const errorClass = "rounded-lg border-2 border-danger bg-danger/10 px-3.5 py-2.5 text-sm font-semibold text-danger";
+// Ink text: the warning gold is under 4.5:1 for small text, so it's only the border and tint.
+export const warningClass = "rounded-lg border-2 border-warning bg-warning/10 px-3.5 py-2.5 text-sm font-semibold text-ink";
 export const successClass = "rounded-lg border-2 border-success bg-success/10 px-3.5 py-2.5 text-sm font-semibold text-success";

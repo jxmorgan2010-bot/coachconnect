@@ -283,3 +283,64 @@ export function isBayAreaZip(zip: string): boolean {
 export function isBayAreaCity(city: string): boolean {
   return BAY_AREA_CITY_SET.has(city.trim().toLowerCase());
 }
+
+// --- Soft check on a booking's free-text location -------------------------------------------
+// Used only to show the parent a warning; it never blocks a booking. It warns on clear signs of
+// somewhere else (a non-Bay ZIP, another state, a well-known city elsewhere) and stays quiet on
+// anything it can't place, like "Lincoln Park field".
+
+// First three digits of Bay Area ZIPs. The curated ZIP list above isn't complete, so a ZIP in
+// one of these ranges is trusted even when it's missing from the list.
+const BAY_AREA_ZIP_PREFIXES: ReadonlySet<string> = new Set(["940", "941", "943", "944", "945", "946", "947", "948", "949", "950", "951", "954"]);
+
+const BAY_AREA_TERMS = [...BAY_AREA_CITIES.map((c) => c.toLowerCase()), "sf", "s.f.", "bay area", "east bay", "south bay", "north bay", "peninsula", "marin", "stanford"];
+
+const OTHER_STATES: Record<string, string> = {
+  al: "alabama", ak: "alaska", az: "arizona", ar: "arkansas", co: "colorado", ct: "connecticut", de: "delaware",
+  fl: "florida", ga: "georgia", hi: "hawaii", id: "idaho", il: "illinois", in: "indiana", ia: "iowa", ks: "kansas",
+  ky: "kentucky", la: "louisiana", me: "maine", md: "maryland", ma: "massachusetts", mi: "michigan", mn: "minnesota",
+  ms: "mississippi", mo: "missouri", mt: "montana", ne: "nebraska", nv: "nevada", nh: "new hampshire", nj: "new jersey",
+  nm: "new mexico", ny: "new york", nc: "north carolina", nd: "north dakota", oh: "ohio", ok: "oklahoma", or: "oregon",
+  pa: "pennsylvania", ri: "rhode island", sc: "south carolina", sd: "south dakota", tn: "tennessee", tx: "texas",
+  ut: "utah", vt: "vermont", va: "virginia", wa: "washington", wv: "west virginia", wi: "wisconsin", wy: "wyoming",
+  dc: "district of columbia",
+};
+
+// Well-known places outside the Bay Area that parents might type. Several are also Bay Area
+// street names ("Sacramento St", "Santa Cruz Ave"), so a match followed by a street word is ignored.
+const OTHER_PLACES = [
+  "austin", "dallas", "houston", "san antonio", "los angeles", "san diego", "sacramento", "fresno", "stockton",
+  "modesto", "bakersfield", "santa cruz", "monterey", "salinas", "tahoe", "reno", "las vegas", "phoenix", "seattle",
+  "portland", "denver", "salt lake city", "chicago", "new york", "nyc", "brooklyn", "manhattan", "boston", "miami",
+  "atlanta", "orlando", "irvine", "anaheim", "long beach", "pasadena",
+];
+const STREET_WORD = "(?:st|street|ave|avenue|blvd|boulevard|rd|road|way|dr|drive|ct|court|ln|lane|pl|place|park|playground|school)\\b";
+
+function escape(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function mentions(text: string, term: string, notFollowedBy?: string) {
+  const after = notFollowedBy ? `(?!\\s+${notFollowedBy})` : "";
+  return new RegExp(`(^|[^a-z])${escape(term)}(?![a-z])${after}`).test(text);
+}
+
+/** True when a free-text session location clearly points outside the Bay Area. */
+export function locationLooksOutsideBayArea(location: string): boolean {
+  const text = location.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!text) return false;
+
+  // A ZIP decides it: at the end of the text, or right after "CA".
+  const zip = text.match(/\b(\d{5})(?:-\d{4})?$/)?.[1] ?? text.match(/\bca,? (\d{5})\b/)?.[1];
+  if (zip) return !BAY_AREA_ZIP_SET.has(zip) && !BAY_AREA_ZIP_PREFIXES.has(zip.slice(0, 3));
+
+  // Another state, after a comma or at the very end ("Austin, TX", "Austin Texas"). A bare
+  // two-letter abbreviation without a comma only counts in capitals ("Austin TX"), so a
+  // location ending in "... go in" isn't read as Indiana.
+  for (const [abbr, name] of Object.entries(OTHER_STATES)) {
+    if (new RegExp(`(,\\s*|\\s|^)${name}$`).test(text) || new RegExp(`,\\s*${name}\\b`).test(text)) return true;
+    if (new RegExp(`,\\s*${abbr}$`).test(text) || new RegExp(`\\s${abbr.toUpperCase()}$`).test(location.trim())) return true;
+  }
+
+  if (BAY_AREA_TERMS.some((term) => mentions(text, term))) return false;
+  return OTHER_PLACES.some((place) => mentions(text, place, STREET_WORD));
+}
