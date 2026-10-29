@@ -27,6 +27,19 @@ export function calculatePriceBreakdown(hourlyRateCents: number, durationMinutes
   };
 }
 
+/**
+ * What the coach earns from one booking: the full session price less the platform fee, as
+ * stored on the booking. A credit or package discount lowers what the family pays, never
+ * this, because CoachConnect covers it.
+ */
+export function coachEarnings(b: { priceCents: number; platformFeeCents: number }) {
+  return {
+    sessionPriceCents: b.priceCents,
+    platformFeeCents: b.platformFeeCents,
+    youEarnCents: b.priceCents - b.platformFeeCents,
+  };
+}
+
 /** Tips pass through to the coach in full — no platform fee is taken out of them. */
 export function tipPayoutCents(tipCents: number): number {
   return tipCents;

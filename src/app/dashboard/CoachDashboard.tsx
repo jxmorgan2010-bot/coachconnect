@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import Badge from "@/components/Badge";
 import SubmittedForReviewBanner from "@/components/SubmittedForReviewBanner";
 import { getBackgroundCheckExpiryState, isCoachLive } from "@/lib/coach";
-import { formatCents } from "@/lib/money";
+import { coachEarnings, formatCents } from "@/lib/money";
 import DateTile from "@/components/DateTile";
 import SportPill from "@/components/SportPill";
 import { IconMessage } from "@/components/icons";
@@ -64,7 +64,7 @@ export default async function CoachDashboard({
   function paymentNote(b: (typeof upcoming)[number]) {
     if (b.packageId) return "Prepaid package session.";
     if (b.paymentStatus === "AUTHORIZED") {
-      return "Card held. It's charged when the parent marks the session complete, or if they cancel after 11:59 PM PT the night before. Coach payouts aren't set up yet.";
+      return "Card held. It's charged when the parent marks the session complete, or if they cancel after 11:59 PM PT the night before.";
     }
     return "No card hold on this session.";
   }
@@ -86,7 +86,6 @@ export default async function CoachDashboard({
               )}
               <span className="font-normal text-muted-foreground">· {b.parentProfile.user.name}&apos;s family</span>
             </p>
-            <span className="font-display text-lg leading-none text-pitch">{formatCents(b.priceCents - b.discountCents)}</span>
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {formatPacificTime(b.scheduledAt)} · {b.durationMinutes} min ·{" "}
@@ -96,6 +95,7 @@ export default async function CoachDashboard({
             {waiting ? "Waiting for the parent to mark this complete. " : ""}
             {paymentNote(b)}
           </p>
+          <Earnings b={b} />
           {/* videoCallUrl is a mock placeholder link, so it isn't shown until a real provider exists. */}
           {!waiting && (
             <div className="mt-3">
@@ -242,6 +242,7 @@ export default async function CoachDashboard({
                       {b.scheduledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: COACH_TIMEZONE })} ·{" "}
                       {b.parentProfile.user.name}&apos;s family
                     </p>
+                    <Earnings b={b} />
                   </div>
                   <ProgressNoteForm bookingId={b.id} />
                 </li>
@@ -250,6 +251,40 @@ export default async function CoachDashboard({
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The coach's side of a booking's money, always on the full session price. A family's credit
+ * or package discount (discountCents) is covered by CoachConnect, so it only adds a note.
+ */
+function Earnings({ b }: { b: { priceCents: number; platformFeeCents: number; discountCents: number; packageId: string | null } }) {
+  const { sessionPriceCents, platformFeeCents, youEarnCents } = coachEarnings(b);
+  return (
+    <div className="mt-3 max-w-xs rounded-lg border-2 border-ink bg-chalk p-3 text-sm">
+      <dl>
+        <div className="flex justify-between gap-4">
+          <dt className="text-muted-foreground">Session price</dt>
+          <dd className="font-bold text-ink">{formatCents(sessionPriceCents)}</dd>
+        </div>
+        <div className="mt-1 flex justify-between gap-4">
+          <dt className="text-muted-foreground">Platform fee</dt>
+          <dd className="font-bold text-ink">−{formatCents(platformFeeCents)}</dd>
+        </div>
+        <div className="mt-2 flex items-baseline justify-between gap-4 border-t-2 border-dashed border-ink pt-2 text-ink">
+          <dt className="font-display text-base leading-none">You earn</dt>
+          <dd className="font-display text-xl leading-none text-pitch">{formatCents(youEarnCents)}</dd>
+        </div>
+      </dl>
+      {b.discountCents > 0 && (
+        <p className="mt-2 text-xs text-ink">
+          {b.packageId
+            ? `The family's package discount (${formatCents(b.discountCents)}) is covered by CoachConnect, so you still earn the full amount.`
+            : `The family used ${formatCents(b.discountCents)} in credit. CoachConnect covers it, so you still earn the full amount.`}
+        </p>
+      )}
+      <p className="mt-2 text-xs text-muted-foreground">Coach payouts aren&apos;t set up yet.</p>
     </div>
   );
 }
