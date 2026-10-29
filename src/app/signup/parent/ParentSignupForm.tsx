@@ -133,11 +133,14 @@ export default function ParentSignupForm({ referralBonusCents }: { referralBonus
             value={referralCode}
             onChange={(e) => setReferralCode(e.target.value)}
             placeholder="e.g. A1B2C3D4"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
             aria-describedby="referral-help"
           />
           <p id="referral-help" className="mt-1.5 text-xs text-muted-foreground">
-            Have a code from another parent? You&apos;ll both get {formatCents(referralBonusCents).replace(".00", "")} off
-            your next booking.
+            Got a code from another parent? Paste it here. After your first session is paid and marked complete, you
+            each get {formatCents(referralBonusCents).replace(".00", "")} in credit.
           </p>
         </div>
 

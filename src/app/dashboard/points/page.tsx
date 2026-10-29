@@ -18,7 +18,7 @@ import PointsRedeemForm from "./PointsRedeemForm";
 const ACTION_LABEL: Record<string, string> = {
   SESSION_COMPLETED: "Session completed",
   REVIEW_LEFT: "Review left",
-  REFERRAL_SIGNUP: "Referral signed up",
+  REFERRAL_SIGNUP: "Referral finished a paid session",
   QUICK_REBOOK: "Quick rebook",
   REDEEMED_FOR_CREDIT: "Redeemed for credit",
 };
@@ -28,7 +28,7 @@ const ACTION_LABEL: Record<string, string> = {
 const PARENT_EARN_RULES = [
   { label: "Mark a session complete", points: POINTS_SESSION_COMPLETED },
   { label: "Leave a review", points: POINTS_REVIEW_LEFT },
-  { label: "A parent signs up with your referral code", points: POINTS_REFERRAL_SIGNUP },
+  { label: "A parent you referred finishes their first paid session", points: POINTS_REFERRAL_SIGNUP },
   { label: "Quick rebook a coach, once that session is completed", points: POINTS_QUICK_REBOOK },
 ];
 

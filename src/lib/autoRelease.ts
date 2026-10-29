@@ -4,6 +4,7 @@ import { captureHeldPayment } from "@/lib/payment";
 import { bookingChargeCents } from "@/lib/cancellation";
 import { AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
 import { formatPacificDateTime } from "@/lib/sessionTiming";
+import { settleReferralAfterCompletion } from "@/lib/referral";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -51,6 +52,7 @@ export async function runAutoReleaseSweep(now: Date = new Date()) {
         stripePaymentIntentId: paymentIntentId,
       },
     });
+    await settleReferralAfterCompletion(b.id);
 
     sendMockEmail(
       b.parentProfile.user.email,

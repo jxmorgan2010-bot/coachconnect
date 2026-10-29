@@ -5,6 +5,7 @@ import { captureHeldPayment } from "@/lib/payment";
 import { bookingChargeCents } from "@/lib/cancellation";
 import { awardPoints, POINTS_QUICK_REBOOK, POINTS_SESSION_COMPLETED } from "@/lib/points";
 import { canMarkComplete, formatPacificTime, sessionEndsAt } from "@/lib/sessionTiming";
+import { settleReferralAfterCompletion } from "@/lib/referral";
 
 /**
  * Only the parent can mark a session complete — this is what releases the
@@ -65,6 +66,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!updated) {
     return NextResponse.json({ error: "This session was already marked complete." }, { status: 409 });
   }
+
+  await settleReferralAfterCompletion(id);
 
   return NextResponse.json({ ok: true, booking: updated });
 }
