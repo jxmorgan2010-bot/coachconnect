@@ -7,10 +7,11 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, useStripe, useElements, CardNumberElement } from "@stripe/react-stripe-js";
 import type { SkillLevel, Sport } from "@/generated/prisma/client";
 import { SPORT_LABELS, SPORT_PLACE_EXAMPLE } from "@/lib/sports";
-import { PUBLIC_PLACE_REQUIRED, VENUE_FEE_NOTE } from "@/lib/sessionPlace";
+import { BAY_AREA_PLACE_REMINDER, OUTSIDE_BAY_AREA_WARNING, PUBLIC_PLACE_REQUIRED, VENUE_FEE_NOTE } from "@/lib/sessionPlace";
 import { SKILL_LEVEL_LABELS, describeLevels, listLevels } from "@/lib/skillLevels";
 import { calculatePriceBreakdown, formatCents } from "@/lib/money";
-import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass } from "@/lib/ui";
+import { inputClass, labelClass, primaryButtonClass, secondaryButtonClass, errorClass, successClass, quietLinkClass, warningClass } from "@/lib/ui";
+import { locationLooksOutsideBayArea } from "@/lib/bayArea";
 import LevelPicker from "@/components/LevelPicker";
 import CardSection from "./CardSection";
 import CancellationPolicyNote from "./CancellationPolicyNote";
@@ -147,6 +148,7 @@ function BookingFormInner({
   const discountCents = Math.min(creditCents, breakdown.sessionCostCents);
   const totalDueCents = breakdown.totalChargedCents - discountCents;
   const paymentRequired = !activePackage && totalDueCents >= STRIPE_MIN_CENTS;
+  const locationOutsideBayArea = locationLooksOutsideBayArea(locationText);
 
   const slotsKey = `${duration}|${slotsFrom ?? ""}|${slotsVersion}`;
   const slotsLoading = loadedSlotsKey !== slotsKey;
@@ -691,12 +693,15 @@ function BookingFormInner({
                   placeholder={sport ? SPORT_PLACE_EXAMPLE[sport] : "e.g. the rec center gym"}
                   value={locationText}
                   onChange={(e) => setLocationText(e.target.value)}
-                  aria-describedby="location-help"
+                  aria-describedby={locationOutsideBayArea ? "location-warning location-help" : "location-help"}
                   required
                 />
+                {/* A soft check on free text: it warns, and never blocks the booking. */}
+                <p id="location-warning" role="status" aria-live="polite" className={locationOutsideBayArea ? `mt-2 ${warningClass}` : "sr-only"}>
+                  {locationOutsideBayArea ? OUTSIDE_BAY_AREA_WARNING : ""}
+                </p>
                 <p id="location-help" className="mt-1.5 text-xs text-muted-foreground">
-                  Pick a public place: a park, a school or rec center gym, or a dojo or boxing gym open to the
-                  public. You choose — not the coach. Never a private home. {VENUE_FEE_NOTE}
+                  {BAY_AREA_PLACE_REMINDER} You choose — not the coach. Never a private home. {VENUE_FEE_NOTE}
                 </p>
               </div>
 

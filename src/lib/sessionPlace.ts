@@ -6,3 +6,11 @@ export const PUBLIC_PLACE_REQUIRED = "Enter a public place, like a park, gym or 
 
 /** Venue entry fees aren't collected or refunded by CoachConnect. Parent-facing. */
 export const VENUE_FEE_NOTE = "If the place you pick charges an entry fee, that's between your family and the venue.";
+
+/** Reminder under the booking form's location field. */
+export const BAY_AREA_PLACE_REMINDER =
+  "Sessions must be at a public place in the Bay Area: a park, a school or rec center gym, or a dojo or boxing gym open to the public. Include the city, like “Mitchell Park, Palo Alto.”";
+
+/** Soft warning when the location looks like it's outside the Bay Area. It never blocks booking. */
+export const OUTSIDE_BAY_AREA_WARNING =
+  "This doesn't look like it's in the Bay Area. CoachConnect sessions are Bay Area only, so double-check the place before you book.";
