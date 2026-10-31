@@ -232,7 +232,12 @@ export default async function ParentDashboard({ userId, name }: { userId: string
               </section>
             )}
 
-            <ReferralPanel code={parentProfile.referralCode} creditCents={parentProfile.creditCents} bonusCents={REFERRAL_BONUS_CENTS} />
+            <ReferralPanel
+              code={parentProfile.referralCode}
+              creditCents={parentProfile.creditCents}
+              bonusCents={REFERRAL_BONUS_CENTS}
+              referralPending={parentProfile.referralPending}
+            />
         </aside>
       </div>
     </div>

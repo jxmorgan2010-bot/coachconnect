@@ -162,6 +162,14 @@ enum PackageStatus {
   DEPLETED
 }
 
+enum ReferralOutcome {
+  GRANTED
+  // The card already earned a referral reward on another account.
+  DUPLICATE_CARD
+  // The card is saved on the referrer's own account.
+  SELF_REFERRAL
+}
+
 enum PointsActionType {
   SESSION_COMPLETED
   REVIEW_LEFT
@@ -229,6 +237,12 @@ model ParentProfile {
   referredById          String?
   referredBy            ParentProfile?  @relation("Referrals", fields: [referredById], references: [id])
   referredParents       ParentProfile[] @relation("Referrals")
+  // Signed up with a referral code whose $5 credits haven't been decided yet. They're
+  // decided at this parent's first completed, card-paid session (see src/lib/referral.ts).
+  // Parents who signed up before this existed read as false: they were credited at signup.
+  referralPending       Boolean          @default(false)
+  referralReward        ReferralReward?  @relation("ReferralRewardReferred")
+  referralRewardsEarned ReferralReward[] @relation("ReferralRewardReferrer")
 
   // Loyalty points — see src/lib/points.ts. pointsBalance is spendable (redemptions
   // decrement it); nothing currently reads a lifetime total for parents so there's no
@@ -618,6 +632,30 @@ model Booking {
   dispute             Dispute?
   pointsTransactions  PointsTransaction[]
   refunds             Refund[]
+  referralReward      ReferralReward?
+}
+
+/**
+ * The decision on one referral, made at the referred parent's first completed, card-paid
+ * session (see settleReferral in src/lib/referral.ts). One row per referred parent.
+ * cardFingerprint is Stripe's card fingerprint, set only on GRANTED rows, so its unique
+ * index stops one card from earning a referral reward twice.
+ */
+model ReferralReward {
+  id               String          @id @default(cuid())
+  referredParentId String          @unique
+  referredParent   ParentProfile   @relation("ReferralRewardReferred", fields: [referredParentId], references: [id], onDelete: Cascade)
+  referrerParentId String?
+  referrerParent   ParentProfile?  @relation("ReferralRewardReferrer", fields: [referrerParentId], references: [id], onDelete: SetNull)
+  bookingId        String?         @unique
+  booking          Booking?        @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  outcome          ReferralOutcome
+  cardFingerprint  String?         @unique
+  // Credit given to each of the two parents. 0 when the reward was refused.
+  creditCents      Int             @default(0)
+  createdAt        DateTime        @default(now())
+
+  @@index([referrerParentId])
 }
 
 model Review {

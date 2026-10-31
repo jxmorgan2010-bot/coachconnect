@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { parentRegisterSchema } from "@/lib/validation";
-import { generateReferralCode, REFERRAL_BONUS_CENTS } from "@/lib/referral";
-import { awardPoints, POINTS_REFERRAL_SIGNUP } from "@/lib/points";
+import { generateReferralCode } from "@/lib/referral";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -38,31 +37,23 @@ export async function POST(req: Request) {
     ownCode = generateReferralCode();
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.create({
-      data: {
-        name,
-        email: normalizedEmail,
-        passwordHash,
-        role: "PARENT",
-        parentProfile: {
-          create: {
-            phone: phone || null,
-            referralCode: ownCode,
-            referredById: referrer?.id,
-            creditCents: referrer ? REFERRAL_BONUS_CENTS : 0,
-          },
+  // Signing up with a code gives nothing yet. Both credits are decided at this parent's first
+  // completed, card-paid session (settleReferral in lib/referral.ts).
+  await prisma.user.create({
+    data: {
+      name,
+      email: normalizedEmail,
+      passwordHash,
+      role: "PARENT",
+      parentProfile: {
+        create: {
+          phone: phone || null,
+          referralCode: ownCode,
+          referredById: referrer?.id,
+          referralPending: !!referrer,
         },
       },
-    });
-
-    if (referrer) {
-      await tx.parentProfile.update({
-        where: { id: referrer.id },
-        data: { creditCents: { increment: REFERRAL_BONUS_CENTS } },
-      });
-      await awardPoints(tx, { parentProfileId: referrer.id, action: "REFERRAL_SIGNUP", points: POINTS_REFERRAL_SIGNUP });
-    }
+    },
   });
 
   return NextResponse.json({ ok: true });
