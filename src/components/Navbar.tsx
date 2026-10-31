@@ -67,7 +67,7 @@ export default function Navbar() {
             <IconWhistle className="h-5 w-5" />
           </span>
           <span className="font-display text-xl tracking-wide text-ink">
-            Coach<span className="text-pitch">Connect</span>
+            Assist <span className="text-pitch">Coaching</span>
           </span>
         </Link>
 

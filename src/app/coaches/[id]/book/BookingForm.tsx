@@ -756,7 +756,7 @@ function BookingFormInner({
                   <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                     Your card is authorized (held), not charged, when you book. It&apos;s charged when you mark the
                     session complete, or if you cancel after the free-cancellation deadline. The price includes
-                    CoachConnect&apos;s 15% platform fee — nothing is added on top. Card/digital payment only.
+                    Assist Coaching&apos;s 15% platform fee — nothing is added on top. Card/digital payment only.
                   </p>
                 </div>
               )}

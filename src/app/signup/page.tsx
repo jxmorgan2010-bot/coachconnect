@@ -7,7 +7,7 @@ export default function SignupChooser() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-16">
       <p className="eyebrow mb-2 text-pitch">Bay Area</p>
-      <h1 className="text-display-xl font-display text-ink">Join CoachConnect</h1>
+      <h1 className="text-display-xl font-display text-ink">Join Assist Coaching</h1>
       <p className="mt-3 max-w-xl text-muted-foreground">Tell us who you are so we set up the right account.</p>
 
       <div className="mt-8 grid gap-6 md:grid-cols-2 md:gap-8">

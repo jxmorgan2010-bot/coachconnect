@@ -6,7 +6,7 @@ import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 
 const RULES = [
   "Sessions are always held at a public place the parent chooses — a park, a school or rec center gym, or a dojo or boxing gym that's open to the public. Never a private home. If the place the parent picks charges an entry fee, that's between the family and the venue.",
-  "All communication with families happens through CoachConnect messaging — never share your phone number, email, or address.",
+  "All communication with families happens through Assist Coaching messaging — never share your phone number, email, or address.",
   "Never meet or communicate with a child without a parent or guardian's consent on file.",
   "Treat every family with respect. Harassment, discrimination, or inappropriate conduct results in permanent removal.",
   "Report anything that makes you uncomfortable using the Report button on any profile or conversation.",
@@ -49,12 +49,12 @@ export default function ConductAck({
       </ul>
       {error && <p className={errorClass}>{error}</p>}
       {acknowledged ? (
-        <p className={successClass}>You&apos;ve acknowledged CoachConnect&apos;s conduct rules.</p>
+        <p className={successClass}>You&apos;ve acknowledged Assist Coaching&apos;s conduct rules.</p>
       ) : (
         <>
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-line bg-surface p-3 text-sm text-ink">
             <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--pitch)]" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
-            I have read and agree to follow CoachConnect&apos;s platform conduct rules.
+            I have read and agree to follow Assist Coaching&apos;s platform conduct rules.
           </label>
           <button onClick={save} className={`${primaryButtonClass} w-full sm:w-auto sm:self-start`} disabled={!checked || loading}>
             {loading ? "Saving..." : "Confirm agreement"}

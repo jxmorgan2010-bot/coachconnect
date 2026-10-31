@@ -22,7 +22,7 @@ export default function PaymentProtectionNotice() {
   return (
     <div className="rounded-lg border-2 border-ink bg-accent/10 p-4">
       <p className="mb-3 flex items-center gap-2 font-display text-lg leading-none text-ink">
-        <IconShieldCheck className="h-4 w-4 shrink-0 text-pitch" /> Why pay through CoachConnect
+        <IconShieldCheck className="h-4 w-4 shrink-0 text-pitch" /> Why pay through Assist Coaching
       </p>
       <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">
         {POINTS.map((p) => (

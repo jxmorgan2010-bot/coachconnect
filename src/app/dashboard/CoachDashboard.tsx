@@ -280,8 +280,8 @@ function Earnings({ b }: { b: { priceCents: number; platformFeeCents: number; di
       {b.discountCents > 0 && (
         <p className="mt-2 text-xs text-ink">
           {b.packageId
-            ? `The family's package discount (${formatCents(b.discountCents)}) is covered by CoachConnect, so you still earn the full amount.`
-            : `The family used ${formatCents(b.discountCents)} in credit. CoachConnect covers it, so you still earn the full amount.`}
+            ? `The family's package discount (${formatCents(b.discountCents)}) is covered by Assist Coaching, so you still earn the full amount.`
+            : `The family used ${formatCents(b.discountCents)} in credit. Assist Coaching covers it, so you still earn the full amount.`}
         </p>
       )}
       <p className="mt-2 text-xs text-muted-foreground">Coach payouts aren&apos;t set up yet.</p>

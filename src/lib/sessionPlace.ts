@@ -13,4 +13,4 @@ export const BAY_AREA_PLACE_REMINDER =
 
 /** Soft warning when the location looks like it's outside the Bay Area. It never blocks booking. */
 export const OUTSIDE_BAY_AREA_WARNING =
-  "This doesn't look like it's in the Bay Area. CoachConnect sessions are Bay Area only, so double-check the place before you book.";
+  "This doesn't look like it's in the Bay Area. Assist Coaching sessions are Bay Area only, so double-check the place before you book.";

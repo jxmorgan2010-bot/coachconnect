@@ -41,8 +41,8 @@ export async function POST(req: Request) {
   const link = consentLink(new URL(req.url).origin, result.token);
   sendMockEmail(
     result.consent.guardianEmail,
-    `${user.name} needs your consent to coach on CoachConnect`,
-    `Hi ${result.consent.guardianName},\n\n${user.name} has applied to coach on CoachConnect. Because they're under 18, they need their parent or legal guardian's consent. Please read and sign here (the link works once and expires in ${CONSENT_LINK_TTL_DAYS} days):\n\n${link}`,
+    `${user.name} needs your consent to coach on Assist Coaching`,
+    `Hi ${result.consent.guardianName},\n\n${user.name} has applied to coach on Assist Coaching. Because they're under 18, they need their parent or legal guardian's consent. Please read and sign here (the link works once and expires in ${CONSENT_LINK_TTL_DAYS} days):\n\n${link}`,
   );
 
   return NextResponse.json({

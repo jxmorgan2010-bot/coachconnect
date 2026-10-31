@@ -31,7 +31,7 @@ export default async function RevokeConsentPage({ params }: { params: Promise<{ 
       ) : (
         <>
           <p className="mt-3 text-muted-foreground">
-            You signed consent for {coachName} to coach on CoachConnect on {signedOn}. If you withdraw it:
+            You signed consent for {coachName} to coach on Assist Coaching on {signedOn}. If you withdraw it:
           </p>
           <ul className="mt-2 mb-6 list-disc pl-5 text-muted-foreground">
             <li>{first}&apos;s profile is hidden from families right away.</li>

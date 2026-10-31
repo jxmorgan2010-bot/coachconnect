@@ -67,7 +67,7 @@ export default async function AdminFlaggedPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-12">
       <AdminHeader title="Flagged attempts">
-        Text that looked like contact details or a move off CoachConnect. Matching is automatic and will sometimes
+        Text that looked like contact details or a move off Assist Coaching. Matching is automatic and will sometimes
         misfire — reverse a suspension or clear strikes when it does. Bookings and payments are never changed
         automatically.
       </AdminHeader>

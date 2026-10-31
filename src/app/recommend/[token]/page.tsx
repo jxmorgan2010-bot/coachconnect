@@ -21,7 +21,7 @@ export default async function RecommendPage({ params }: { params: Promise<{ toke
       <p className="eyebrow mb-2 text-pitch">Coach recommendation</p>
       <h1 className="text-display-lg font-display text-ink">Recommend {coachName}</h1>
       <p className="mt-3 mb-6 text-muted-foreground">
-        {coachName} asked you to write a short recommendation for their CoachConnect coach profile. Your name, role,
+        {coachName} asked you to write a short recommendation for their Assist Coaching coach profile. Your name, role,
         and recommendation will appear on that public profile, along with a &quot;Recommended by a coach&quot;
         badge.
       </p>

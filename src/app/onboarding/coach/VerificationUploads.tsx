@@ -90,7 +90,7 @@ export default function VerificationUploads({
           {governmentId
             ? "A driver's license, state ID or passport. Used only to confirm who you are and your age."
             : "Used only to verify current enrollment."}{" "}
-          Never shown publicly — visible only to you and CoachConnect admins.
+          Never shown publicly — visible only to you and Assist Coaching admins.
         </p>
         {governmentId && (
           <div>

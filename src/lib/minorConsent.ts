@@ -326,7 +326,7 @@ export async function revokeConsent(
   sendMockEmail(
     consent.guardianEmail,
     "Consent withdrawn",
-    `You've withdrawn consent for ${coach.name} to coach on CoachConnect. Their profile is hidden from families and ${cancelledBookingIds.length} upcoming session(s) were cancelled.`,
+    `You've withdrawn consent for ${coach.name} to coach on Assist Coaching. Their profile is hidden from families and ${cancelledBookingIds.length} upcoming session(s) were cancelled.`,
   );
   sendMockEmail(
     coach.email,

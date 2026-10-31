@@ -34,7 +34,7 @@ export default async function MinorConsentPage({ params }: { params: Promise<{ t
       <LinkDeadEnd
         eyebrow="Link expired"
         title="This consent link has expired"
-        body={`Links work for 7 days. Ask ${coachName} to send you a new one from their CoachConnect account.`}
+        body={`Links work for 7 days. Ask ${coachName} to send you a new one from their Assist Coaching account.`}
       />
     );
   }

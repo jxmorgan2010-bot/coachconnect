@@ -21,7 +21,7 @@ const STEPS = [
   },
   {
     title: "Message without swapping numbers",
-    body: "Plan the details in CoachConnect chat. Coaches never see your phone number or email.",
+    body: "Plan the details in Assist Coaching chat. Coaches never see your phone number or email.",
   },
   {
     title: "Mark it done and leave a review",

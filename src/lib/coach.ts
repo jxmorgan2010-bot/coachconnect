@@ -143,7 +143,7 @@ export function evaluateCoachAgeEligibility(
     return {
       ok: false,
       code: "UNDER_18_NOT_ACCEPTED",
-      reason: `Thanks for wanting to coach! CoachConnect isn't accepting coaches under 18 yet. You can sign up any time after your 18th birthday on ${describeCalendarDate(age.adultOn)}.`,
+      reason: `Thanks for wanting to coach! Assist Coaching isn't accepting coaches under 18 yet. You can sign up any time after your 18th birthday on ${describeCalendarDate(age.adultOn)}.`,
     };
   }
   if (age.band === "TOO_YOUNG") {

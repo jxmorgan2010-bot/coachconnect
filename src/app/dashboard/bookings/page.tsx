@@ -66,7 +66,7 @@ function cancelledMessage(b: CancelledBooking): string {
   if (b.cancelledBy === "COACH") return `${b.coachProfile.user.name} cancelled this session. ${money}`;
   // Platform-cancelled (cancelReason is admin-facing; parents get the plain version).
   if (b.cancelledBy === "PLATFORM" || b.cancelledAt) {
-    return `CoachConnect cancelled this session because the coach is no longer available. ${money}`;
+    return `Assist Coaching cancelled this session because the coach is no longer available. ${money}`;
   }
   return "This session was cancelled.";
 }
