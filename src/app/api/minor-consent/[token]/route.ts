@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   sendMockEmail(
     result.consent.guardianEmail,
     "Your consent is recorded — keep this email",
-    `Thanks, ${parsed.data.signerLegalName}. Your consent for ${result.consent.coachProfile.user.name} to coach on CoachConnect is recorded.\n\nYou can withdraw it at any time with this link, which doesn't expire:\n\n${link}`,
+    `Thanks, ${parsed.data.signerLegalName}. Your consent for ${result.consent.coachProfile.user.name} to coach on Assist Coaching is recorded.\n\nYou can withdraw it at any time with this link, which doesn't expire:\n\n${link}`,
   );
 
   return NextResponse.json({ ok: true, revokeLink: link });

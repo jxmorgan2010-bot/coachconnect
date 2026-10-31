@@ -24,7 +24,7 @@ export default function ExperienceList({ experience: e, firstName }: { experienc
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">Shared by {firstName}. CoachConnect hasn&apos;t verified these.</p>
+      <p className="text-sm text-muted-foreground">Shared by {firstName}. Assist Coaching hasn&apos;t verified these.</p>
       <dl className="divide-y-2 divide-line rounded-lg border-2 border-line bg-surface">
         {rows.map((row) => (
           <div key={row.label} className="grid gap-1 px-4 py-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4">

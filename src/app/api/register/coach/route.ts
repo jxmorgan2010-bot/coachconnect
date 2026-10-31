@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
   // Signup only offers the choice while the switch is on; this stops a hand-made request.
   if (coachType === "EXPERIENCED" && !EXPERIENCED_COACHES_ENABLED) {
-    return NextResponse.json({ error: "CoachConnect isn't accepting experienced coaches yet." }, { status: 403 });
+    return NextResponse.json({ error: "Assist Coaching isn't accepting experienced coaches yet." }, { status: 403 });
   }
 
   // Nothing is stored for an applicant who isn't eligible. UNDER_18_NOT_ACCEPTED (the

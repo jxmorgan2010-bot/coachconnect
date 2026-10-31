@@ -22,12 +22,12 @@ const karla = Karla({
 
 export const metadata: Metadata = EXPERIENCED_COACHES_ENABLED
   ? {
-      title: "CoachConnect — 1-on-1 sports coaching in the Bay Area",
+      title: "Assist Coaching — 1-on-1 sports lessons from student-athletes and experienced coaches",
       description:
         "Book 1-on-1 sports sessions in the Bay Area with student-athletes and experienced adult coaches. An admin approves every coach before their profile goes live, and you pay through the app.",
     }
   : {
-      title: "CoachConnect — 1-on-1 coaching from student athletes",
+      title: "Assist Coaching — 1-on-1 sports lessons from student-athletes",
       description:
         "Book 1-on-1 sports sessions in the Bay Area with high school and college athletes. An admin approves every coach before their profile goes live, and you pay through the app.",
     };

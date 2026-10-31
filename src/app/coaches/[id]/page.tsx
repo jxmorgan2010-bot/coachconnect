@@ -178,7 +178,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
             <dl className="mt-5 grid grid-cols-3 gap-2 border-t-2 border-line pt-4 text-center">
               {isBrandNew ? (
                 <div className="col-span-3 text-sm text-muted-foreground">
-                  <dt className="sr-only">Experience on CoachConnect</dt>
+                  <dt className="sr-only">Experience on Assist Coaching</dt>
                   <dd>New coach, no reviews yet.</dd>
                 </div>
               ) : (

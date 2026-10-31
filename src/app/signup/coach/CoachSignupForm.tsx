@@ -118,7 +118,7 @@ export default function CoachSignupForm({
       {/* Signup rejects under-18s while the Minor Coach tier is off — say so before they fill anything in */}
       {!minorCoachesEnabled ? (
         <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm font-bold text-ink">
-          You need to be 18 or older to coach on CoachConnect for now.
+          You need to be 18 or older to coach on Assist Coaching for now.
         </p>
       ) : (
         <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm text-ink">
@@ -133,7 +133,7 @@ export default function CoachSignupForm({
           <p className="text-sm text-ink">{notAcceptedYet}</p>
           <p className="text-sm text-muted-foreground">We haven&apos;t saved anything you entered.</p>
           <div className="flex flex-wrap gap-2">
-            <Link href="/" className={goldButtonClass}>Back to CoachConnect</Link>
+            <Link href="/" className={goldButtonClass}>Back to Assist Coaching</Link>
             <button type="button" onClick={() => setNotAcceptedYet(null)} className={`${quietLinkClass} px-2 text-pitch`}>
               Wrong date of birth? Fix it
             </button>

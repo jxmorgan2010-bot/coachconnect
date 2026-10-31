@@ -273,7 +273,7 @@ export default function ProfileForm({
       {show("experience") && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            All optional. Families see these on your profile as shared by you, with a note that CoachConnect
+            All optional. Families see these on your profile as shared by you, with a note that Assist Coaching
             hasn&apos;t verified them.
           </p>
           <div className="sm:max-w-48">

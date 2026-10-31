@@ -136,7 +136,7 @@ export const coachRegisterSchema = z.object({
     .trim()
     .min(5, "Enter a 5-digit zip code.")
     .max(10)
-    .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
+    .refine(isBayAreaZip, "Assist Coaching is Bay Area only at launch. That zip code isn't in our service area yet."),
   // Leaving it out means student-athlete. The register route refuses EXPERIENCED while
   // EXPERIENCED_COACHES_ENABLED is off.
   coachType: z.enum(["STUDENT_ATHLETE", "EXPERIENCED"]).default("STUDENT_ATHLETE"),
@@ -201,7 +201,7 @@ const coachProfileBase = z.object({
     .trim()
     .min(5, "Enter a 5-digit zip code.")
     .max(10)
-    .refine(isBayAreaZip, "CoachConnect is Bay Area only at launch. That zip code isn't in our service area yet."),
+    .refine(isBayAreaZip, "Assist Coaching is Bay Area only at launch. That zip code isn't in our service area yet."),
   sports: z.array(z.enum(SPORTS as [string, ...string[]])).min(1, "Select at least one sport."),
   // Levels taken per sport. Every sport in `sports` needs an entry with at least one level the
   // coach picked; nothing defaults to every level.

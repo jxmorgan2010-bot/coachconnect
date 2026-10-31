@@ -17,7 +17,7 @@ export type SignInResult = { ok: true } | { ok: false; error: string };
 export const SIGN_IN_ERRORS = {
   invalid: "Invalid email or password.",
   rejected: "We couldn't sign you in just now. Refresh the page and try again.",
-  network: "We couldn't reach CoachConnect. Check your connection and try again.",
+  network: "We couldn't reach Assist Coaching. Check your connection and try again.",
 } as const;
 
 /** True when NextAuth sent us back to its own page because the CSRF check failed. */

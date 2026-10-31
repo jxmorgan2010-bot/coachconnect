@@ -135,7 +135,7 @@ export default function MinorGuardianConsentForm({ initial, coachEmail }: { init
             </div>
           </div>
           <p id="guardianEmail-help" className="-mt-1 text-xs text-muted-foreground">
-            Use their own email, not yours. CoachConnect will send them a link to read and sign the form.
+            Use their own email, not yours. Assist Coaching will send them a link to read and sign the form.
             {isResend && " Sending a new link stops the old one from working."}
           </p>
           <div className="flex flex-wrap gap-2">

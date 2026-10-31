@@ -191,13 +191,13 @@ clean responsive build are the floor, not the goal.
 
 ---
 
-## 11. CoachConnect-specific rules
+## 11. Assist Coaching-specific rules
 
 These apply to all work in this project unless a task prompt explicitly says otherwise for that task.
 
 ### Brand
 - The current site is the reference. Keep the established identity (green/gold palette, Anton display font, trading-card coach cards, per-sport colors and roster abbreviations). Evolve and polish it; do not replace it.
-- One-sentence brief: CoachConnect should feel like a varsity jersey meets a neighborhood rec league: energetic, athletic, and trustworthy to a parent.
+- One-sentence brief: Assist Coaching should feel like a varsity jersey meets a neighborhood rec league: energetic, athletic, and trustworthy to a parent.
 
 ### Honest content
 - Never invent stats, testimonials, ratings, coach counts, or "trusted by X families" claims.

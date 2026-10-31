@@ -70,6 +70,18 @@ const MUST_BLOCK: [string, string][] = [
   ["you can pay me directly next time", "contact_phrase"],
   ["cash only please", "contact_phrase"],
   ["reach me at the usual", "contact_phrase"],
+  // the platform's name
+  ["let's do it off Assist Coaching", "contact_phrase"],
+  ["off the Assist Coaching app is cheaper", "contact_phrase"],
+  ["outside of assistcoaching we can save the fee", "contact_phrase"],
+  ["not through Assist Coaching please", "contact_phrase"],
+  ["we could skip Assist Coaching next time", "contact_phrase"],
+  ["we can talk outside Assist", "contact_phrase"],
+  ["pay me but not through Assist", "contact_phrase"],
+  ["Not through Assist, just bring cash", "contact_phrase"],
+  ["let's keep it off assist so there's no fee", "contact_phrase"],
+  ["away from Assist and we're good", "contact_phrase"],
+  ["not on Assist anymore", "contact_phrase"],
 ];
 
 // Normal coaching conversation that must never be blocked.
@@ -108,6 +120,21 @@ const MUST_ALLOW = [
   "Alex is in 5th grade, age 10",
   "Room 101 at Lowell High School",
   "Ran 4x400m splits: 62, 64, 63, 61",
+  // "assist" as sports vocabulary
+  "Nice assist!",
+  "Great assist on that last play",
+  "We did assist drills today",
+  "Assist",
+  "assist",
+  "Work on assist passes and footwork",
+  "She scored off the assist from Jamie",
+  "He scored off an assist",
+  "Most of her points came off assists",
+  "Not through assists alone, you need to score too",
+  "He's not on assist duty today",
+  "Outside shooting and assist work",
+  "Off assist from the wing, he finished the layup",
+  "Assist coach Maria will be at practice",
   "",
 ];
 

@@ -11,7 +11,7 @@ export default function LinkNotFound({ what }: { what: string }) {
         <p className="text-muted-foreground">
           It may be mistyped, already used, or expired. Ask the person who sent it for a new link.
         </p>
-        <Link href="/" className={secondaryButtonClass}>Go to CoachConnect</Link>
+        <Link href="/" className={secondaryButtonClass}>Go to Assist Coaching</Link>
       </div>
     </div>
   );

@@ -31,10 +31,10 @@ export default function Footer() {
         )}
         <div className="flex flex-col gap-2 text-xs text-white/70 sm:flex-row sm:items-end sm:justify-between">
           <p className="font-display text-2xl tracking-wide text-white">
-            Coach<span className="text-gold">Connect</span>
+            Assist <span className="text-gold">Coaching</span>
           </p>
           <p className="max-w-md sm:text-right">
-            &copy; {new Date().getFullYear()} CoachConnect · Bay Area. See something off? Use Report on any coach
+            &copy; {new Date().getFullYear()} Assist Coaching · Bay Area. See something off? Use Report on any coach
             profile or message thread.
           </p>
         </div>

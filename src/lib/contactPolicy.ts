@@ -33,9 +33,9 @@ function blockedMessage(context: ModerationContext, strike: number | null) {
     return `This wasn't ${verb}. Please remove contact details or mentions of other apps and try again. ${CONTACT_RULE_TEXT}`;
   }
   if (strike >= SUSPEND_AT_STRIKE) {
-    return `This wasn't ${verb}, and your account is now suspended because it looked like contact details or a way to move off CoachConnect a second time. If you think this is a mistake, use Need help to contact support.`;
+    return `This wasn't ${verb}, and your account is now suspended because it looked like contact details or a way to move off Assist Coaching a second time. If you think this is a mistake, use Need help to contact support.`;
   }
-  return `This wasn't ${verb}. It looks like it includes contact details or a way to move off CoachConnect. Keep conversations and payments here — this is your first warning, and a second time will suspend your account.`;
+  return `This wasn't ${verb}. It looks like it includes contact details or a way to move off Assist Coaching. Keep conversations and payments here — this is your first warning, and a second time will suspend your account.`;
 }
 
 /** 403 for any signed-in action a suspended account may not take (messaging, booking). */

@@ -39,14 +39,14 @@ export default function WaitlistPage() {
       panelIcon={<IconPin className="h-7 w-7" />}
       panelTitle="Not in the Bay Area yet? We'll let you know."
       panelPoints={[
-        "CoachConnect is Bay Area only at launch",
+        "Assist Coaching is Bay Area only at launch",
         "Leave your email and zip and we'll email you if we launch near you",
       ]}
     >
       {done ? (
         <>
           <h1 className="text-display-lg mb-3 font-display text-ink">You&apos;re on the list</h1>
-          <p role="status" className={successClass}>We&apos;ll email you if CoachConnect launches in your area.</p>
+          <p role="status" className={successClass}>We&apos;ll email you if Assist Coaching launches in your area.</p>
           <p className="mt-6 border-t-2 border-line pt-5 text-sm text-muted-foreground">
             <Link href="/" className="inline-flex min-h-11 items-center font-bold text-pitch underline-offset-4 hover:underline">
               Back to home
@@ -58,7 +58,7 @@ export default function WaitlistPage() {
           <p className="eyebrow mb-2 text-pitch">Outside the Bay Area</p>
           <h1 className="text-display-lg mb-2 font-display text-ink">Join the waitlist</h1>
           <p className="mb-6 text-sm text-muted-foreground">
-            CoachConnect only serves the Bay Area right now. Tell us where you are and we&apos;ll email you if we
+            Assist Coaching only serves the Bay Area right now. Tell us where you are and we&apos;ll email you if we
             launch near you.
           </p>
 
