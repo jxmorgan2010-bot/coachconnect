@@ -162,6 +162,11 @@ const CONTACT_PHRASES = new RegExp(
     String.raw`\breach\s+(me|us)\s+(at|on|via|directly)\b`,
     String.raw`\bcontact\s+(me|us)\s+(at|on|via|directly|outside)\b`,
     String.raw`\b(off|outside(\s+of)?)\s+(the\s+)?(app|platform|site|coachconnect)\b`,
+    // The platform's own name: "off Assist Coaching", "not through assistcoaching"
+    String.raw`\b(off(\s+of)?|outside(\s+of)?|away\s+from|not\s+(through|thru|on|via|using)|skip(ping)?|bypass(ing)?)\s+(the\s+)?assist\s*coaching\b`,
+    // "Assist" alone is sports vocabulary ("nice assist", "off the assist from Jamie"), so it
+    // only counts with no article, straight after one of those words, and ending the clause.
+    String.raw`\b(off(\s+of)?|outside(\s+of)?|away\s+from|not\s+(through|thru|on|via|using))\s+assist\b(?=\s*($|[.,!?;:)\-—]|(so|and|but|or|then|please|pls|anymore|instead|because|cuz|bc|we|i|you|it|just|to|if|since|anyway)\b))`,
     String.raw`\bpay\s+(me|you|us)\s+(directly|in\s+cash|cash|outside|off)\b`,
     String.raw`\b(cash|venmo)\s+only\b`,
   ].join("|"),
