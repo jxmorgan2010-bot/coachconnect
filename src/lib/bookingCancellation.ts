@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { sendMockEmail } from "@/lib/mockEmail";
+import { notifyCoachCancelled, notifyParentCancelled } from "@/lib/notify";
 import { cancelPaymentIntent, captureHeldPayment } from "@/lib/payment";
 import { formatCents } from "@/lib/money";
-import { formatPacificDateTime } from "@/lib/sessionTiming";
 import {
   bookingChargeCents,
   canCoachCancel,
@@ -83,15 +82,7 @@ export async function cancelByParent({
   const result = outcome === "FREE" ? await releaseBooking(b, "PARENT", now) : await lateCancel(b, now);
   if (!result.ok) return result;
 
-  const when = formatPacificDateTime(b.scheduledAt);
-  const child = b.childId ? (await prisma.child.findUnique({ where: { id: b.childId } }))?.firstName : null;
-  sendMockEmail(
-    b.coachProfile.user.email,
-    "Session cancelled by the family",
-    outcome === "FREE"
-      ? `${b.parentProfile.user.name} cancelled ${child ? `${child}'s` : "their"} session on ${when}. The time is open again.`
-      : `${b.parentProfile.user.name} cancelled ${child ? `${child}'s` : "their"} session on ${when} after the free-cancellation deadline. You're paid for this session as if it happened, and the time is open again.`,
-  );
+  notifyParentCancelled(b.id, outcome, result.stripeOk);
   return { ok: true, outcome, stripeOk: result.stripeOk };
 }
 
@@ -112,16 +103,7 @@ export async function cancelByCoach({
   const result = await releaseBooking(b, "COACH", now);
   if (!result.ok) return result;
 
-  const money = b.packageId
-    ? "The session has gone back into your package."
-    : b.stripePaymentIntentId
-      ? "Your card hold has been released and you won't be charged."
-      : "You won't be charged.";
-  sendMockEmail(
-    b.parentProfile.user.email,
-    "Your coach cancelled a session",
-    `${b.coachProfile.user.name} cancelled your session on ${formatPacificDateTime(b.scheduledAt)}. ${money}`,
-  );
+  notifyCoachCancelled(b.id, result.stripeOk);
   return { ok: true, outcome: "COACH", stripeOk: result.stripeOk };
 }
 

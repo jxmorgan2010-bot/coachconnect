@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { sendMockEmail } from "@/lib/mockEmail";
+import { queueEmail } from "@/lib/email";
+import { autoReleasedCoachEmail, autoReleasedParentEmail } from "@/lib/emails";
 import { captureHeldPayment } from "@/lib/payment";
 import { bookingChargeCents } from "@/lib/cancellation";
 import { AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
-import { formatPacificDateTime } from "@/lib/sessionTiming";
 import { settleReferralAfterCompletion } from "@/lib/referral";
 
 const HOUR = 60 * 60 * 1000;
@@ -54,16 +54,8 @@ export async function runAutoReleaseSweep(now: Date = new Date()) {
     });
     await settleReferralAfterCompletion(b.id);
 
-    sendMockEmail(
-      b.parentProfile.user.email,
-      "Session auto-completed",
-      `We didn't hear back within ${AUTO_RELEASE_GRACE_HOURS} hours of your session with ${b.coachProfile.user.name}, so it's been marked complete and payment released. Reply if that's not right.`,
-    );
-    sendMockEmail(
-      b.coachProfile.user.email,
-      "Payment released",
-      `Your session on ${formatPacificDateTime(b.scheduledAt)} was auto-completed after ${AUTO_RELEASE_GRACE_HOURS} hours with no response from the parent, and payment has been released.`,
-    );
+    queueEmail(autoReleasedParentEmail({ to: b.parentProfile.user.email, coachName: b.coachProfile.user.name }));
+    queueEmail(autoReleasedCoachEmail({ to: b.coachProfile.user.email, scheduledAt: b.scheduledAt }));
     releasedCount++;
   }
 

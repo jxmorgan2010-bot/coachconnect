@@ -4,8 +4,10 @@ import { getCurrentSession } from "@/lib/session";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { noShowSchema } from "@/lib/validation";
 import { cancelPaymentIntent } from "@/lib/payment";
-import { sendMockEmail } from "@/lib/mockEmail";
-import { canReportNoShow, formatPacificDateTime, formatPacificTime, noShowOpensAt, NO_SHOW_GRACE_MINUTES } from "@/lib/sessionTiming";
+import { queueEmail } from "@/lib/email";
+import { noShowCoachEmail, noShowParentEmail } from "@/lib/emails";
+import { notifyRefundRequest } from "@/lib/notify";
+import { canReportNoShow, formatPacificTime, noShowOpensAt, NO_SHOW_GRACE_MINUTES } from "@/lib/sessionTiming";
 
 const DEFAULT_DETAILS = "Parent reported that the coach did not show up.";
 
@@ -100,16 +102,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ]);
   }
 
-  sendMockEmail(
-    booking.parentProfile.user.email,
-    "We're on it — no-show reported",
-    `Thanks for letting us know your session with ${booking.coachProfile.user.name} didn't happen. Your card was never charged and our team is reviewing the case.`,
-  );
-  sendMockEmail(
-    booking.coachProfile.user.email,
-    "Session flagged as a no-show",
-    `The parent for your ${formatPacificDateTime(booking.scheduledAt)} session reported that it didn't happen. This has been flagged for admin review.`,
-  );
+  queueEmail(noShowParentEmail({ to: booking.parentProfile.user.email, coachName: booking.coachProfile.user.name }));
+  queueEmail(noShowCoachEmail({ to: booking.coachProfile.user.email, scheduledAt: booking.scheduledAt }));
+  notifyRefundRequest("NO_SHOW");
 
   return NextResponse.json({ ok: true });
 }

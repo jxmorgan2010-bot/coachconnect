@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import { adminRefundSchema } from "@/lib/validation";
 import { refundUnusedPackageSessions, RefundError } from "@/lib/refunds";
+import { notifyRefundIssued } from "@/lib/notify";
 
 /** Admin refunds a package's unused sessions (on the parent's request). They can't be booked afterwards. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   try {
     const result = await refundUnusedPackageSessions({ packageId: id, ...parsed.data, adminUserId: admin.user.id });
+    notifyRefundIssued({ kind: "PACKAGE_UNUSED", packageId: id, amountCents: result.refundedCents, sessions: result.sessionsRefunded });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     if (err instanceof RefundError) {

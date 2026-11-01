@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCoachProfile } from "@/lib/session";
+import { notifyIfCoachAwaitingReview } from "@/lib/notify";
 import { minorMediaUploadBlockedMessage } from "@/lib/minorConsent";
 import { confirmCoachUpload, deleteStoredCoachFile, uploadErrorResponse } from "@/lib/storage";
 import { isOwnUploadPathname } from "@/lib/uploadRules";
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
   try {
     const { url } = await confirmCoachUpload("photo", profile.id, body?.pathname);
     await savePendingProfilePhoto(profile, url);
+    notifyIfCoachAwaitingReview(profile.userId);
     return NextResponse.json({ ok: true, url, pending: true });
   } catch (err) {
     return uploadErrorResponse(err);

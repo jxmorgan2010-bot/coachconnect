@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/session";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { disputeSchema } from "@/lib/validation";
 import type { DisputeReason } from "@/generated/prisma/client";
+import { notifyRefundRequest } from "@/lib/notify";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
@@ -48,5 +49,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     },
   });
 
+  notifyRefundRequest("PROBLEM_REPORT");
   return NextResponse.json({ ok: true, dispute });
 }

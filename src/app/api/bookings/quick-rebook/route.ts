@@ -12,6 +12,7 @@ import { nextOccurrences } from "@/lib/rebook";
 import { chargeOffSessionHold, cancelPaymentIntent } from "@/lib/payment";
 import { rangesOverlap } from "@/lib/bookingConflicts";
 import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
+import { notifyBookingCreated } from "@/lib/notify";
 
 // How many weeks ahead quick rebook looks for a week the parent doesn't already have booked.
 const REBOOK_WEEKS_TO_TRY = 4;
@@ -170,5 +171,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That time was just booked by someone else. Try the regular booking form." }, { status: 409 });
   }
 
+  notifyBookingCreated(booking.id);
   return NextResponse.json({ ok: true, bookingId: booking.id, scheduledAt: booking.scheduledAt });
 }

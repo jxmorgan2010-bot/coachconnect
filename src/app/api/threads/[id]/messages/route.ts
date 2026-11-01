@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { messageSchema } from "@/lib/validation";
 import { enforceContactPolicy, rejectIfSuspended } from "@/lib/contactPolicy";
+import { notifyNewMessage } from "@/lib/notify";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
@@ -41,6 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const message = await prisma.message.create({
     data: { threadId: thread.id, senderId: session.user.id, body: parsed.data.body },
   });
+  notifyNewMessage(thread.id, session.user.id);
 
   return NextResponse.json({ ok: true, message });
 }

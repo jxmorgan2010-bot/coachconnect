@@ -1,6 +1,27 @@
 import { prisma } from "@/lib/prisma";
-import { sendMockEmail } from "@/lib/mockEmail";
-import { formatPacificDateTime } from "@/lib/sessionTiming";
+import { queueEmail } from "@/lib/email";
+import { reminderEmail } from "@/lib/emails";
+
+type ReminderBooking = {
+  scheduledAt: Date;
+  locationText: string;
+  parentProfile: { user: { email: string; name: string } };
+  coachProfile: { user: { email: string; name: string } };
+  child: { firstName: string } | null;
+};
+
+function sendReminders(b: ReminderBooking, kind: "TOMORROW" | "SOON") {
+  const shared = {
+    kind,
+    coachName: b.coachProfile.user.name,
+    parentName: b.parentProfile.user.name,
+    childFirstName: b.child?.firstName ?? null,
+    scheduledAt: b.scheduledAt,
+    locationText: b.locationText,
+  };
+  queueEmail(reminderEmail({ to: b.parentProfile.user.email, audience: "PARENT", ...shared }));
+  queueEmail(reminderEmail({ to: b.coachProfile.user.email, audience: "COACH", ...shared }));
+}
 
 const HOUR = 60 * 60 * 1000;
 
@@ -27,16 +48,7 @@ export async function runReminderSweep(now: Date = new Date()) {
   });
 
   for (const b of due24h) {
-    sendMockEmail(
-      b.parentProfile.user.email,
-      "Session reminder: tomorrow",
-      `Your session with ${b.coachProfile.user.name} for ${b.child?.firstName ?? "your child"} is scheduled for ${formatPacificDateTime(b.scheduledAt)}.`,
-    );
-    sendMockEmail(
-      b.coachProfile.user.email,
-      "Session reminder: tomorrow",
-      `Your session with ${b.parentProfile.user.name}'s family is scheduled for ${formatPacificDateTime(b.scheduledAt)}.`,
-    );
+    sendReminders(b, "TOMORROW");
     await prisma.booking.update({ where: { id: b.id }, data: { reminder24SentAt: now } });
     sent24h++;
   }
@@ -51,16 +63,7 @@ export async function runReminderSweep(now: Date = new Date()) {
   });
 
   for (const b of due1h) {
-    sendMockEmail(
-      b.parentProfile.user.email,
-      "Session reminder: starting soon",
-      `Your session with ${b.coachProfile.user.name} starts at ${formatPacificDateTime(b.scheduledAt)} at ${b.locationText}.`,
-    );
-    sendMockEmail(
-      b.coachProfile.user.email,
-      "Session reminder: starting soon",
-      `Your session with ${b.parentProfile.user.name}'s family starts at ${formatPacificDateTime(b.scheduledAt)} at ${b.locationText}.`,
-    );
+    sendReminders(b, "SOON");
     await prisma.booking.update({ where: { id: b.id }, data: { reminder1hSentAt: now } });
     sent1h++;
   }

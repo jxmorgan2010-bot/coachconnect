@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
+import { notifyIfCoachAwaitingReview } from "@/lib/notify";
 import { minorMediaUploadBlockedMessage } from "@/lib/minorConsent";
 import { confirmCoachUpload, deleteStoredCoachFile, uploadErrorResponse } from "@/lib/storage";
 import { isOwnUploadPathname } from "@/lib/uploadRules";
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
       data: { idPhotoPath: pathname, idDocumentType, idVerificationStatus: "PENDING" },
     });
     if (profile.idPhotoPath !== pathname) await deleteStoredCoachFile("id", profile.idPhotoPath);
+    notifyIfCoachAwaitingReview(profile.userId);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return uploadErrorResponse(err);

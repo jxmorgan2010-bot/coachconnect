@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
+import { notifyIfCoachAwaitingReview } from "@/lib/notify";
 import { coachProfileSchema, experiencedCoachProfileSchema } from "@/lib/validation";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { flagsFromLevels } from "@/lib/skillLevels";
@@ -55,5 +56,6 @@ export async function PATCH(req: Request) {
     }),
   ]);
 
+  notifyIfCoachAwaitingReview(profile.userId);
   return NextResponse.json({ ok: true });
 }

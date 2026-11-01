@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
+import { notifyIfCoachAwaitingReview } from "@/lib/notify";
 import { availabilitySchema } from "@/lib/validation";
 
 export async function PATCH(req: Request) {
@@ -22,5 +23,6 @@ export async function PATCH(req: Request) {
     }),
   ]);
 
+  notifyIfCoachAwaitingReview(profile.userId);
   return NextResponse.json({ ok: true });
 }
