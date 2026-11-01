@@ -32,6 +32,7 @@ export const authOptions: AuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          sessionVersion: user.sessionVersion,
         };
       },
     }),
@@ -41,6 +42,15 @@ export const authOptions: AuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.sessionVersion = user.sessionVersion;
+        return token;
+      }
+      // A password reset bumps sessionVersion; any session signed in before it ends here.
+      // Throwing makes NextAuth drop the session and clear its cookie. Sessions from before
+      // this check existed have no version and count as 0, the column's default.
+      const current = await prisma.user.findUnique({ where: { id: token.id }, select: { sessionVersion: true } });
+      if (!current || current.sessionVersion !== (token.sessionVersion ?? 0)) {
+        throw new Error("Session ended: the account's password was reset, or the account is gone.");
       }
       return token;
     },
