@@ -202,6 +202,37 @@ model User {
   flaggedAttempts  FlaggedAttempt[] @relation("FlaggedAttemptUser")
   clearedAttempts  FlaggedAttempt[] @relation("FlaggedAttemptClearedBy")
   refundsIssued    Refund[]
+
+  // Bumped by a password reset. Every session carries the version it signed in with and is
+  // rejected once they differ (see src/lib/auth.ts), which signs the user out everywhere.
+  sessionVersion      Int                  @default(0)
+  // New-message email alerts. Account and booking emails always send.
+  messageEmailAlerts  Boolean              @default(true)
+  passwordResetTokens PasswordResetToken[]
+}
+
+/// A password reset link. Only a SHA-256 hash of the token is stored; the raw token exists
+/// only in the emailed link. Single use, expires an hour after it's made (src/lib/passwordReset.ts).
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// One row per forgot-password request, for the per-IP rate limit. ipHash is an HMAC of the
+/// IP, never the address itself. Not linked to User, so it says nothing about accounts.
+model PasswordResetRequest {
+  id        String   @id @default(cuid())
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  @@index([ipHash, createdAt])
 }
 
 /// One row per piece of text that matched the contact-sharing filter.
@@ -380,6 +411,10 @@ model CoachProfile {
   ageIdentityVerificationMethod String?
   ageIdentityVerifiedAt         DateTime?
   ageIdentityVerifiedById       String?
+
+  // When admins were emailed that this coach is waiting for review. Cleared when an admin
+  // rejects the ID, so a resubmission alerts again (src/lib/adminAlerts.ts).
+  reviewAlertSentAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -678,6 +713,9 @@ model Thread {
   coachProfileId  String
   coachProfile    CoachProfile  @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
   createdAt       DateTime      @default(now())
+  // Last new-message email to each side, so each gets at most one per hour per conversation.
+  parentAlertedAt DateTime?
+  coachAlertedAt  DateTime?
 
   messages        Message[]
 
