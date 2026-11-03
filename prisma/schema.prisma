@@ -653,6 +653,21 @@ model Booking {
   reminder24SentAt  DateTime?
   reminder1hSentAt  DateTime?
 
+  // Card holds placed 2 days before the session (src/lib/cardHolds.ts). holdDueAt is set when
+  // the card was only saved at booking; it stays null when the hold was placed at booking or
+  // no card is needed. holdClaimedAt is a short claim so two job runs can't place two holds.
+  holdDueAt         DateTime?
+  holdClaimedAt     DateTime?
+  holdPlacedAt      DateTime?
+  // Placing the hold failed and the parent was emailed to update their card. Only Stripe's
+  // decline code is kept (e.g. card_declined, authentication_required).
+  holdFailedAt      DateTime?
+  holdFailureCode   String?
+  // Needs an admin: HOLD_NOT_FIXED (cancelled because the card was never fixed) or
+  // CHARGE_FAILED (auto-release couldn't charge). Cleared from /admin/jobs.
+  adminFlag         String?
+  adminFlaggedAt    DateTime?
+
   progressWhatWorkedOn String?
   progressNextFocus    String?
   progressNoteAddedAt  DateTime?
@@ -668,6 +683,28 @@ model Booking {
   pointsTransactions  PointsTransaction[]
   refunds             Refund[]
   referralReward      ReferralReward?
+
+  @@index([status, holdDueAt])
+}
+
+// One row per scheduled-job run (src/lib/jobs/runLog.ts), shown on /admin/jobs. Failures list
+// booking ids and Stripe decline codes only — never names, emails or card details.
+model JobRun {
+  id         String    @id @default(cuid())
+  // CARD_HOLDS, AUTO_RELEASE or REMINDERS
+  job        String
+  // SCHEDULER (the protected /api/jobs endpoints) or ADMIN (Run now)
+  trigger    String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  // RUNNING, OK, PARTIAL (some bookings failed) or FAILED (the run itself stopped)
+  status     String    @default("RUNNING")
+  succeeded  Int       @default(0)
+  failed     Int       @default(0)
+  summary    String?
+  failures   String?
+
+  @@index([job, startedAt])
 }
 
 /**
