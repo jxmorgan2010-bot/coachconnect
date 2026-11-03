@@ -220,7 +220,8 @@ These apply to all work in this project unless a task prompt explicitly says oth
 - If a task needs a change in one of these areas and the prompt doesn't clearly allow it, stop and ask.
 
 ### Never, regardless of task
-- Never open, read, print or edit any .env file, except the Stripe test-key check below. Never write secrets to files, commits, PRs or logs.
+- Never open, read, print, copy or edit any .env file yourself, except the Stripe test-key check below, and never use its values in your own scripts. Never write secrets to files, commits, PRs or logs.
+- You may run the app locally for testing (`npm run dev` or `next start`), which loads .env internally, as long as you follow the rule above and the Stripe test-key check below still shows test keys.
 - Never touch Vercel settings or the Turso production database. The owner applies production database changes.
 - Never use `prisma db push` or `prisma migrate` against dev.db or production.
 - Never run the seed script (`npm run db:seed`, `prisma/seed.ts`) against production. It creates demo coaches marked as ID-approved that no one on the team has reviewed.
