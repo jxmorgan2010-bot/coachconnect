@@ -31,6 +31,7 @@ import { levelsFromFlags } from "@/lib/skillLevels";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { BIO_VIDEO_UPLOADS_ENABLED, EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui";
+import MessageEmailToggle from "@/components/MessageEmailToggle";
 
 const historySelect = {
   id: true,
@@ -57,7 +58,7 @@ export default async function MyCoachProfilePage({
   const profile = await prisma.coachProfile.findUnique({
     where: { userId: session.user.id },
     include: {
-      user: { select: { name: true, isSuspended: true } },
+      user: { select: { name: true, isSuspended: true, messageEmailAlerts: true } },
       sports: true,
       availability: true,
       recommendations: { where: { status: "SUBMITTED" }, orderBy: { submittedAt: "desc" } },
@@ -355,6 +356,10 @@ export default async function MyCoachProfilePage({
                 to write one. It adds a &ldquo;Recommended by a coach&rdquo; badge to your profile.
               </p>
             )}
+          </EditableSection>
+
+          <EditableSection id="email-alerts" title="Email alerts">
+            <MessageEmailToggle initial={profile.user.messageEmailAlerts} />
           </EditableSection>
 
           <ReviewsSection

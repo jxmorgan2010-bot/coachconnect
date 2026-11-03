@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { cancelPaymentIntent } from "@/lib/payment";
-import { sendMockEmail } from "@/lib/mockEmail";
+import { queueEmail } from "@/lib/email";
+import { consentWithdrawnCoachEmail, consentWithdrawnGuardianEmail, platformCancelledParentEmail } from "@/lib/emails";
+import { siteUrl } from "@/lib/siteUrl";
 import { MINOR_CONSENT_TEXT_VERSION, REQUIRED_ACKNOWLEDGMENT_KEYS } from "@/lib/legal/minorConsentText";
 import type { Booking, CoachProfile, MinorConsent, ParentProfile, User } from "@/generated/prisma/client";
 
@@ -9,7 +11,7 @@ import type { Booking, CoachProfile, MinorConsent, ParentProfile, User } from "@
  * Parent/guardian consent for Minor Coaches (see the MinorConsent model).
  *
  * - The teen names a parent/guardian; a single-use link valid for CONSENT_LINK_TTL_DAYS is
- *   "emailed" to them (mock email: console only). Only a SHA-256 hash of the token is
+ *   emailed to them (src/lib/email.ts). Only a SHA-256 hash of the token is
  *   stored, so a link can be shown exactly once — when it's created. The teen never sees
  *   it, so they can't sign on their parent's behalf.
  * - Requesting a new link supersedes the pending one.
@@ -60,12 +62,12 @@ export function clientIp(req: Request): string | null {
   return req.headers.get("x-real-ip");
 }
 
-export function consentLink(origin: string, token: string) {
-  return `${origin}/minor-consent/${token}`;
+export function consentLink(token: string) {
+  return `${siteUrl()}/minor-consent/${token}`;
 }
 
-export function revokeLink(origin: string, revokeToken: string) {
-  return `${origin}/minor-consent/revoke/${revokeToken}`;
+export function revokeLink(revokeToken: string) {
+  return `${siteUrl()}/minor-consent/revoke/${revokeToken}`;
 }
 
 export type ConsentRowStatus = "PENDING" | "EXPIRED" | "SUPERSEDED" | "COMPLETED" | "REVOKED";
@@ -323,16 +325,8 @@ export async function revokeConsent(
   const holdsNotVoided = [...first.holdsNotVoided, ...recheck.holdsNotVoided];
 
   const coach = consent.coachProfile.user;
-  sendMockEmail(
-    consent.guardianEmail,
-    "Consent withdrawn",
-    `You've withdrawn consent for ${coach.name} to coach on Assist Coaching. Their profile is hidden from families and ${cancelledBookingIds.length} upcoming session(s) were cancelled.`,
-  );
-  sendMockEmail(
-    coach.email,
-    "Your coach profile is paused",
-    `Your parent or guardian withdrew their consent, so your profile is hidden from families and your upcoming sessions were cancelled. If they change their mind, you can send them a new consent request from your onboarding page.`,
-  );
+  queueEmail(consentWithdrawnGuardianEmail({ to: consent.guardianEmail, coachName: coach.name, cancelledCount: cancelledBookingIds.length }));
+  queueEmail(consentWithdrawnCoachEmail({ to: coach.email }));
 
   return { alreadyRevoked: false, coachProfileId, revokedAt: now, cancelledBookingIds, holdsNotVoided };
 }
@@ -450,16 +444,18 @@ async function cancelBookingsAfterRevocation(
       }
     }
 
-    const when = b.scheduledAt.toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "medium", timeStyle: "short" });
     const money = b.packageId
       ? "The session has been returned to your package."
       : holdReleased
         ? "Your card hold has been released and you won't be charged."
         : "You won't be charged; our team is releasing your card hold.";
-    sendMockEmail(
-      b.parentProfile.user.email,
-      "Session cancelled",
-      `Your session with ${b.coachProfile.user.name} on ${when} has been cancelled because the coach is no longer available. ${money}`,
+    queueEmail(
+      platformCancelledParentEmail({
+        to: b.parentProfile.user.email,
+        coachName: b.coachProfile.user.name,
+        scheduledAt: b.scheduledAt,
+        moneyLine: money,
+      }),
     );
   }
 
@@ -511,7 +507,11 @@ export async function setIdVerificationStatus(
         );
       }
     }
-    await tx.coachProfile.update({ where: { id: coachProfileId }, data: { idVerificationStatus: status } });
+    await tx.coachProfile.update({
+      where: { id: coachProfileId },
+      // A rejected coach uploads a new ID; clearing this lets that resubmission alert admins again.
+      data: { idVerificationStatus: status, ...(status === "REJECTED" ? { reviewAlertSentAt: null } : {}) },
+    });
   });
 }
 

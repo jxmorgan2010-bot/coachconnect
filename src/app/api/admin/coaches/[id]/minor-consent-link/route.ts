@@ -25,17 +25,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid link type." }, { status: 400 });
   }
 
-  const origin = new URL(req.url).origin;
   try {
     if (kind === "consent") {
       const { token, consent } = await reissueConsentLink(id);
-      const link = consentLink(origin, token);
-      console.log(`[minor consent] admin issued consent link for ${consent.guardianEmail}: ${link}`);
+      const link = consentLink(token);
+      console.log(`[minor consent] admin issued a consent link for ${consent.guardianEmail} (link not logged)`);
       return NextResponse.json({ ok: true, link, sendTo: consent.guardianEmail, expiresAt: consent.expiresAt.toISOString() });
     }
     const { revokeToken, consent } = await reissueRevokeLink(id);
-    const link = revokeLink(origin, revokeToken);
-    console.log(`[minor consent] admin issued withdrawal link for ${consent.guardianEmail}: ${link}`);
+    const link = revokeLink(revokeToken);
+    console.log(`[minor consent] admin issued a withdrawal link for ${consent.guardianEmail} (link not logged)`);
     return NextResponse.json({ ok: true, link, sendTo: consent.guardianEmail, expiresAt: null });
   } catch (err) {
     if (err instanceof MinorConsentError) {

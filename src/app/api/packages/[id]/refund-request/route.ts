@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/session";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { packageRefundRequestSchema } from "@/lib/validation";
 import { sessionsLeft } from "@/lib/bundles";
+import { notifyRefundRequest } from "@/lib/notify";
 
 /**
  * Parent asks for a refund of a package's unused sessions. Lands in admin Reports; the
@@ -44,5 +45,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       details: parsed.data.details || null,
     },
   });
+  notifyRefundRequest("PACKAGE_UNUSED");
   return NextResponse.json({ ok: true });
 }

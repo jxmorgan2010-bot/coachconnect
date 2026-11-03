@@ -14,6 +14,8 @@ function LoginForm() {
   const callbackUrl = safeCallbackPath(searchParams.get("callbackUrl"), "/dashboard");
   // Set by the signup forms when the account was created but signing in afterwards failed.
   const accountCreated = searchParams.get("created") === "1";
+  // Set by the reset-password page after a new password is saved.
+  const passwordReset = searchParams.get("reset") === "1";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,6 +52,11 @@ function LoginForm() {
         {accountCreated && !error && (
           <p role="status" className={successClass}>Your account is ready. Log in to continue.</p>
         )}
+        {passwordReset && !error && (
+          <p role="status" className={successClass}>
+            Your password is changed and you&apos;ve been signed out everywhere. Log in with your new password.
+          </p>
+        )}
         {error && <p role="alert" className={errorClass}>{error}</p>}
         <div>
           <label className={labelClass} htmlFor="email">Email</label>
@@ -58,6 +65,12 @@ function LoginForm() {
         <div>
           <label className={labelClass} htmlFor="password">Password</label>
           <input id="password" type="password" autoComplete="current-password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Link
+            href="/forgot-password"
+            className="mt-1 inline-flex min-h-11 items-center text-sm font-bold text-pitch underline-offset-4 hover:underline"
+          >
+            Forgot password?
+          </Link>
         </div>
         <button type="submit" className={`${primaryButtonClass} mt-2 w-full text-base`} disabled={loading}>
           {loading ? "Logging in..." : "Log in"}

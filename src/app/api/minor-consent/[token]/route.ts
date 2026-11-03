@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { minorConsentSignSchema } from "@/lib/validation";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { completeConsent, clientIp, revokeLink, MinorConsentError } from "@/lib/minorConsent";
-import { sendMockEmail } from "@/lib/mockEmail";
+import { queueEmail } from "@/lib/email";
+import { consentRecordedEmail } from "@/lib/emails";
+import { notifyIfCoachAwaitingReview } from "@/lib/notify";
 
 /** The parent/guardian signs. Single-use: see completeConsent. */
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -30,12 +32,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     throw err;
   }
 
-  const link = revokeLink(new URL(req.url).origin, result.revokeToken);
-  sendMockEmail(
-    result.consent.guardianEmail,
-    "Your consent is recorded — keep this email",
-    `Thanks, ${parsed.data.signerLegalName}. Your consent for ${result.consent.coachProfile.user.name} to coach on Assist Coaching is recorded.\n\nYou can withdraw it at any time with this link, which doesn't expire:\n\n${link}`,
+  const link = revokeLink(result.revokeToken);
+  queueEmail(
+    consentRecordedEmail({
+      to: result.consent.guardianEmail,
+      signerName: parsed.data.signerLegalName,
+      coachName: result.consent.coachProfile.user.name,
+      revokeLink: link,
+    }),
   );
+  // Guardian consent is one of the minor coach's own onboarding steps.
+  notifyIfCoachAwaitingReview(result.consent.coachProfile.userId);
 
   return NextResponse.json({ ok: true, revokeLink: link });
 }

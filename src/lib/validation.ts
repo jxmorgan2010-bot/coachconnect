@@ -318,3 +318,16 @@ export const adminWaiveSchema = z.object({
 export const packageRefundRequestSchema = z.object({
   details: z.string().trim().max(2000).optional(),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.email("Please enter a valid email address."),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: z.string().min(8, "Password must be at least 8 characters."),
+});
+
+export const emailPreferencesSchema = z.object({
+  messageEmailAlerts: z.boolean(),
+});

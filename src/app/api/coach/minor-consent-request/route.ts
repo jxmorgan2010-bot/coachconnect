@@ -4,10 +4,11 @@ import { requireCoachProfile } from "@/lib/session";
 import { ENABLE_MINOR_COACHES } from "@/lib/flags";
 import { minorConsentRequestSchema } from "@/lib/validation";
 import { createConsentRequest, consentLink, MinorConsentError, CONSENT_LINK_TTL_DAYS } from "@/lib/minorConsent";
-import { sendMockEmail } from "@/lib/mockEmail";
+import { queueEmail } from "@/lib/email";
+import { consentRequestEmail } from "@/lib/emails";
 
 /**
- * The teen names their parent/guardian and a consent link is "emailed" to them. Also how
+ * The teen names their parent/guardian and a consent link is emailed to them. Also how
  * the teen requests a new link: the previous pending one stops working. The link is
  * deliberately not returned to the teen — only the parent should be able to open it.
  */
@@ -38,11 +39,14 @@ export async function POST(req: Request) {
   }
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: profile.userId } });
-  const link = consentLink(new URL(req.url).origin, result.token);
-  sendMockEmail(
-    result.consent.guardianEmail,
-    `${user.name} needs your consent to coach on Assist Coaching`,
-    `Hi ${result.consent.guardianName},\n\n${user.name} has applied to coach on Assist Coaching. Because they're under 18, they need their parent or legal guardian's consent. Please read and sign here (the link works once and expires in ${CONSENT_LINK_TTL_DAYS} days):\n\n${link}`,
+  queueEmail(
+    consentRequestEmail({
+      to: result.consent.guardianEmail,
+      guardianName: result.consent.guardianName,
+      coachName: user.name,
+      link: consentLink(result.token),
+      ttlDays: CONSENT_LINK_TTL_DAYS,
+    }),
   );
 
   return NextResponse.json({

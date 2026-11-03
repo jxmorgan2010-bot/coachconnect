@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { REPORT_SUSPEND_THRESHOLD } from "@/lib/coach";
+import { notifyNewReport } from "@/lib/notify";
 
 async function resolveCoachProfileId(targetType: string, targetId: string): Promise<string | null> {
   if (targetType === "COACH_PROFILE") return targetId;
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
       details: typeof body?.details === "string" ? body.details.trim() : null,
     },
   });
+  notifyNewReport(targetType);
 
   const coachProfileId = await resolveCoachProfileId(targetType, targetId);
   if (coachProfileId) {

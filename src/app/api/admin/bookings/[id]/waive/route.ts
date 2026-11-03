@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import { adminWaiveSchema } from "@/lib/validation";
 import { waiveLateCancel, RefundError } from "@/lib/refunds";
+import { notifyRefundIssued } from "@/lib/notify";
 
 /** Admin waives a late-cancellation charge without a parent case (emergencies, weather). */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   try {
     const result = await waiveLateCancel({ bookingId: id, reason: parsed.data.reason, adminUserId: admin.user.id });
+    notifyRefundIssued({ kind: "LATE_CANCEL_WAIVER", bookingId: id, amountCents: result.refundedCents, sessionsReturned: result.sessionsReturned });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     if (err instanceof RefundError) {

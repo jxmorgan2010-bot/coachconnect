@@ -12,6 +12,7 @@ import { secondaryButtonClass, quietLinkClass } from "@/lib/ui";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import ParentTabs from "../ParentTabs";
 import ChildLevelsCard from "./ChildLevelsCard";
+import MessageEmailToggle from "@/components/MessageEmailToggle";
 import { formatPacificTime } from "@/lib/sessionTiming";
 
 const STATUS_VARIANT = {
@@ -29,7 +30,7 @@ export default async function FamilyDashboardPage() {
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
     include: {
-      user: { select: { name: true, email: true } },
+      user: { select: { name: true, email: true, messageEmailAlerts: true } },
       children: { orderBy: { createdAt: "asc" }, include: { sportLevels: true } },
     },
   });
@@ -185,6 +186,10 @@ export default async function FamilyDashboardPage() {
         <p className="mt-4 text-sm text-muted-foreground">
           To change any of these, send us a note with the help button in the bottom corner.
         </p>
+        <div className="mt-5 border-t-2 border-line pt-4">
+          <h3 className="eyebrow mb-2 text-muted-foreground">Email alerts</h3>
+          <MessageEmailToggle initial={parentProfile.user.messageEmailAlerts} />
+        </div>
       </section>
     </div>
   );

@@ -4,7 +4,7 @@ import { isCsrfRejection, safeCallbackPath } from "./authClient";
 
 test("recognises NextAuth's CSRF rejection URL, whatever host NEXTAUTH_URL gives it", () => {
   assert.equal(isCsrfRejection("http://localhost:3000/api/auth/signin?csrf=true"), true);
-  assert.equal(isCsrfRejection("https://coachconnect-nine.vercel.app/api/auth/signin?csrf=true"), true);
+  assert.equal(isCsrfRejection("https://getassistcoaching.com/api/auth/signin?csrf=true"), true);
   assert.equal(isCsrfRejection("/api/auth/signout?csrf=true"), true);
 });
 

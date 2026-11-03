@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachProfile } from "@/lib/session";
+import { notifyIfCoachAwaitingReview } from "@/lib/notify";
 
 export async function POST() {
   const profile = await requireCoachProfile();
@@ -13,5 +14,6 @@ export async function POST() {
     data: { conductAcknowledged: true },
   });
 
+  notifyIfCoachAwaitingReview(profile.userId);
   return NextResponse.json({ ok: true });
 }

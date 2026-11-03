@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { adminRefundSchema, adminWaiveSchema } from "@/lib/validation";
 import { refundBooking, waiveLateCancel, RefundError } from "@/lib/refunds";
+import { notifyRefundIssued } from "@/lib/notify";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
@@ -28,12 +29,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
         }
         await refundBooking({ bookingId: dispute.bookingId, ...parsed.data, adminUserId: admin.user.id });
+        notifyRefundIssued({ kind: "REFUND", bookingId: dispute.bookingId, amountCents: parsed.data.amountCents });
       } else {
         const parsed = adminWaiveSchema.safeParse(body);
         if (!parsed.success) {
           return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
         }
-        await waiveLateCancel({ bookingId: dispute.bookingId, reason: parsed.data.reason, adminUserId: admin.user.id });
+        const result = await waiveLateCancel({ bookingId: dispute.bookingId, reason: parsed.data.reason, adminUserId: admin.user.id });
+        notifyRefundIssued({
+          kind: "LATE_CANCEL_WAIVER",
+          bookingId: dispute.bookingId,
+          amountCents: result.refundedCents,
+          sessionsReturned: result.sessionsReturned,
+        });
       }
     } catch (err) {
       if (err instanceof RefundError) {

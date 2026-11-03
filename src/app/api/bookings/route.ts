@@ -13,6 +13,7 @@ import { rangesOverlap } from "@/lib/bookingConflicts";
 import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { getStripe } from "@/lib/stripe";
 import { sessionsLeft } from "@/lib/bundles";
+import { notifyBookingCreated } from "@/lib/notify";
 
 export async function POST(req: Request) {
   const session = await getCurrentSession();
@@ -98,6 +99,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That time was just booked by someone else. Pick another time." }, { status: 409 });
   }
 
+  notifyBookingCreated(booking.id);
   return NextResponse.json({
     ok: true,
     bookingId: booking.id,
@@ -193,5 +195,6 @@ async function handlePackageBooking(
     return NextResponse.json({ error: "That time was just booked by someone else. Pick another time." }, { status: 409 });
   }
 
+  notifyBookingCreated(booking.id);
   return NextResponse.json({ ok: true, bookingId: booking.id, isFirstSession, videoCallUrl: booking.videoCallUrl });
 }
