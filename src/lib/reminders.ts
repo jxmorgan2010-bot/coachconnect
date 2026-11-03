@@ -9,9 +9,10 @@ const BATCH = 200;
 
 /**
  * Reminders to the parent and the coach 24 hours and 1 hour before each CONFIRMED session
- * (cancelled and completed ones are skipped). The windows are wider than the job's 15-minute
+ * (cancelled and completed ones are skipped). The windows are wider than the job's 30-minute
  * schedule so a late or skipped run still sends them: "tomorrow" from 25 down to 22 hours
- * before, "soon" from 75 down to 10 minutes before.
+ * before (six runs), "soon" from 75 down to 10 minutes before (at least two runs, so it normally
+ * goes out 45 to 75 minutes before).
  *
  * Safe to run twice: each reminder is claimed (reminder24SentAt / reminder1hSentAt) with a guarded
  * update before it's sent, so it goes out at most once even if two runs overlap.
