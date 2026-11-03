@@ -5,8 +5,6 @@ import { formatCents } from "@/lib/money";
 import { SPORT_LABELS } from "@/lib/sports";
 import BarList from "@/components/BarList";
 import AdminHeader from "@/components/AdminHeader";
-import ReminderSweepButton from "./ReminderSweepButton";
-import AutoReleaseSweepButton from "./AutoReleaseSweepButton";
 import { COACH_TIMEZONE } from "@/lib/availability";
 
 export default async function AdminAnalyticsPage() {
@@ -100,21 +98,6 @@ export default async function AdminAnalyticsPage() {
           </p>
         </section>
       </div>
-
-      <section aria-labelledby="sweeps" className="mt-10">
-        <h2 id="sweeps" className="mb-1 font-display text-3xl text-ink">Manual jobs</h2>
-        <p className="mb-4 text-sm text-muted-foreground">There&apos;s no scheduler yet, so these run when you press the button.</p>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="card-flat p-5">
-            <p className="mb-3 font-bold text-ink">Session reminders</p>
-            <ReminderSweepButton />
-          </div>
-          <div className="card-flat p-5">
-            <p className="mb-3 font-bold text-ink">Payment auto-release</p>
-            <AutoReleaseSweepButton />
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
