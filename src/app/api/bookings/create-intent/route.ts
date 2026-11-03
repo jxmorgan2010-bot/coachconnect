@@ -4,16 +4,16 @@ import { getCurrentSession } from "@/lib/session";
 import { bookingCreateSchema } from "@/lib/validation";
 import { validateBookingRequest, BookingValidationError } from "@/lib/bookingValidation";
 import { getStripe } from "@/lib/stripe";
-
-// Stripe's practical minimum charge in USD — below this a booking needs no card at all
-// (e.g. fully covered by referral credit).
-const STRIPE_MIN_CENTS = 50;
+import { createCardSetupIntent, STRIPE_MIN_CENTS } from "@/lib/payment";
+import { holdDueAt, holdsAtBooking } from "@/lib/holdTiming";
 
 /**
- * Step 1 of booking: validate the request and stand up a Stripe PaymentIntent with a
- * manual capture (a hold, not a charge) for the parent to confirm with their card on
- * this page. The booking itself isn't created until that card is confirmed — see
- * POST /api/bookings.
+ * Step 1 of booking: validate the request and stand up what the parent confirms with their card
+ * on this page (src/lib/holdTiming.ts):
+ * - a session more than 2 days away gets a SetupIntent: the card is checked and saved, with any
+ *   bank authentication done now, and the hold is placed 2 days before by the card-holds job;
+ * - a session 2 days away or less gets a PaymentIntent with manual capture: the hold, now.
+ * The booking itself isn't created until the card is confirmed — see POST /api/bookings.
  */
 export async function POST(req: Request) {
   const session = await getCurrentSession();
@@ -63,6 +63,20 @@ export async function POST(req: Request) {
     await prisma.parentProfile.update({ where: { id: parentProfile.id }, data: { stripeCustomerId } });
   }
 
+  const metadata = { parentProfileId: parentProfile.id, coachProfileId: validated.coach.id };
+  if (!holdsAtBooking(data.scheduledAt)) {
+    const setup = await createCardSetupIntent(stripeCustomerId, metadata);
+    return NextResponse.json({
+      ok: true,
+      noPaymentRequired: false,
+      mode: "SETUP",
+      clientSecret: setup.client_secret,
+      setupIntentId: setup.id,
+      holdDueAt: holdDueAt(data.scheduledAt).toISOString(),
+      totalDueCents: validated.totalDueCents,
+    });
+  }
+
   const intent = await stripe.paymentIntents.create({
     amount: validated.totalDueCents,
     currency: "usd",
@@ -70,15 +84,13 @@ export async function POST(req: Request) {
     payment_method_types: ["card"],
     capture_method: "manual",
     setup_future_usage: "off_session",
-    metadata: {
-      parentProfileId: parentProfile.id,
-      coachProfileId: validated.coach.id,
-    },
+    metadata,
   });
 
   return NextResponse.json({
     ok: true,
     noPaymentRequired: false,
+    mode: "HOLD",
     clientSecret: intent.client_secret,
     paymentIntentId: intent.id,
     totalDueCents: validated.totalDueCents,

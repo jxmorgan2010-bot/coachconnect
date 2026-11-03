@@ -14,6 +14,8 @@ import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { getStripe } from "@/lib/stripe";
 import { sessionsLeft } from "@/lib/bundles";
 import { notifyBookingCreated } from "@/lib/notify";
+import { STRIPE_MIN_CENTS } from "@/lib/payment";
+import { holdDueAt } from "@/lib/holdTiming";
 
 export async function POST(req: Request) {
   const session = await getCurrentSession();
@@ -48,11 +50,25 @@ export async function POST(req: Request) {
   }
   const { coach, childLevel, sport, breakdown, discountCents, totalDueCents, isFirstSession } = validated;
 
-  // A card hold is required for anything above Stripe's practical minimum charge —
-  // verify it was actually authorized for the right amount before creating the booking.
+  // Anything above Stripe's practical minimum charge needs a card: saved now with the hold placed
+  // 2 days before (a SetupIntent), or held now (a PaymentIntent). Verify whichever it is before
+  // creating the booking.
   let stripePaymentIntentId: string | null = null;
   let stripePaymentMethodId: string | null = null;
-  if (totalDueCents >= 50) {
+  let holdDue: Date | null = null;
+  if (totalDueCents >= STRIPE_MIN_CENTS && data.setupIntentId) {
+    const setup = await getStripe().setupIntents.retrieve(data.setupIntentId);
+    if (setup.metadata?.parentProfileId !== parentProfile.id) {
+      return NextResponse.json({ error: "This card doesn't belong to you." }, { status: 403 });
+    }
+    const card = typeof setup.payment_method === "string" ? setup.payment_method : (setup.payment_method?.id ?? null);
+    if (setup.status !== "succeeded" || !card) {
+      return NextResponse.json({ error: "Your card wasn't saved. Please re-enter your card details." }, { status: 400 });
+    }
+    stripePaymentMethodId = card;
+    // If the form sat open past the 2-day mark, this is already due and the next job run places it.
+    holdDue = holdDueAt(data.scheduledAt);
+  } else if (totalDueCents >= STRIPE_MIN_CENTS) {
     if (!data.paymentIntentId) {
       return NextResponse.json({ error: "Payment authorization is required to book." }, { status: 400 });
     }
@@ -90,6 +106,7 @@ export async function POST(req: Request) {
     isFirstSession,
     stripePaymentIntentId,
     stripePaymentMethodId,
+    holdDueAt: holdDue,
   });
 
   if (!booking) {

@@ -23,7 +23,10 @@ const booking: T.BookingFacts = {
   discountCents: 0,
   packageSessionsLeft: null,
   hasCardHold: true,
+  cardHoldDueAt: null,
 };
+
+const hold: T.HoldFacts = { coachName: "Priya Shah", childFirstName: "Alex", scheduledAt: at, amountCents: 5000 };
 
 function all(): Email[] {
   const to = "delivered@resend.dev";
@@ -61,6 +64,13 @@ function all(): Email[] {
     T.refundRequestEmail({ to, kind: "PACKAGE_UNUSED" }),
     T.refundRequestEmail({ to, kind: "NO_SHOW" }),
     T.refundRequestEmail({ to, kind: "PROBLEM_REPORT" }),
+    T.bookingConfirmedParentEmail(to, { ...booking, hasCardHold: false, cardHoldDueAt: new Date("2026-11-12T21:00:00.000Z") }),
+    T.holdFailedParentEmail({ ...hold, to, bookingId: "b1", fixBy: new Date("2026-11-14T09:00:00.000Z"), needsAuthentication: false }),
+    T.holdFailedParentEmail({ ...hold, to, bookingId: "b1", fixBy: new Date("2026-11-14T09:00:00.000Z"), needsAuthentication: true }),
+    T.holdNotFixedParentEmail({ ...hold, to, creditReturnedCents: 1000 }),
+    T.holdNotFixedCoachEmail({ to, scheduledAt: at }),
+    T.bookingNeedsAdminEmail({ to, flag: "HOLD_NOT_FIXED" }),
+    T.bookingNeedsAdminEmail({ to, flag: "CHARGE_FAILED" }),
   ];
 }
 
@@ -165,4 +175,44 @@ test("refund emails give the amount and what it was for, never the admin's reaso
 test("admin alerts carry no report text or personal details", () => {
   const report = renderText(T.newReportEmail({ to: "x@resend.dev", targetType: "COACH_PROFILE" }));
   assert.ok(report.includes("Someone reported a coach profile. The details are on the reports page."));
+});
+
+test("booked more than 2 days ahead: the confirmation says when the hold is placed", () => {
+  const bookedAt = new Date("2026-11-01T18:00:00.000Z");
+  const text = renderText(
+    T.bookingConfirmedParentEmail("x@resend.dev", { ...booking, hasCardHold: false, cardHoldDueAt: new Date("2026-11-12T21:00:00.000Z") }, bookedAt),
+  );
+  assert.ok(text.includes("We've saved your card. On Nov 12, 1:00 PM PT, 2 days before the session, we'll place a hold of $50.00 on it."));
+  assert.ok(!text.includes("We've placed a hold"));
+  // The cancellation policy is unchanged.
+  assert.ok(text.includes("Free cancellation until 11:59 PM PT on Fri, Nov 13. After that, you're charged the full price."));
+});
+
+test("cancelling before the 2-day hold: nothing to release, and it says so", () => {
+  const facts = { ...booking, hasCardHold: false, cardHoldDueAt: new Date("2026-11-12T21:00:00.000Z") };
+  assert.equal(
+    T.parentCancelMoneyLine({ ...facts, outcome: "FREE", stripeOk: true }),
+    "You weren't charged. No hold had been placed on your card yet.",
+  );
+  assert.equal(
+    T.parentCancelMoneyLine({ ...facts, discountCents: 1000, outcome: "FREE", stripeOk: true }),
+    "You weren't charged, and the $10.00 of credit you used is back in your account. No hold had been placed on your card yet.",
+  );
+  // A late cancel with no hold yet charges the saved card.
+  assert.equal(
+    T.parentCancelMoneyLine({ ...facts, outcome: "LATE", stripeOk: false }),
+    "It was after the free-cancellation deadline, so the full price of $50.00 will be charged to your card.",
+  );
+  const coach = renderText(T.coachCancelledParentEmail("x@resend.dev", { ...facts, stripeOk: true }));
+  assert.ok(coach.includes("You weren't charged. No hold had been placed on your card yet."));
+});
+
+test("a failed hold: one clear action and a deadline, with the update link", () => {
+  const e = T.holdFailedParentEmail({ ...hold, to: "x@resend.dev", bookingId: "b_1", fixBy: new Date("2026-11-14T09:00:00.000Z"), needsAuthentication: false });
+  const text = renderText(e);
+  assert.ok(text.includes("We couldn't place the $50.00 hold for Alex's session with Priya Shah on Nov 14, 1:00 PM PT."));
+  assert.ok(text.includes("Update your card by Nov 14, 1:00 AM PT, or the session will be cancelled."));
+  assert.equal(e.button?.url, "https://getassistcoaching.com/dashboard/bookings/b_1/card");
+  const cancelled = renderText(T.holdNotFixedParentEmail({ ...hold, to: "x@resend.dev", creditReturnedCents: 0 }));
+  assert.ok(cancelled.includes("You weren't charged."));
 });

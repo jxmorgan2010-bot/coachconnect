@@ -51,6 +51,7 @@ function bookingFacts(b: LoadedBooking): BookingFacts {
       ? Math.max(0, b.package.totalSessions - b.package.sessionsUsed - b.package.sessionsCashRefunded)
       : null,
     hasCardHold: !b.packageId && !!b.stripePaymentIntentId,
+    cardHoldDueAt: !b.packageId && !b.stripePaymentIntentId ? b.holdDueAt : null,
   };
 }
 
@@ -168,7 +169,7 @@ export async function sendNewMessageAlert(threadId: string, senderUserId: string
 
 // ---------------------------------------------------------------- admin alerts
 
-async function emailAdmins(build: (to: string) => Email): Promise<void> {
+export async function emailAdmins(build: (to: string) => Email): Promise<void> {
   const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { email: true } });
   for (const a of admins) await sendEmail(build(a.email));
 }

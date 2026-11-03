@@ -66,6 +66,8 @@ export type BookingFacts = {
   packageSessionsLeft: number | null;
   /** A card hold was placed (not a package, not fully covered by credit). */
   hasCardHold: boolean;
+  /** The card was saved at booking and the hold is placed on this date (src/lib/holdTiming.ts). */
+  cardHoldDueAt: Date | null;
 };
 
 const sportName = (s: Sport) => SPORT_LABELS[s] ?? "sports";
@@ -92,8 +94,12 @@ function paymentLine(b: BookingFacts): string {
     return `This session is from your package, so there's no charge today. You have ${left} left.`;
   }
   const credit = b.discountCents > 0 ? ` (${formatCents(b.discountCents)} of credit applied)` : "";
+  const whenCharged = `It's charged when you mark the session complete, or ${AUTO_RELEASE_GRACE_HOURS} hours after the session ends if you haven't marked it or reported a problem.`;
+  if (b.cardHoldDueAt) {
+    return `We've saved your card. On ${formatPacificDateTime(b.cardHoldDueAt)}, 2 days before the session, we'll place a hold of ${formatCents(charge)} on it${credit}. ${whenCharged}`;
+  }
   if (!b.hasCardHold) return `Your credit covers this session${credit}, so your card isn't charged.`;
-  return `We've placed a hold of ${formatCents(charge)} on your card${credit}. It's charged when you mark the session complete, or ${AUTO_RELEASE_GRACE_HOURS} hours after the session ends if you haven't marked it or reported a problem.`;
+  return `We've placed a hold of ${formatCents(charge)} on your card${credit}. ${whenCharged}`;
 }
 
 export function bookingConfirmedParentEmail(to: string, b: BookingFacts, now = new Date()): Email {
@@ -129,6 +135,14 @@ export type ParentCancelFacts = BookingFacts & {
   stripeOk: boolean;
 };
 
+/** Cancelled with no hold to release: none was needed, or it wasn't placed yet. */
+function notChargedLine(b: BookingFacts): string {
+  const noHoldYet = b.cardHoldDueAt ? " No hold had been placed on your card yet." : "";
+  return b.discountCents > 0
+    ? `You weren't charged, and the ${formatCents(b.discountCents)} of credit you used is back in your account.${noHoldYet}`
+    : `You weren't charged.${noHoldYet}`;
+}
+
 /** Exactly what a parent's cancellation did to their money. */
 export function parentCancelMoneyLine(c: ParentCancelFacts): string {
   const charge = c.priceCents - c.discountCents;
@@ -140,12 +154,10 @@ export function parentCancelMoneyLine(c: ParentCancelFacts): string {
         ? "You weren't charged. The hold on your card has been released."
         : "You won't be charged. We're releasing the hold on your card.";
     }
-    return c.discountCents > 0
-      ? `You weren't charged, and the ${formatCents(c.discountCents)} of credit you used is back in your account.`
-      : "You weren't charged.";
+    return notChargedLine(c);
   }
   if (isPackage) return "It was after the free-cancellation deadline, so the session counts as used from your package.";
-  if (c.hasCardHold) {
+  if (c.hasCardHold || c.cardHoldDueAt) {
     return c.stripeOk
       ? `It was after the free-cancellation deadline, so your card was charged the full price of ${formatCents(charge)}.`
       : `It was after the free-cancellation deadline, so the full price of ${formatCents(charge)} will be charged to your card.`;
@@ -190,9 +202,7 @@ export function coachCancelledParentEmail(to: string, c: BookingFacts & { stripe
         ? c.stripeOk
           ? "You weren't charged. The hold on your card has been released."
           : "You won't be charged. We're releasing the hold on your card."
-        : c.discountCents > 0
-          ? `You weren't charged, and the ${formatCents(c.discountCents)} of credit you used is back in your account.`
-          : "You weren't charged.";
+        : notChargedLine(c);
   return {
     to,
     subject: "Your coach cancelled a session",
@@ -210,6 +220,56 @@ export function platformCancelledParentEmail(p: { to: string; coachName: string;
       `Your session with ${safeText(p.coachName, "your coach")} on ${formatPacificDateTime(p.scheduledAt)} has been cancelled because the coach is no longer available. ${p.moneyLine}`,
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
+  };
+}
+
+// ---------------------------------------------------------------- card holds (src/lib/cardHolds.ts)
+
+export type HoldFacts = {
+  coachName: string;
+  childFirstName: string | null;
+  scheduledAt: Date;
+  amountCents: number;
+};
+
+/** The hold 2 days before the session failed. One email; the update page places the hold. */
+export function holdFailedParentEmail(p: HoldFacts & { to: string; bookingId: string; fixBy: Date; needsAuthentication: boolean }): Email {
+  return {
+    to: p.to,
+    subject: "Action needed: update your card",
+    paragraphs: [
+      `We couldn't place the ${formatCents(p.amountCents)} hold for ${safeText(p.childFirstName, "your child")}'s session with ${safeText(p.coachName, "your coach")} on ${formatPacificDateTime(p.scheduledAt)}.`,
+      p.needsAuthentication
+        ? "Your bank wants you to confirm the card before it can be used."
+        : "Your card was declined.",
+      `Update your card by ${formatPacificDateTime(p.fixBy)}, or the session will be cancelled. A hold isn't a charge: you're charged after the session.`,
+    ],
+    button: { label: "Update card", url: siteLink(`/dashboard/bookings/${p.bookingId}/card`) },
+  };
+}
+
+/** Still no hold 12 hours before: the platform cancelled. Never charged. */
+export function holdNotFixedParentEmail(p: HoldFacts & { to: string; creditReturnedCents: number }): Email {
+  const credit = p.creditReturnedCents > 0 ? ` The ${formatCents(p.creditReturnedCents)} of credit you used is back in your account.` : "";
+  return {
+    to: p.to,
+    subject: "Session cancelled: card not updated",
+    paragraphs: [
+      `We couldn't place a hold on your card for ${safeText(p.childFirstName, "your child")}'s session with ${safeText(p.coachName, "your coach")} on ${formatPacificDateTime(p.scheduledAt)}, and the card wasn't updated in time, so the session has been cancelled.`,
+      `You weren't charged.${credit} You can book another time whenever you're ready.`,
+    ],
+    button: { label: "See your bookings", url: siteLink(BOOKINGS) },
+  };
+}
+
+export function holdNotFixedCoachEmail(p: { to: string; scheduledAt: Date }): Email {
+  return {
+    to: p.to,
+    subject: `Session cancelled: ${formatPacificDateTime(p.scheduledAt)}`,
+    paragraphs: [
+      `Your session on ${formatPacificDateTime(p.scheduledAt)} was cancelled because the family's payment couldn't be confirmed. The time is open again.`,
+    ],
+    button: { label: "See your sessions", url: siteLink("/dashboard") },
   };
 }
 
@@ -384,7 +444,22 @@ export function coachAwaitingReviewEmail(p: { to: string; coachName: string }): 
   };
 }
 
-const REPORT_TARGET_LABEL = { COACH_PROFILE: "a coach profile", PARENT_PROFILE: "a parent", MESSAGE: "a conversation" } as const;
+/** A scheduled job left a booking for an admin (src/lib/cardHolds.ts, src/lib/autoRelease.ts). */
+export function bookingNeedsAdminEmail(p: { to: string; flag: "HOLD_NOT_FIXED" | "CHARGE_FAILED" }): Email {
+  return {
+    to: p.to,
+    subject: p.flag === "HOLD_NOT_FIXED" ? "A session was cancelled: card not fixed" : "An auto-release charge failed",
+    paragraphs: [
+      p.flag === "HOLD_NOT_FIXED"
+        ? "A session was cancelled because its card hold failed and the parent didn't update the card in time. No one was charged."
+        : "A session's payment couldn't be charged when it was auto-completed. It hasn't been completed and won't be retried until you clear the flag.",
+      "The booking is listed under Needs attention on the Scheduled jobs page.",
+    ],
+    button: { label: "Open Scheduled jobs", url: siteLink("/admin/jobs") },
+  };
+}
+
+const REPORT_TARGET_LABEL ={ COACH_PROFILE: "a coach profile", PARENT_PROFILE: "a parent", MESSAGE: "a conversation" } as const;
 
 export function newReportEmail(p: { to: string; targetType: keyof typeof REPORT_TARGET_LABEL }): Email {
   return {

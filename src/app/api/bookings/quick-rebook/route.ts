@@ -9,10 +9,12 @@ import {
   SECOND_ADULT_REQUIRED_MESSAGE,
 } from "@/lib/bookingValidation";
 import { nextOccurrences } from "@/lib/rebook";
-import { chargeOffSessionHold, cancelPaymentIntent } from "@/lib/payment";
+import { chargeOffSessionHold, cancelPaymentIntent, STRIPE_MIN_CENTS } from "@/lib/payment";
 import { rangesOverlap } from "@/lib/bookingConflicts";
 import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { notifyBookingCreated } from "@/lib/notify";
+import { getStripe } from "@/lib/stripe";
+import { holdDueAt, holdsAtBooking } from "@/lib/holdTiming";
 
 // How many weeks ahead quick rebook looks for a week the parent doesn't already have booked.
 const REBOOK_WEEKS_TO_TRY = 4;
@@ -21,10 +23,10 @@ import { isAllowedLength, lengthLabel, lengthOptions, LENGTH_NOT_ALLOWED_MESSAGE
 /**
  * One-click "book this coach again" — same coach, child, sport, duration, and location
  * as a prior booking, at the next occurrence of the same weekday/time. (If the prior
- * length can no longer be booked, the parent is asked to pick a current one.) Charges the card
- * on file off-session (no Stripe Elements on this screen) using the payment method saved
- * from that prior booking, which is why bookings are created with
- * setup_future_usage: "off_session" in the first place.
+ * length can no longer be booked, the parent is asked to pick a current one.) Uses the card
+ * saved from that prior booking (no Stripe Elements on this screen): a session 2 days away or
+ * less is held off-session now; one further out is booked on the saved card and the card-holds
+ * job places the hold 2 days before, same as the booking form (src/lib/holdTiming.ts).
  */
 export async function POST(req: Request) {
   const session = await getCurrentSession();
@@ -123,24 +125,39 @@ export async function POST(req: Request) {
 
   let stripePaymentIntentId: string | null = null;
   let stripePaymentMethodId: string | null = null;
-  if (totalDueCents >= 50) {
-    if (!parentProfile.stripeCustomerId || !priorBooking.stripePaymentMethodId) {
+  let holdDue: Date | null = null;
+  if (totalDueCents >= STRIPE_MIN_CENTS) {
+    const customer = parentProfile.stripeCustomerId;
+    const savedCard = priorBooking.stripePaymentMethodId;
+    if (!customer || !savedCard) {
       return NextResponse.json({ error: "No saved card on file — use the regular booking form instead." }, { status: 400 });
     }
-    try {
-      const intent = await chargeOffSessionHold(parentProfile.stripeCustomerId, priorBooking.stripePaymentMethodId, totalDueCents);
-      stripePaymentIntentId = intent.id;
-      stripePaymentMethodId = priorBooking.stripePaymentMethodId;
-    } catch (err) {
-      const stripeErr = err as { code?: string; message?: string };
-      if (stripeErr.code === "authentication_required") {
-        return NextResponse.json(
-          { error: "Your card needs to be re-verified — please use the regular booking form to continue." },
-          { status: 400 },
-        );
+    if (!holdsAtBooking(scheduledAt)) {
+      // More than 2 days away: no hold yet (src/lib/holdTiming.ts). Just check the saved card is
+      // still on the parent's Stripe customer; the card-holds job places the hold 2 days before.
+      const card = await getStripe().paymentMethods.retrieve(savedCard);
+      const owner = typeof card.customer === "string" ? card.customer : card.customer?.id;
+      if (owner !== customer) {
+        return NextResponse.json({ error: "Your saved card is no longer on file — use the regular booking form instead." }, { status: 400 });
       }
-      console.error("Off-session quick-rebook charge failed", err);
-      return NextResponse.json({ error: "We couldn't charge the card on file. Please use the regular booking form." }, { status: 502 });
+      stripePaymentMethodId = savedCard;
+      holdDue = holdDueAt(scheduledAt);
+    } else {
+      try {
+        const intent = await chargeOffSessionHold(customer, savedCard, totalDueCents);
+        stripePaymentIntentId = intent.id;
+        stripePaymentMethodId = savedCard;
+      } catch (err) {
+        const stripeErr = err as { code?: string; message?: string };
+        if (stripeErr.code === "authentication_required") {
+          return NextResponse.json(
+            { error: "Your card needs to be re-verified — please use the regular booking form to continue." },
+            { status: 400 },
+          );
+        }
+        console.error("Off-session quick-rebook charge failed", err);
+        return NextResponse.json({ error: "We couldn't charge the card on file. Please use the regular booking form." }, { status: 502 });
+      }
     }
   }
 
@@ -160,6 +177,7 @@ export async function POST(req: Request) {
     isFirstSession,
     stripePaymentIntentId,
     stripePaymentMethodId,
+    holdDueAt: holdDue,
     // Its QUICK_REBOOK points are awarded when the parent marks it complete (see the complete route).
     bookedViaQuickRebook: true,
   });

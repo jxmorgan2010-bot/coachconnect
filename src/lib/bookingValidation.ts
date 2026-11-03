@@ -253,6 +253,8 @@ type CreateConfirmedBookingInput = {
   isFirstSession: boolean;
   stripePaymentIntentId: string | null;
   stripePaymentMethodId: string | null;
+  /** The card was only saved: the card-holds job places the hold then (src/lib/holdTiming.ts). */
+  holdDueAt?: Date | null;
   /** Set by quick rebook; its points are awarded at completion. */
   bookedViaQuickRebook?: boolean;
 };
@@ -293,6 +295,8 @@ export async function createConfirmedBooking(input: CreateConfirmedBookingInput)
         secondAdultName: input.secondAdultName?.trim() || null,
         stripePaymentIntentId: input.stripePaymentIntentId,
         stripePaymentMethodId: input.stripePaymentMethodId,
+        holdDueAt: input.holdDueAt ?? null,
+        holdPlacedAt: input.stripePaymentIntentId ? new Date() : null,
         bookedViaQuickRebook: input.bookedViaQuickRebook ?? false,
       },
     });
