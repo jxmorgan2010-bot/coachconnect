@@ -12,13 +12,22 @@ import { canMarkComplete, canReportNoShow, formatPacificDateTime, formatPacificT
 import { freeCancelNightLabel, parentCancelOutcome, type ParentCancelOutcome } from "@/lib/cancellation";
 
 /** Exactly what cancelling will do, shown before the parent confirms. */
-function parentCancelMessage(outcome: ParentCancelOutcome, scheduledAt: Date, chargeCents: number, isPackage: boolean, coachName: string) {
+function parentCancelMessage(
+  outcome: ParentCancelOutcome,
+  scheduledAt: Date,
+  chargeCents: number,
+  isPackage: boolean,
+  coachName: string,
+  holdPlaced: boolean,
+) {
   const coach = coachName.split(" ")[0];
   if (outcome === "FREE") {
     return isPackage
       ? "Cancelling now is free. The session goes back into your package."
       : chargeCents > 0
-        ? "Cancelling now is free. Your card hold is released, so you won't be charged. Any referral credit you used comes back to your account."
+        ? holdPlaced
+          ? "Cancelling now is free. Your card hold is released, so you won't be charged. Any referral credit you used comes back to your account."
+          : "Cancelling now is free. No hold has been placed on your card yet, so you won't be charged. Any referral credit you used comes back to your account."
         : "Cancelling now is free, and the referral credit you used comes back to your account.";
   }
   const past = `It's past 11:59 PM PT on ${freeCancelNightLabel(scheduledAt)}, the free-cancellation deadline.`;
@@ -38,12 +47,15 @@ export function CancelSessionButton({
   chargeCents,
   isPackage,
   coachName,
+  holdPlaced,
 }: {
   bookingId: string;
   scheduledAt: string;
   chargeCents: number;
   isPackage: boolean;
   coachName: string;
+  /** False when the card was saved and the 2-day hold isn't placed yet (src/lib/holdTiming.ts). */
+  holdPlaced: boolean;
 }) {
   const router = useRouter();
   const start = new Date(scheduledAt);
@@ -101,7 +113,7 @@ export function CancelSessionButton({
       <p id={`cancel-${bookingId}-title`} className="text-sm font-bold text-ink">
         {!late ? "Cancel this session?" : isPackage ? "Cancel and use up this package session?" : "Cancel and pay the full price?"}
       </p>
-      <p className="text-sm text-ink">{parentCancelMessage(outcome, start, chargeCents, isPackage, coachName)}</p>
+      <p className="text-sm text-ink">{parentCancelMessage(outcome, start, chargeCents, isPackage, coachName, holdPlaced)}</p>
       {error && <p role="alert" className={errorClass}>{error}</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={confirm} className={primaryButtonClass} disabled={loading}>

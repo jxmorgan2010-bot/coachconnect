@@ -12,7 +12,8 @@ import { SPORT_LABELS } from "@/lib/sports";
 import { SKILL_LEVEL_LABELS } from "@/lib/skillLevels";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
 import { CoachCancelButton, ProgressNoteForm } from "./BookingActions";
-import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
+import { canMarkComplete, formatPacificDateTime, formatPacificTime } from "@/lib/sessionTiming";
+import { holdState } from "@/lib/holdTiming";
 import { COACH_TIMEZONE } from "@/lib/availability";
 import VerificationCard, { getVerificationItems } from "./VerificationCard";
 
@@ -63,8 +64,16 @@ export default async function CoachDashboard({
   // What the coach should expect for payment, from the booking's actual payment state.
   function paymentNote(b: (typeof upcoming)[number]) {
     if (b.packageId) return "Prepaid package session.";
+    const whenCharged = "It's charged when the parent marks the session complete, or if they cancel after 11:59 PM PT the night before.";
+    const hold = holdState(b);
+    if (b.paymentStatus === "AUTHORIZED" && hold === "SAVED" && b.holdDueAt) {
+      return `Card saved. We place the hold on ${formatPacificDateTime(b.holdDueAt)}, 2 days before. ${whenCharged}`;
+    }
+    if (b.paymentStatus === "AUTHORIZED" && hold === "FAILED") {
+      return "The family's card hold didn't go through and they've been asked to update their card. If it isn't fixed 12 hours before, the session is cancelled.";
+    }
     if (b.paymentStatus === "AUTHORIZED") {
-      return "Card held. It's charged when the parent marks the session complete, or if they cancel after 11:59 PM PT the night before.";
+      return `Card held. ${whenCharged}`;
     }
     return "No card hold on this session.";
   }

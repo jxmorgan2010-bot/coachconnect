@@ -17,6 +17,9 @@ import CardSection from "./CardSection";
 import CancellationPolicyNote from "./CancellationPolicyNote";
 import LengthPicker from "@/components/LengthPicker";
 import { DEFAULT_SESSION_LENGTH, SESSION_LENGTHS, lengthLabel, lengthOptions } from "@/lib/sessionLengths";
+import { holdDueAt, holdsAtBooking } from "@/lib/holdTiming";
+import { formatPacificDateTime } from "@/lib/sessionTiming";
+import { COACH_TIMEZONE } from "@/lib/availability";
 
 type ChildOption = { id: string; firstName: string; gradeOrAge: string; levels: Partial<Record<Sport, SkillLevel>> };
 type OpenDay = { date: string; slots: { startsAt: string; label: string }[] };
@@ -114,6 +117,8 @@ function BookingFormInner({
   const [editingLevel, setEditingLevel] = useState(false);
   const [levelDraft, setLevelDraft] = useState<SkillLevel | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  // Fixed when the form loads, like CancellationPolicyNote; the server decides again at booking.
+  const [formOpenedAt] = useState(() => new Date());
 
   const child = childList.find((c) => c.id === childId);
   const savedLevel = sport && child ? child.levels[sport] : undefined;
@@ -148,6 +153,8 @@ function BookingFormInner({
   const discountCents = Math.min(creditCents, breakdown.sessionCostCents);
   const totalDueCents = breakdown.totalChargedCents - discountCents;
   const paymentRequired = !activePackage && totalDueCents >= STRIPE_MIN_CENTS;
+  // More than 2 days out, the card is only saved today; the hold comes 2 days before (src/lib/holdTiming.ts).
+  const holdDate = paymentRequired && time && !holdsAtBooking(new Date(time), formOpenedAt) ? holdDueAt(new Date(time)) : null;
   const locationOutsideBayArea = locationLooksOutsideBayArea(locationText);
 
   const slotsKey = `${duration}|${slotsFrom ?? ""}|${slotsVersion}`;
@@ -321,6 +328,7 @@ function BookingFormInner({
     }
 
     let paymentIntentId: string | undefined;
+    let setupIntentId: string | undefined;
 
     if (!intentData.noPaymentRequired) {
       if (!stripe || !elements) {
@@ -334,24 +342,34 @@ function BookingFormInner({
         setError("Enter your card details.");
         return;
       }
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(intentData.clientSecret, {
-        payment_method: {
-          card: cardNumberElement,
-          billing_details: { address: { postal_code: zip.trim() } },
-        },
-      });
-      if (stripeError) {
-        setLoading(false);
-        setError(stripeError.message ?? "Your card couldn't be authorized.");
-        return;
+      const paymentMethod = {
+        card: cardNumberElement,
+        billing_details: { address: { postal_code: zip.trim() } },
+      };
+      if (intentData.mode === "SETUP") {
+        // Checks and saves the card (any bank authentication happens here); no hold yet.
+        const { error: stripeError, setupIntent } = await stripe.confirmCardSetup(intentData.clientSecret, { payment_method: paymentMethod });
+        if (stripeError) {
+          setLoading(false);
+          setError(stripeError.message ?? "Your card couldn't be saved.");
+          return;
+        }
+        setupIntentId = setupIntent?.id;
+      } else {
+        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(intentData.clientSecret, { payment_method: paymentMethod });
+        if (stripeError) {
+          setLoading(false);
+          setError(stripeError.message ?? "Your card couldn't be authorized.");
+          return;
+        }
+        paymentIntentId = paymentIntent?.id;
       }
-      paymentIntentId = paymentIntent?.id;
     }
 
     const res = await fetch("/api/bookings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...basePayload, paymentIntentId }),
+      body: JSON.stringify({ ...basePayload, paymentIntentId, setupIntentId }),
     });
     const data = await res.json();
     setLoading(false);
@@ -750,13 +768,25 @@ function BookingFormInner({
                     </div>
                   )}
                   <div className="mt-3 flex items-baseline justify-between gap-4 border-t-2 border-dashed border-ink pt-3 text-ink">
-                    <span className="font-display text-lg leading-none">Card hold today</span>
+                    <span className="font-display text-lg leading-none">
+                      {holdDate
+                        ? `Card hold on ${holdDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: COACH_TIMEZONE })}`
+                        : "Card hold today"}
+                    </span>
                     <span className="font-display text-2xl leading-none">{formatCents(totalDueCents)}</span>
                   </div>
                   <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                    Your card is authorized (held), not charged, when you book. It&apos;s charged when you mark the
-                    session complete, or if you cancel after the free-cancellation deadline. The price includes
-                    Assist Coaching&apos;s 15% platform fee — nothing is added on top. Card/digital payment only.
+                    {holdDate ? (
+                      <>
+                        Today we check and save your card, with no hold. On {formatPacificDateTime(holdDate)}, 2 days
+                        before the session, we place a hold (not a charge) for this amount.
+                      </>
+                    ) : (
+                      <>Your card is authorized (held), not charged, when you book.</>
+                    )}{" "}
+                    It&apos;s charged when you mark the session complete, or if you cancel after the free-cancellation
+                    deadline. The price includes Assist Coaching&apos;s 15% platform fee — nothing is added on top.
+                    Card/digital payment only.
                   </p>
                 </div>
               )}
@@ -798,7 +828,7 @@ function BookingFormInner({
             {error && <p className={errorClass}>{error}</p>}
 
             <button type="submit" className={`${primaryButtonClass} w-full text-base`} disabled={loading || levelMismatch}>
-              {loading ? "Booking..." : paymentRequired ? `Book & hold ${formatCents(totalDueCents)}` : "Book session"}
+              {loading ? "Booking..." : !paymentRequired ? "Book session" : holdDate ? "Book & save card" : `Book & hold ${formatCents(totalDueCents)}`}
             </button>
           </form>
         )}

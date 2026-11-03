@@ -3,7 +3,7 @@ import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { formatCents, AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
-import { goldButtonClass } from "@/lib/ui";
+import { goldButtonClass, primaryButtonClass } from "@/lib/ui";
 import DateTile from "@/components/DateTile";
 import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
@@ -12,7 +12,8 @@ import ParentTabs from "../ParentTabs";
 import RatingForm from "../RatingForm";
 import SatisfactionGuaranteeNotice from "@/components/SatisfactionGuaranteeNotice";
 import { CancelSessionButton, SessionTimingActions, TipForm, QuickRebookButton } from "../BookingActions";
-import { canMarkComplete, formatPacificTime } from "@/lib/sessionTiming";
+import { canMarkComplete, formatPacificDateTime, formatPacificTime } from "@/lib/sessionTiming";
+import { HOLD_NOT_FIXED_REASON, holdFixDeadline, holdState } from "@/lib/holdTiming";
 import { bookingChargeCents, canParentCancel, freeCancelPolicyText, parentCancelOutcome } from "@/lib/cancellation";
 
 const STATUS_VARIANT = {
@@ -37,8 +38,26 @@ const PAYMENT_LABEL: Record<string, string> = {
   PARTIALLY_REFUNDED: "Partly refunded",
 };
 
+type PaymentFacts = {
+  paymentStatus: string;
+  packageId: string | null;
+  stripePaymentIntentId: string | null;
+  holdDueAt: Date | null;
+  holdFailedAt: Date | null;
+};
+
+/** Before a single session's hold is placed (src/lib/holdTiming.ts), say so rather than "Payment held". */
+function paymentLabel(b: PaymentFacts): string {
+  if (b.paymentStatus !== "AUTHORIZED") return PAYMENT_LABEL[b.paymentStatus];
+  const state = holdState(b);
+  if (state === "SAVED" && b.holdDueAt) return `Card saved, hold on ${formatPacificDateTime(b.holdDueAt)}`;
+  if (state === "FAILED") return "Card problem";
+  return PAYMENT_LABEL[b.paymentStatus];
+}
+
 type CancelledBooking = {
   cancelledAt: Date | null;
+  cancelReason: string | null;
   cancelledBy: "PARENT" | "COACH" | "PLATFORM" | null;
   lateCancellation: boolean;
   packageId: string | null;
@@ -65,6 +84,9 @@ function cancelledMessage(b: CancelledBooking): string {
   if (b.cancelledBy === "PARENT") return `You cancelled before the deadline. ${money}`;
   if (b.cancelledBy === "COACH") return `${b.coachProfile.user.name} cancelled this session. ${money}`;
   // Platform-cancelled (cancelReason is admin-facing; parents get the plain version).
+  if (b.cancelReason === HOLD_NOT_FIXED_REASON) {
+    return `Assist Coaching cancelled this session because we couldn't place a hold on your card and it wasn't updated in time. ${money}`;
+  }
   if (b.cancelledBy === "PLATFORM" || b.cancelledAt) {
     return `Assist Coaching cancelled this session because the coach is no longer available. ${money}`;
   }
@@ -161,7 +183,7 @@ export default async function MyBookingsPage() {
                           <p className="mt-1.5 text-sm">
                             <span className="font-bold text-pitch">{formatCents(netPriceCents)}</span>
                             {b.tippedAt && <span className="ml-1 font-bold text-ink">+ {formatCents(b.tipCents)} tip</span>}
-                            <span className="text-muted-foreground"> · {PAYMENT_LABEL[b.paymentStatus]}</span>
+                            <span className="text-muted-foreground"> · {paymentLabel(b)}</span>
                             {b.autoCompleted && (
                               <span className="text-muted-foreground">
                                 {" "}· Auto-completed after {AUTO_RELEASE_GRACE_HOURS}h with no response
@@ -172,6 +194,19 @@ export default async function MyBookingsPage() {
                       </div>
 
                       {/* videoCallUrl is a mock placeholder link, so it isn't shown until a real provider exists. */}
+
+                      {b.status === "CONFIRMED" && holdState(b) === "FAILED" && (
+                        <div className="flex flex-col items-start gap-3 rounded-lg border-2 border-ink bg-warning/15 p-3 sm:p-4">
+                          <p className="text-sm text-ink">
+                            <span className="font-bold">We couldn&apos;t place the hold on your card.</span> Update your card by{" "}
+                            {formatPacificDateTime(holdFixDeadline(b.scheduledAt))} or this session will be cancelled. You
+                            won&apos;t be charged until after the session.
+                          </p>
+                          <Link href={`/dashboard/bookings/${b.id}/card`} className={primaryButtonClass}>
+                            Update card
+                          </Link>
+                        </div>
+                      )}
 
                       {b.status === "CONFIRMED" && (
                         <div className="flex flex-wrap items-start gap-3 border-t-2 border-line pt-3">
@@ -189,6 +224,7 @@ export default async function MyBookingsPage() {
                                 scheduledAt={b.scheduledAt.toISOString()}
                                 chargeCents={netPriceCents}
                                 isPackage={!!b.packageId}
+                                holdPlaced={holdState(b) === "HELD"}
                                 coachName={b.coachProfile.user.name}
                               />
                             </>
