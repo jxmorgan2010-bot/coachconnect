@@ -36,6 +36,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   let paymentIntentId: string | null;
   try {
     paymentIntentId = await captureHeldPayment({
+      bookingId: booking.id,
       stripePaymentIntentId: booking.stripePaymentIntentId,
       stripeCustomerId: booking.parentProfile.stripeCustomerId,
       stripePaymentMethodId: booking.stripePaymentMethodId,

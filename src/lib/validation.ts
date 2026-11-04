@@ -45,6 +45,8 @@ export const bookingCreateSchema = z.object({
   locationText: z.string().trim().min(5, PUBLIC_PLACE_REQUIRED),
   consent: z.literal(true, { error: "Parental consent is required to book." }),
   paymentIntentId: z.string().trim().min(1).optional(),
+  // Instead of paymentIntentId for a session more than 2 days away: the card was saved, not held.
+  setupIntentId: z.string().trim().min(1).optional(),
   // Required only when the selected coach is a minor coach — validated against that fact
   // server-side in validateBookingRequest, since it depends on which coach was picked.
   secondAdultName: z.string().trim().min(2, "Enter the second adult's name.").max(120).optional(),

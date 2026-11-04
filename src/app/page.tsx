@@ -25,7 +25,7 @@ const STEPS = [
   },
   {
     title: "Mark it done and leave a review",
-    body: "Your card is held when you book and charged when you mark the session complete.",
+    body: "Your card is saved when you book, held 2 days before, and charged when you mark the session complete.",
   },
 ];
 

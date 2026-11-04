@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { notifyCoachCancelled, notifyParentCancelled } from "@/lib/notify";
-import { cancelPaymentIntent, captureHeldPayment } from "@/lib/payment";
+import { cancelPaymentIntent, captureHeldPayment, STRIPE_MIN_CENTS } from "@/lib/payment";
 import { formatCents } from "@/lib/money";
 import {
   bookingChargeCents,
@@ -117,20 +117,22 @@ async function releaseBooking(
   by: CancelledBy,
   now: Date,
 ): Promise<{ ok: true; stripeOk: boolean } | CancelResult> {
-  const hasHold = !b.packageId && !!b.stripePaymentIntentId;
   const claimed = await prisma.$transaction(async (tx) => {
     const { count } = await tx.booking.updateMany({
       where: { id: b.id, status: "CONFIRMED" },
-      data: {
-        status: "CANCELLED",
-        cancelledAt: now,
-        cancelledBy: by,
-        // A package session's value goes back into the package; a booking with no card hold
-        // is settled right here. A card hold is marked CANCELLED once Stripe confirms below.
-        ...(b.packageId ? { paymentStatus: "REFUNDED" as const } : hasHold ? {} : { paymentStatus: "CANCELLED" as const }),
-      },
+      data: { status: "CANCELLED", cancelledAt: now, cancelledBy: by },
     });
-    if (count !== 1) return false;
+    if (count !== 1) return null;
+    // Read after the claim: the card-holds job only saves a hold on a CONFIRMED booking, so
+    // whether there's a hold to release is settled now.
+    const { stripePaymentIntentId } = await tx.booking.findUniqueOrThrow({ where: { id: b.id }, select: { stripePaymentIntentId: true } });
+    const holdId = b.packageId ? null : stripePaymentIntentId;
+    // A package session's value goes back into the package; a booking with no card hold (none
+    // needed, or not placed yet) is settled right here. A hold is marked CANCELLED once Stripe
+    // confirms below.
+    if (b.packageId || !holdId) {
+      await tx.booking.update({ where: { id: b.id }, data: { paymentStatus: b.packageId ? "REFUNDED" : "CANCELLED" } });
+    }
     if (b.packageId) {
       await tx.sessionPackage.update({
         where: { id: b.packageId },
@@ -139,13 +141,13 @@ async function releaseBooking(
     } else if (b.discountCents > 0) {
       await tx.parentProfile.update({ where: { id: b.parentProfileId }, data: { creditCents: { increment: b.discountCents } } });
     }
-    return true;
+    return { holdId };
   });
   if (!claimed) return RACED;
 
-  if (!hasHold) return { ok: true, stripeOk: true };
+  if (!claimed.holdId) return { ok: true, stripeOk: true };
   try {
-    await cancelPaymentIntent(b.stripePaymentIntentId);
+    await cancelPaymentIntent(claimed.holdId);
     await prisma.booking.update({ where: { id: b.id }, data: { paymentStatus: "CANCELLED" } });
     return { ok: true, stripeOk: true };
   } catch (err) {
@@ -156,30 +158,40 @@ async function releaseBooking(
 
 /**
  * A parent cancel after the deadline: charged the full price, coach paid as if the session
- * happened. A package session simply stays used. Credit applied at booking stays spent.
+ * happened. A package session simply stays used. Credit applied at booking stays spent. With no
+ * live hold (it expired, or the scheduled hold failed and wasn't fixed), the card saved at
+ * booking is charged instead (captureHeldPayment).
  */
 async function lateCancel(b: BookingWithPeople, now: Date): Promise<{ ok: true; stripeOk: boolean } | CancelResult> {
-  const hasHold = !b.packageId && !!b.stripePaymentIntentId;
-  const { count } = await prisma.booking.updateMany({
-    where: { id: b.id, status: "CONFIRMED" },
-    data: {
-      status: "CANCELLED",
-      cancelledAt: now,
-      cancelledBy: "PARENT",
-      lateCancellation: true,
-      // Covered entirely by referral credit: nothing to capture, the credit is the payment.
-      ...(!b.packageId && !hasHold ? { paymentStatus: "CAPTURED" as const, capturedAt: now } : {}),
-    },
-  });
-  if (count !== 1) return RACED;
-
-  if (!hasHold) return { ok: true, stripeOk: true };
   const amountCents = bookingChargeCents(b);
+  const claimed = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.booking.updateMany({
+      where: { id: b.id, status: "CONFIRMED" },
+      data: { status: "CANCELLED", cancelledAt: now, cancelledBy: "PARENT", lateCancellation: true },
+    });
+    if (count !== 1) return null;
+    // Read after the claim, as in releaseBooking: a scheduled hold can't be saved after this.
+    const fresh = await tx.booking.findUniqueOrThrow({
+      where: { id: b.id },
+      select: { stripePaymentIntentId: true, stripePaymentMethodId: true },
+    });
+    const chargesCard =
+      !b.packageId && (!!fresh.stripePaymentIntentId || (!!fresh.stripePaymentMethodId && amountCents >= STRIPE_MIN_CENTS));
+    // Covered entirely by referral credit: nothing to capture, the credit is the payment.
+    if (!b.packageId && !chargesCard) {
+      await tx.booking.update({ where: { id: b.id }, data: { paymentStatus: "CAPTURED", capturedAt: now } });
+    }
+    return { chargesCard, ...fresh };
+  });
+  if (!claimed) return RACED;
+
+  if (!claimed.chargesCard) return { ok: true, stripeOk: true };
   try {
     const paymentIntentId = await captureHeldPayment({
-      stripePaymentIntentId: b.stripePaymentIntentId,
+      bookingId: b.id,
+      stripePaymentIntentId: claimed.stripePaymentIntentId,
       stripeCustomerId: b.parentProfile.stripeCustomerId,
-      stripePaymentMethodId: b.stripePaymentMethodId,
+      stripePaymentMethodId: claimed.stripePaymentMethodId,
       amountCents,
       label: "late cancellation",
     });

@@ -415,7 +415,7 @@ async function cancelBookingsAfterRevocation(
           ...(b.packageId ? { paymentStatus: "REFUNDED" as const } : {}),
         },
       });
-      if (count !== 1) return false;
+      if (count !== 1) return null;
       if (b.packageId) {
         await tx.sessionPackage.update({
           where: { id: b.packageId },
@@ -427,7 +427,9 @@ async function cancelBookingsAfterRevocation(
           data: { creditCents: { increment: b.discountCents } },
         });
       }
-      return true;
+      // Read after the claim: a hold placed 2 days ahead (src/lib/cardHolds.ts) is only ever saved
+      // on a CONFIRMED booking, so this is the hold to void, if any.
+      return tx.booking.findUniqueOrThrow({ where: { id: b.id }, select: { stripePaymentIntentId: true } });
     });
     if (!cancelled) continue;
     cancelledBookingIds.push(b.id);
@@ -435,7 +437,7 @@ async function cancelBookingsAfterRevocation(
     let holdReleased = true;
     if (!b.packageId) {
       try {
-        await voidHold(b.stripePaymentIntentId);
+        await voidHold(cancelled.stripePaymentIntentId);
         await prisma.booking.update({ where: { id: b.id }, data: { paymentStatus: "CANCELLED" } });
       } catch (err) {
         holdReleased = false;

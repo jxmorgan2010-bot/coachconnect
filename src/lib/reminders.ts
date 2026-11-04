@@ -1,72 +1,61 @@
 import { prisma } from "@/lib/prisma";
-import { queueEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { reminderEmail } from "@/lib/emails";
+import type { JobLog } from "@/lib/jobs/runLog";
 
-type ReminderBooking = {
-  scheduledAt: Date;
-  locationText: string;
-  parentProfile: { user: { email: string; name: string } };
-  coachProfile: { user: { email: string; name: string } };
-  child: { firstName: string } | null;
-};
-
-function sendReminders(b: ReminderBooking, kind: "TOMORROW" | "SOON") {
-  const shared = {
-    kind,
-    coachName: b.coachProfile.user.name,
-    parentName: b.parentProfile.user.name,
-    childFirstName: b.child?.firstName ?? null,
-    scheduledAt: b.scheduledAt,
-    locationText: b.locationText,
-  };
-  queueEmail(reminderEmail({ to: b.parentProfile.user.email, audience: "PARENT", ...shared }));
-  queueEmail(reminderEmail({ to: b.coachProfile.user.email, audience: "COACH", ...shared }));
-}
-
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const BATCH = 200;
 
 /**
- * Scans for CONFIRMED bookings approaching their 24h or 1h reminder
- * windows and "sends" (logs) a reminder to both parent and coach, marking
- * each window as sent so it never fires twice.
+ * Reminders to the parent and the coach 24 hours and 1 hour before each CONFIRMED session
+ * (cancelled and completed ones are skipped). The windows are wider than the job's 30-minute
+ * schedule so a late or skipped run still sends them: "tomorrow" from 25 down to 22 hours
+ * before (six runs), "soon" from 75 down to 10 minutes before (at least two runs, so it normally
+ * goes out 45 to 75 minutes before).
  *
- * There's no real job scheduler in this dev setup, so this is exposed as
- * POST /api/system/send-reminders (admin-triggerable, or wire up something
- * like Vercel Cron to hit it on a schedule in production).
+ * Safe to run twice: each reminder is claimed (reminder24SentAt / reminder1hSentAt) with a guarded
+ * update before it's sent, so it goes out at most once even if two runs overlap.
  */
-export async function runReminderSweep(now: Date = new Date()) {
-  let sent24h = 0;
-  let sent1h = 0;
+const WINDOWS = [
+  { kind: "TOMORROW", field: "reminder24SentAt", from: 22 * HOUR, to: 25 * HOUR, label: "24-hour reminders sent" },
+  { kind: "SOON", field: "reminder1hSentAt", from: 10 * MINUTE, to: 75 * MINUTE, label: "1-hour reminders sent" },
+] as const;
 
-  const due24h = await prisma.booking.findMany({
-    where: {
-      status: "CONFIRMED",
-      reminder24SentAt: null,
-      scheduledAt: { gte: new Date(now.getTime() + 23 * HOUR), lte: new Date(now.getTime() + 25 * HOUR) },
-    },
-    include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } }, child: true },
-  });
+export async function runRemindersJob(log: JobLog, now: Date) {
+  for (const w of WINDOWS) {
+    const due = await prisma.booking.findMany({
+      where: {
+        status: "CONFIRMED",
+        [w.field]: null,
+        scheduledAt: { gt: new Date(now.getTime() + w.from), lte: new Date(now.getTime() + w.to) },
+      },
+      include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } }, child: true },
+      take: BATCH,
+    });
 
-  for (const b of due24h) {
-    sendReminders(b, "TOMORROW");
-    await prisma.booking.update({ where: { id: b.id }, data: { reminder24SentAt: now } });
-    sent24h++;
+    await log.each(due, async (b) => {
+      const { count } = await prisma.booking.updateMany({
+        where: { id: b.id, status: "CONFIRMED", [w.field]: null },
+        data: { [w.field]: now },
+      });
+      if (count !== 1) return;
+
+      const shared = {
+        kind: w.kind,
+        coachName: b.coachProfile.user.name,
+        parentName: b.parentProfile.user.name,
+        childFirstName: b.child?.firstName ?? null,
+        scheduledAt: b.scheduledAt,
+        locationText: b.locationText,
+      };
+      const parent = await sendEmail(reminderEmail({ to: b.parentProfile.user.email, audience: "PARENT", ...shared }));
+      const coach = await sendEmail(reminderEmail({ to: b.coachProfile.user.email, audience: "COACH", ...shared }));
+      if (parent.status === "failed" || coach.status === "failed") {
+        log.fail(`booking ${b.id}`, "a reminder email wasn't sent");
+        return;
+      }
+      log.ok(w.label);
+    });
   }
-
-  const due1h = await prisma.booking.findMany({
-    where: {
-      status: "CONFIRMED",
-      reminder1hSentAt: null,
-      scheduledAt: { gte: new Date(now.getTime() + 0.5 * HOUR), lte: new Date(now.getTime() + 1.5 * HOUR) },
-    },
-    include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } }, child: true },
-  });
-
-  for (const b of due1h) {
-    sendReminders(b, "SOON");
-    await prisma.booking.update({ where: { id: b.id }, data: { reminder1hSentAt: now } });
-    sent1h++;
-  }
-
-  return { sent24h, sent1h };
 }

@@ -225,8 +225,11 @@ These apply to all work in this project unless a task prompt explicitly says oth
 - Never touch Vercel settings or the Turso production database. The owner applies production database changes.
 - Never use `prisma db push` or `prisma migrate` against dev.db or production.
 - Never run the seed script (`npm run db:seed`, `prisma/seed.ts`) against production. It creates demo coaches marked as ID-approved that no one on the team has reviewed.
-- Never change the payment policy (the rules live in `src/lib/cancellation.ts`, `src/lib/bookingCancellation.ts` and `src/lib/refunds.ts`):
-  - Authorize (hold) the card at booking. Capture when the parent marks the session complete, at the 48-hour auto-release, or when the parent cancels late. If the hold has expired (about 7 days), charge the card saved at booking instead.
+- Never change the payment policy (the rules live in `src/lib/holdTiming.ts`, `src/lib/cardHolds.ts`, `src/lib/cancellation.ts`, `src/lib/bookingCancellation.ts` and `src/lib/refunds.ts`):
+  - For a single session or quick rebook more than 2 days away, verify and save the card at booking (with any authentication done then) and don't place a hold. The scheduled card-holds job places the hold 2 days before the session. A session 2 days away or less gets the hold at booking.
+  - If the 2-day hold fails, email the parent to update their card. If it still isn't fixed 12 hours before the session, cancel the booking (the parent isn't charged), email both sides and flag it for admin.
+  - Packages are charged in full at purchase.
+  - Capture when the parent marks the session complete, at the 48-hour auto-release, or when the parent cancels late. If there's no live hold (it expired after about 7 days, or the 2-day hold was never placed), charge the card saved at booking instead.
   - A parent cancel by 11:59 PM Pacific the night before the session's day is free: the hold is released, or the session goes back into the package.
   - A parent cancel after that, or a parent no-show (via auto-release), is charged the full price and the coach is paid as if the session happened; a package session counts as used.
   - A coach cancel at any time, or a coach no-show, is never charged.

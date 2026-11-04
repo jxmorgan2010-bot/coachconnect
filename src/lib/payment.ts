@@ -7,23 +7,33 @@ import { getStripe } from "@/lib/stripe";
  * the relevant Stripe id is null.
  */
 
+// Stripe's practical minimum charge in USD. Below it a booking needs no card at all (e.g. fully
+// covered by referral credit).
+export const STRIPE_MIN_CENTS = 50;
+
 /**
- * Charges a booking's held card for `amountCents` (completion, auto-release, late cancel).
+ * Charges a booking's card for `amountCents` (completion, auto-release, late cancel).
  *
- * Stripe cancels an uncaptured hold after about 7 days, so a session booked further ahead
- * can reach this point with no live hold. A CONFIRMED booking's hold is only ever cancelled
- * by that expiry, so in that case the card saved at booking (setup_future_usage) is charged
- * off-session instead. Returns the PaymentIntent that now holds the money: the same id, the
- * new charge's id, or null when the booking never had a card hold (covered by credit).
- * Throws if Stripe declines, so callers can leave the booking flagged for an admin.
+ * A booking can reach this point with no live hold in two ways: Stripe cancels an uncaptured
+ * hold after about 7 days, and a hold due 2 days before the session (src/lib/cardHolds.ts) may
+ * not have been placed yet. Either way the card saved at booking is charged off-session instead.
+ * Returns the PaymentIntent that now holds the money: the same id, the new charge's id, or null
+ * when the booking has no card at all (covered by credit). Throws if Stripe declines, so callers
+ * can leave the booking flagged for an admin.
+ *
+ * Every Stripe call carries an idempotency key, so a repeated or concurrent call for the same
+ * booking (the parent marking it complete while auto-release runs, a job run twice, a retry after
+ * a crash) gets the first call's result instead of charging again.
  */
 export async function captureHeldPayment({
+  bookingId,
   stripePaymentIntentId,
   stripeCustomerId,
   stripePaymentMethodId,
   amountCents,
   label = "session",
 }: {
+  bookingId: string;
   stripePaymentIntentId: string | null;
   stripeCustomerId: string | null;
   stripePaymentMethodId: string | null;
@@ -31,6 +41,9 @@ export async function captureHeldPayment({
   label?: string;
 }): Promise<string | null> {
   if (!stripePaymentIntentId) {
+    if (stripeCustomerId && stripePaymentMethodId && amountCents >= STRIPE_MIN_CENTS) {
+      return chargeSavedCard({ bookingId, stripeCustomerId, stripePaymentMethodId, amountCents, label, reason: "no hold placed" });
+    }
     console.log(`💳 [payment] No card hold to capture (${label}) — session total was covered without a charge.`);
     return null;
   }
@@ -41,29 +54,118 @@ export async function captureHeldPayment({
   if (intent.status === "succeeded") return intent.id;
 
   if (intent.status === "requires_capture") {
-    await stripe.paymentIntents.capture(intent.id, { amount_to_capture: amountCents });
+    await stripe.paymentIntents.capture(
+      intent.id,
+      { amount_to_capture: amountCents },
+      { idempotencyKey: `capture:${intent.id}:${amountCents}` },
+    );
     console.log(`💳 [payment] Captured $${(amountCents / 100).toFixed(2)} (${label}) — intent ${intent.id}`);
     return intent.id;
   }
 
   if (intent.status === "canceled" && stripeCustomerId && stripePaymentMethodId) {
-    const charge = await stripe.paymentIntents.create({
+    return chargeSavedCard({
+      bookingId,
+      stripeCustomerId,
+      stripePaymentMethodId,
+      amountCents,
+      label,
+      reason: `hold ${intent.id} had expired`,
+      metadata: { ...intent.metadata, replacesExpiredHold: intent.id },
+    });
+  }
+
+  throw new Error(`PaymentIntent ${intent.id} can't be charged (status ${intent.status}, no saved card to fall back on).`);
+}
+
+async function chargeSavedCard({
+  bookingId,
+  stripeCustomerId,
+  stripePaymentMethodId,
+  amountCents,
+  label,
+  reason,
+  metadata = {},
+}: {
+  bookingId: string;
+  stripeCustomerId: string;
+  stripePaymentMethodId: string;
+  amountCents: number;
+  label: string;
+  reason: string;
+  metadata?: Record<string, string>;
+}): Promise<string> {
+  const charge = await getStripe().paymentIntents.create(
+    {
       amount: amountCents,
       currency: "usd",
       customer: stripeCustomerId,
       payment_method: stripePaymentMethodId,
       off_session: true,
       confirm: true,
-      metadata: { ...intent.metadata, replacesExpiredHold: intent.id },
-    });
-    if (charge.status !== "succeeded") {
-      throw new Error(`Off-session charge ${charge.id} for an expired hold ended as ${charge.status}.`);
-    }
-    console.log(`💳 [payment] Hold ${intent.id} had expired; charged $${(amountCents / 100).toFixed(2)} (${label}) off-session — intent ${charge.id}`);
-    return charge.id;
+      metadata: { ...metadata, bookingId },
+    },
+    { idempotencyKey: `charge:${bookingId}:${stripePaymentMethodId}:${amountCents}` },
+  );
+  if (charge.status !== "succeeded") {
+    throw new Error(`Off-session charge ${charge.id} (${reason}) ended as ${charge.status}.`);
   }
+  console.log(`💳 [payment] ${reason}; charged $${(amountCents / 100).toFixed(2)} (${label}) off-session — intent ${charge.id}`);
+  return charge.id;
+}
 
-  throw new Error(`PaymentIntent ${intent.id} can't be charged (status ${intent.status}, no saved card to fall back on).`);
+/**
+ * The card-holds job: places a booking's hold off-session on the card saved at booking. The
+ * idempotency key covers a crash between Stripe and saving the result: the next try returns the
+ * same hold instead of placing a second. A new card (or a new price) gets a new key.
+ */
+export async function placeOffSessionHold({
+  bookingId,
+  parentProfileId,
+  stripeCustomerId,
+  stripePaymentMethodId,
+  amountCents,
+}: {
+  bookingId: string;
+  parentProfileId: string;
+  stripeCustomerId: string;
+  stripePaymentMethodId: string;
+  amountCents: number;
+}) {
+  const intent = await getStripe().paymentIntents.create(
+    {
+      amount: amountCents,
+      currency: "usd",
+      customer: stripeCustomerId,
+      payment_method: stripePaymentMethodId,
+      capture_method: "manual",
+      off_session: true,
+      confirm: true,
+      metadata: { bookingId, parentProfileId },
+    },
+    { idempotencyKey: `hold:${bookingId}:${stripePaymentMethodId}:${amountCents}` },
+  );
+  if (intent.status !== "requires_capture") {
+    throw new Error(`Off-session hold ${intent.id} ended as ${intent.status}.`);
+  }
+  console.log(`💳 [payment] Placed the scheduled hold of $${(amountCents / 100).toFixed(2)} — intent ${intent.id}`);
+  return intent;
+}
+
+/**
+ * Sorts a Stripe failure into the card's problem (declined, needs authentication, card removed:
+ * the parent has to act, and trying again won't help) or a temporary one on Stripe's or our side
+ * (network, rate limit, outage, our API key: try again next run, and don't email the parent).
+ */
+export function classifyStripeFailure(err: unknown): { kind: "CARD" | "TEMPORARY"; code: string } {
+  const e = err as { type?: string; code?: string; decline_code?: string };
+  const temporary = ["StripeConnectionError", "StripeAPIError", "StripeRateLimitError", "StripeAuthenticationError", "StripePermissionError"];
+  if (e?.type && temporary.includes(e.type)) return { kind: "TEMPORARY", code: e.type };
+  if (e?.type === "StripeCardError" || e?.type === "StripeInvalidRequestError") {
+    return { kind: "CARD", code: (e.decline_code || e.code || e.type).slice(0, 60) };
+  }
+  // Not from Stripe at all (e.g. a hold that ended in an unexpected state): an admin should look.
+  return { kind: "CARD", code: "unexpected" };
 }
 
 /** Releases a card hold. A hold Stripe already cancelled (it expired) counts as released. */
@@ -103,6 +205,20 @@ export async function chargeTipOffSession(stripeCustomerId: string | null, strip
     confirm: true,
   });
   console.log(`💳 [payment] Charged tip of $${(amountCents / 100).toFixed(2)} off-session.`);
+}
+
+/**
+ * Booking more than 2 days ahead: the card is checked and saved now (with any bank
+ * authentication), and the hold comes later. The booking route checks this SetupIntent belongs
+ * to the parent and succeeded before saving its card on the booking.
+ */
+export async function createCardSetupIntent(stripeCustomerId: string, metadata: Record<string, string>) {
+  return getStripe().setupIntents.create({
+    customer: stripeCustomerId,
+    payment_method_types: ["card"],
+    usage: "off_session",
+    metadata,
+  });
 }
 
 /**

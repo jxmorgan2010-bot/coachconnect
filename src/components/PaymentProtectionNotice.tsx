@@ -6,13 +6,13 @@ import { IconShieldCheck } from "@/components/icons";
  * sessions booked and paid for in-app, so this exists to make that worth knowing before
  * a parent is tempted to pay a coach directly instead.
  *
- * Each line maps to real behavior: single sessions are a manual-capture card hold, a
- * no-show report voids the hold (or returns a package session), cancelling is free until
- * 11:59 PM PT the night before (src/lib/cancellation.ts), and an admin reviews
- * disputes and can refund. No blanket "guarantee" — packages are prepaid.
+ * Each line maps to real behavior: single sessions are a manual-capture card hold placed 2 days
+ * before (src/lib/holdTiming.ts), a no-show report voids the hold (or returns a package session),
+ * cancelling is free until 11:59 PM PT the night before (src/lib/cancellation.ts), and an admin
+ * reviews disputes and can refund. No blanket "guarantee" — packages are prepaid.
  */
 const POINTS = [
-  { title: "Charged after, not before", body: "For a single session, your card is held and only charged once the session's done, or if you cancel late." },
+  { title: "Charged after, not before", body: "For a single session, your card is saved when you book and held 2 days before. It's only charged once the session's done, or if you cancel late." },
   { title: "Plans changed?", body: "Cancel free until 11:59 PM PT the night before. If the coach cancels, you're never charged." },
   { title: "Coach didn't show?", body: "Report it and the hold is cancelled — or the session goes back into your package." },
   { title: "Something went wrong?", body: "Open a dispute and an admin reviews it, and can issue a refund." },

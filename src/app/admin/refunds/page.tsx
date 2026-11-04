@@ -38,9 +38,15 @@ export default async function AdminRefundsPage() {
   const people = { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } } } as const;
 
   // Cancelled, but Stripe didn't finish the job: a hold that wasn't released, or a late
-  // charge that didn't go through (declined, or an expired hold with no usable saved card).
+  // charge that didn't go through (declined, or an expired hold with no usable saved card). A late
+  // cancel before the 2-day hold was placed has no PaymentIntent, only the saved card.
   const stuck = await prisma.booking.findMany({
-    where: { status: "CANCELLED", paymentStatus: "AUTHORIZED", stripePaymentIntentId: { not: null }, packageId: null },
+    where: {
+      status: "CANCELLED",
+      paymentStatus: "AUTHORIZED",
+      packageId: null,
+      OR: [{ stripePaymentIntentId: { not: null } }, { lateCancellation: true, stripePaymentMethodId: { not: null } }],
+    },
     include: { ...people, refunds: true },
     orderBy: { cancelledAt: "desc" },
   });
@@ -92,8 +98,12 @@ export default async function AdminRefundsPage() {
                     {b.parentProfile.user.name} <span className="font-normal text-muted-foreground">with</span> {b.coachProfile.user.name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Session {formatPacificDateTime(b.scheduledAt)} · {formatCents(bookingChargeCents(b))} · PaymentIntent{" "}
-                    <code className="break-all">{b.stripePaymentIntentId}</code>
+                    Session {formatPacificDateTime(b.scheduledAt)} · {formatCents(bookingChargeCents(b))} ·{" "}
+                    {b.stripePaymentIntentId ? (
+                      <>PaymentIntent <code className="break-all">{b.stripePaymentIntentId}</code></>
+                    ) : (
+                      <>No hold yet; saved card <code className="break-all">{b.stripePaymentMethodId}</code></>
+                    )}
                   </p>
                   <p className="text-sm text-ink">
                     {b.lateCancellation
