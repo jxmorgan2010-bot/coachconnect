@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 /**
- * The scheduler (a GitHub Actions workflow, or Vercel Cron on a paid plan) calls /api/jobs/* with
+ * The scheduler (cron-job.org, or Vercel Cron on a paid plan) calls /api/jobs/* with
  * `Authorization: Bearer <CRON_SECRET>`, the header Vercel Cron sends. With CRON_SECRET unset or
  * too short, every request is refused, so a deployment without it (e.g. a preview) never runs jobs.
  */

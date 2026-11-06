@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
-import { captureHeldPayment } from "@/lib/payment";
-import { bookingChargeCents } from "@/lib/cancellation";
-import { awardPoints, POINTS_QUICK_REBOOK, POINTS_SESSION_COMPLETED } from "@/lib/points";
 import { canMarkComplete, formatPacificTime, sessionEndsAt } from "@/lib/sessionTiming";
-import { settleReferralAfterCompletion } from "@/lib/referral";
+import { markSessionComplete } from "@/lib/markComplete";
 
 /**
  * Only the parent can mark a session complete — this is what releases the
@@ -33,42 +30,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     );
   }
 
-  let paymentIntentId: string | null;
-  try {
-    paymentIntentId = await captureHeldPayment({
-      bookingId: booking.id,
-      stripePaymentIntentId: booking.stripePaymentIntentId,
-      stripeCustomerId: booking.parentProfile.stripeCustomerId,
-      stripePaymentMethodId: booking.stripePaymentMethodId,
-      amountCents: bookingChargeCents(booking),
-    });
-  } catch (err) {
-    console.error("Stripe capture failed", err);
-    return NextResponse.json({ error: "We couldn't charge the card on file. Please try again or contact support." }, { status: 502 });
+  const result = await markSessionComplete(booking);
+  switch (result.status) {
+    case "COMPLETED":
+      return NextResponse.json({ ok: true, booking: result.booking });
+    case "BUSY":
+      return NextResponse.json({ error: "This session is being finalized right now. Refresh in a minute to see where it stands." }, { status: 409 });
+    case "CHARGE_FAILED":
+      return NextResponse.json({ error: "We couldn't charge the card on file. Please try again or contact support." }, { status: 502 });
+    case "ALREADY_COMPLETE":
+      return NextResponse.json({ error: "This session was already marked complete." }, { status: 409 });
   }
-
-  const now = new Date();
-  const updated = await prisma.$transaction(async (tx) => {
-    // Guarded on CONFIRMED: a repeated or concurrent request (whose capture finds the payment
-    // already taken) completes nothing and awards no points a second time.
-    const { count } = await tx.booking.updateMany({
-      where: { id, status: "CONFIRMED" },
-      data: { status: "COMPLETED", completedAt: now, paymentStatus: "CAPTURED", capturedAt: now, stripePaymentIntentId: paymentIntentId },
-    });
-    if (count !== 1) return null;
-    await awardPoints(tx, { parentProfileId: booking.parentProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
-    await awardPoints(tx, { coachProfileId: booking.coachProfileId, action: "SESSION_COMPLETED", points: POINTS_SESSION_COMPLETED, bookingId: id });
-    // A quick-rebooked session earns its rebook points only once it actually happened.
-    if (booking.bookedViaQuickRebook) {
-      await awardPoints(tx, { parentProfileId: booking.parentProfileId, action: "QUICK_REBOOK", points: POINTS_QUICK_REBOOK, bookingId: id });
-    }
-    return tx.booking.findUniqueOrThrow({ where: { id } });
-  });
-  if (!updated) {
-    return NextResponse.json({ error: "This session was already marked complete." }, { status: 409 });
-  }
-
-  await settleReferralAfterCompletion(id);
-
-  return NextResponse.json({ ok: true, booking: updated });
 }

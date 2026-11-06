@@ -8,8 +8,8 @@ export const maxDuration = 60;
 /**
  * The scheduler's entry point: /api/jobs/card-holds, /api/jobs/auto-release, /api/jobs/reminders.
  * Requires the CRON_SECRET bearer token and refuses everything else. GET is what Vercel Cron
- * sends; the GitHub Actions workflow (.github/workflows/scheduled-jobs.yml) uses POST. The
- * response carries counts only, because the workflow's logs are public.
+ * sends; cron-job.org and the manual backup workflow (.github/workflows/scheduled-jobs.yml) use
+ * POST. The response carries counts only, because the workflow's logs are public.
  */
 async function handle(req: Request, { params }: { params: Promise<{ job: string }> }) {
   if (!isCronRequestAuthorized(req.headers.get("authorization"))) {

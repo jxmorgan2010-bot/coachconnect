@@ -3,6 +3,7 @@ import { sendEmail } from "@/lib/email";
 import { autoReleasedCoachEmail, autoReleasedParentEmail, bookingNeedsAdminEmail } from "@/lib/emails";
 import { emailAdmins } from "@/lib/notify";
 import { captureHeldPayment, classifyStripeFailure } from "@/lib/payment";
+import { claimable } from "@/lib/cardHolds";
 import { bookingChargeCents } from "@/lib/cancellation";
 import { AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
 import { sessionEndsAt } from "@/lib/sessionTiming";
@@ -18,11 +19,18 @@ const BATCH = 100;
  * completes the booking and charges it: the hold is captured, or the card saved at booking is
  * charged if there's no live hold (captureHeldPayment). Both sides are emailed.
  *
- * Safe to run twice: the Stripe call carries the same idempotency key as the parent's own
- * "Mark complete", so the booking is never charged twice, and only the run whose guarded
- * CONFIRMED -> COMPLETED update succeeds sends the emails. A card problem flags the booking for
- * an admin (CHARGE_FAILED) and it's skipped until the flag is cleared on /admin/jobs, so a
- * declined card isn't retried every run. A temporary Stripe problem is retried next run.
+ * Safe to run twice at once: each booking is claimed with a guarded update before Stripe is
+ * called, so only one run reaches Stripe for it. The claim is the card-holds job's holdClaimedAt
+ * (see claimable): that job only touches bookings before the session and this one only 48 hours
+ * after, so they can't compete for it. The parent's own "Mark complete" takes the same claim
+ * (src/lib/markComplete.ts), so it can't reach Stripe alongside a run either. A claim outlives any
+ * run (Vercel stops a run at maxDuration), so a run that dies mid-booking is picked up once its
+ * claim expires, and the Stripe idempotency key means that retry can't charge twice. Only the run
+ * whose guarded CONFIRMED -> COMPLETED update succeeds sends the emails.
+ *
+ * A card problem flags the booking for an admin (CHARGE_FAILED) and it's skipped until the flag is
+ * cleared on /admin/jobs, so a declined card isn't retried every run. A temporary Stripe problem
+ * is retried next run.
  */
 export async function runAutoReleaseJob(log: JobLog, now: Date) {
   const candidates = await prisma.booking.findMany({
@@ -32,6 +40,7 @@ export async function runAutoReleaseJob(log: JobLog, now: Date) {
       dispute: { is: null },
       // Pre-filter on the start time; the exact end-plus-grace check is below.
       scheduledAt: { lte: new Date(now.getTime() - AUTO_RELEASE_GRACE_HOURS * HOUR) },
+      OR: claimable(now),
     },
     include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } } },
     orderBy: { scheduledAt: "asc" },
@@ -40,6 +49,12 @@ export async function runAutoReleaseJob(log: JobLog, now: Date) {
   const due = candidates.filter((b) => sessionEndsAt(b).getTime() + AUTO_RELEASE_GRACE_HOURS * HOUR <= now.getTime());
 
   await log.each(due, async (b) => {
+    const claim = await prisma.booking.updateMany({
+      where: { id: b.id, status: "CONFIRMED", adminFlag: null, OR: claimable(now) },
+      data: { holdClaimedAt: now },
+    });
+    if (claim.count !== 1) return; // another run has it, or it was completed or flagged meanwhile
+
     let paymentIntentId: string | null;
     try {
       paymentIntentId = await captureHeldPayment({
@@ -52,13 +67,14 @@ export async function runAutoReleaseJob(log: JobLog, now: Date) {
       });
     } catch (err) {
       if (classifyStripeFailure(err).kind === "TEMPORARY") {
+        await prisma.booking.update({ where: { id: b.id }, data: { holdClaimedAt: null } });
         log.count("Stripe unavailable (retried next run)");
         log.fail(`booking ${b.id}`, `${failureReason(err)} (will retry)`);
         return;
       }
       const { count } = await prisma.booking.updateMany({
         where: { id: b.id, status: "CONFIRMED", adminFlag: null },
-        data: { adminFlag: "CHARGE_FAILED", adminFlaggedAt: now },
+        data: { adminFlag: "CHARGE_FAILED", adminFlaggedAt: now, holdClaimedAt: null },
       });
       log.count("charges failed (flagged for admin)");
       log.fail(`booking ${b.id}`, `${failureReason(err)} (flagged for admin)`);
@@ -75,9 +91,10 @@ export async function runAutoReleaseJob(log: JobLog, now: Date) {
         capturedAt: now,
         autoCompleted: true,
         stripePaymentIntentId: paymentIntentId,
+        holdClaimedAt: null,
       },
     });
-    if (count !== 1) return; // completed by the parent or another run meanwhile
+    if (count !== 1) return; // it changed after an expired claim
     await settleReferralAfterCompletion(b.id);
     log.ok("auto-completed and charged");
 
