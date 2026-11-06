@@ -39,7 +39,8 @@ export async function runCardHoldsJob(log: JobLog, now: Date) {
   await cancelUnfixedHolds(log, now);
 }
 
-function claimable(now: Date) {
+/** Bookings no run is working on. Auto-release takes the same claim (src/lib/autoRelease.ts). */
+export function claimable(now: Date) {
   return [{ holdClaimedAt: null }, { holdClaimedAt: { lt: new Date(now.getTime() - CLAIM_MS) } }];
 }
 
