@@ -42,13 +42,35 @@ jobs:
             exit 0
           fi
           failed=0
+          body=$(mktemp)
           for job in card-holds auto-release reminders; do
             echo "== $job"
-            # Responses carry counts only. A failing job doesn't stop the others.
-            if ! curl --silent --show-error --fail-with-body --max-time 60 -X POST \
-                 -H "Authorization: Bearer $CRON_SECRET" "$SITE/api/jobs/$job"; then
-              failed=1
-            fi
+            : > "$body"
+            # Responses carry counts only. A failing job doesn't stop the others. Redirects aren't
+            # followed, because curl would drop the Authorization header on a change of host, and
+            # anything but a 200 counts as a failure, so a redirect can't pass as a successful run.
+            status=$(curl --silent --show-error --max-time 60 -X POST -o "$body" -w '%{http_code}' \
+                     -H "Authorization: Bearer $CRON_SECRET" "$SITE/api/jobs/$job") || status=000
+            cat "$body"
             echo
+            case "$status" in
+              200) ;;
+              401)
+                echo "::error title=$job refused (401)::$SITE refused CRON_SECRET, so $job did not run. Check that CRON_SECRET in Vercel's Production environment is set, is at least 32 characters and matches this repository's secret exactly, then redeploy: Vercel only applies a changed variable to new deployments."
+                failed=1
+                ;;
+              3*)
+                echo "::error title=$job redirected ($status)::$SITE/api/jobs/$job redirected, so $job did not run. Point SITE at the final address."
+                failed=1
+                ;;
+              000)
+                echo "::error title=$job unreachable::No response from $SITE/api/jobs/$job, so $job did not run."
+                failed=1
+                ;;
+              *)
+                echo "::error title=$job failed ($status)::$SITE/api/jobs/$job returned $status."
+                failed=1
+                ;;
+            esac
           done
           exit $failed
