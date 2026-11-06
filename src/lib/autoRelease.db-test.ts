@@ -1,6 +1,6 @@
 /**
- * Database tests for the auto-release job's per-booking claim. They write rows, so they refuse to
- * run unless pointed at a scratch database copy:
+ * Database tests for the per-booking claim shared by the auto-release job and the parent's "Mark
+ * complete". They write rows, so they refuse to run unless pointed at a scratch database copy:
  *
  *   DATABASE_URL=file:/path/to/scratch-copy.db AUTO_RELEASE_DB_TEST=1 \
  *   npx tsx --test src/lib/autoRelease.db-test.ts
@@ -25,6 +25,7 @@ import { prisma } from "./prisma";
 import { getStripe } from "./stripe";
 import { JobLog } from "./jobs/runLog";
 import { runAutoReleaseJob } from "./autoRelease";
+import { markSessionComplete } from "./markComplete";
 
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
@@ -246,4 +247,106 @@ test("a declined card is flagged once, and clearing the flag lets the next run r
   await prisma.booking.update({ where: { id: b.id }, data: { adminFlag: null, adminFlaggedAt: null } });
   const log = await run();
   assert.equal(completedBy([log]), 1);
+});
+
+async function markComplete(id: string) {
+  const booking = await prisma.booking.findUniqueOrThrow({ where: { id }, include: { parentProfile: true } });
+  return markSessionComplete(booking);
+}
+
+function points(bookingId: string) {
+  return prisma.pointsTransaction.count({ where: { bookingId } });
+}
+
+for (const pay of [{ hold: true }, { hold: false }]) {
+  const payment = pay.hold ? "a live hold" : "the saved card";
+
+  test(`Mark complete and a run at the same moment on ${payment}: one reaches Stripe`, async () => {
+    // Staggered both ways, so each side gets to arrive first.
+    const wins = { parent: 0, run: 0 };
+    for (const parentDelay of [0, 0, 0, 1, 3, 8]) {
+      for (const runDelay of [0, 1, 3, 8]) {
+        calls = [];
+        const b = await dueBooking(pay);
+        const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+        const [result, log] = await Promise.all([
+          wait(parentDelay).then(() => markComplete(b.id)),
+          wait(runDelay).then(() => run()),
+        ]);
+
+        assert.equal(stripeWrites().length, 1, `parent +${parentDelay}ms, run +${runDelay}ms`);
+        assert.equal(calls.filter((c) => c.method === "retrieve").length, pay.hold ? 1 : 0);
+        const winners = (result.status === "COMPLETED" ? 1 : 0) + completedBy([log]);
+        wins[result.status === "COMPLETED" ? "parent" : "run"]++;
+        assert.equal(winners, 1, "exactly one side completes it");
+        assert.equal(log.failed, 0);
+
+        const after = await prisma.booking.findUniqueOrThrow({ where: { id: b.id } });
+        assert.equal(after.status, "COMPLETED");
+        assert.equal(after.paymentStatus, "CAPTURED");
+        assert.equal(after.adminFlag, null);
+        assert.equal(after.holdClaimedAt, null);
+        assert.equal(after.autoCompleted, result.status !== "COMPLETED");
+        assert.equal(await points(b.id), result.status === "COMPLETED" ? 2 : 0);
+      }
+    }
+    assert.ok(wins.parent > 0 && wins.run > 0, `each side should win some rounds: ${JSON.stringify(wins)}`);
+    console.log(`wins with ${payment}: ${JSON.stringify(wins)}`);
+  });
+}
+
+test("Mark complete on its own charges once, completes and awards points", async () => {
+  const b = await dueBooking({ hold: true });
+  const result = await markComplete(b.id);
+
+  assert.equal(result.status, "COMPLETED");
+  assert.deepEqual(stripeWrites(), [{ method: "capture", id: b.stripePaymentIntentId }]);
+  const after = await prisma.booking.findUniqueOrThrow({ where: { id: b.id } });
+  assert.equal(after.status, "COMPLETED");
+  assert.equal(after.autoCompleted, false);
+  assert.equal(after.holdClaimedAt, null);
+  assert.equal(await points(b.id), 2);
+});
+
+test("two Mark complete requests at once: one charge, points awarded once", async () => {
+  const b = await dueBooking({ hold: true });
+  const results = await Promise.all([markComplete(b.id), markComplete(b.id)]);
+
+  assert.deepEqual(results.map((r) => r.status).sort(), ["BUSY", "COMPLETED"]);
+  assert.equal(stripeWrites().length, 1);
+  assert.equal(await points(b.id), 2);
+});
+
+test("Mark complete while a run has the booking stays away from Stripe", async () => {
+  const b = await dueBooking({ hold: true, holdClaimedAt: new Date(Date.now() - 2 * MINUTE) });
+  const result = await markComplete(b.id);
+
+  assert.equal(result.status, "BUSY");
+  assert.deepEqual(calls, []);
+  assert.equal((await prisma.booking.findUniqueOrThrow({ where: { id: b.id } })).status, "CONFIRMED");
+});
+
+test("Mark complete picks up a claim left by a run that died", async () => {
+  const b = await dueBooking({ hold: true, holdClaimedAt: new Date(Date.now() - 11 * MINUTE) });
+  const result = await markComplete(b.id);
+
+  assert.equal(result.status, "COMPLETED");
+  assert.equal(stripeWrites().length, 1);
+});
+
+test("a failed charge on Mark complete frees the claim, so the parent or the next run can retry", async () => {
+  const parentRetries = await dueBooking({ hold: true });
+  failNext = stripeError("StripeCardError", "card_declined");
+  assert.equal((await markComplete(parentRetries.id)).status, "CHARGE_FAILED");
+
+  const between = await prisma.booking.findUniqueOrThrow({ where: { id: parentRetries.id } });
+  assert.equal(between.status, "CONFIRMED");
+  assert.equal(between.holdClaimedAt, null);
+  assert.equal(between.adminFlag, null);
+  assert.equal((await markComplete(parentRetries.id)).status, "COMPLETED");
+
+  const runRetries = await dueBooking({ hold: true });
+  failNext = stripeError("StripeConnectionError", "connection");
+  assert.equal((await markComplete(runRetries.id)).status, "CHARGE_FAILED");
+  assert.equal(completedBy([await run()]), 1);
 });

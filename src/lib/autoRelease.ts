@@ -22,10 +22,11 @@ const BATCH = 100;
  * Safe to run twice at once: each booking is claimed with a guarded update before Stripe is
  * called, so only one run reaches Stripe for it. The claim is the card-holds job's holdClaimedAt
  * (see claimable): that job only touches bookings before the session and this one only 48 hours
- * after, so they can't compete for it. A claim outlives any run (Vercel stops a run at
- * maxDuration), so a run that dies mid-booking is picked up once its claim expires, and the Stripe
- * idempotency key, shared with the parent's own "Mark complete", means that retry can't charge
- * twice. Only the run whose guarded CONFIRMED -> COMPLETED update succeeds sends the emails.
+ * after, so they can't compete for it. The parent's own "Mark complete" takes the same claim
+ * (src/lib/markComplete.ts), so it can't reach Stripe alongside a run either. A claim outlives any
+ * run (Vercel stops a run at maxDuration), so a run that dies mid-booking is picked up once its
+ * claim expires, and the Stripe idempotency key means that retry can't charge twice. Only the run
+ * whose guarded CONFIRMED -> COMPLETED update succeeds sends the emails.
  *
  * A card problem flags the booking for an admin (CHARGE_FAILED) and it's skipped until the flag is
  * cleared on /admin/jobs, so a declined card isn't retried every run. A temporary Stripe problem
@@ -93,7 +94,7 @@ export async function runAutoReleaseJob(log: JobLog, now: Date) {
         holdClaimedAt: null,
       },
     });
-    if (count !== 1) return; // the parent completed it meanwhile
+    if (count !== 1) return; // it changed after an expired claim
     await settleReferralAfterCompletion(b.id);
     log.ok("auto-completed and charged");
 
