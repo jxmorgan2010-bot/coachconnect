@@ -11,8 +11,8 @@ import { JOB_LABELS, JOB_SLUGS, NOTHING_DUE, type JobName } from "@/lib/jobs/run
 import { ClearFlagButton, RunJobButton } from "./JobButtons";
 
 const HOUR = 60 * 60 * 1000;
-// The scheduler runs every 30 minutes and GitHub can start a run late; 90 minutes without a
-// finished run means it isn't running.
+// cron-job.org runs each job every 15 to 30 minutes; 90 minutes without a finished run means it
+// isn't running.
 const STALE_AFTER_MS = 1.5 * HOUR;
 
 const RUN_STATUS_VARIANT = { OK: "success", PARTIAL: "warning", FAILED: "danger", RUNNING: "neutral" } as const;
@@ -66,7 +66,7 @@ export default async function AdminJobsPage() {
   const people = { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } } } as const;
   const jobs = Object.entries(JOB_SLUGS) as [string, JobName][];
 
-  // Three jobs every 30 minutes is ~140 runs a day, nearly all "Nothing due.", so only runs that
+  // Three jobs on that schedule is 140 or more runs a day, nearly all "Nothing due.", so only runs that
   // did something or failed are listed; "Last good run" above shows the quiet ones are happening.
   const quiet = { status: "OK", succeeded: 0, summary: NOTHING_DUE };
   const [runs, quietCount, lastGood, flagged, waitingOnParent, overdueHolds, overdueReleases] = await Promise.all([
@@ -117,7 +117,7 @@ export default async function AdminJobsPage() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 md:py-12">
       <AdminHeader title="Scheduled jobs">
         Card holds 2 days before each session, auto-release {AUTO_RELEASE_GRACE_HOURS} hours after, and reminders. The
-        scheduler runs them every 30 minutes; you can also run one now.
+        scheduler (cron-job.org) runs them automatically; you can also run one now.
       </AdminHeader>
 
       <div className="flex flex-col gap-10">
@@ -126,7 +126,7 @@ export default async function AdminJobsPage() {
           {stale.length > 0 && (
             <p className="mb-3 rounded-lg border-2 border-ink bg-warning/15 p-3 text-sm text-ink">
               <span className="font-bold">No successful run in the last 90 minutes for {stale.map(([, job]) => JOB_LABELS[job]).join(", ")}.</span>{" "}
-              The scheduler may not be running: check the GitHub Actions workflow and the CRON_SECRET settings.
+              The scheduler may not be running: check cron-job.org and the CRON_SECRET settings.
             </p>
           )}
           <ul className="grid gap-3 md:grid-cols-3">
