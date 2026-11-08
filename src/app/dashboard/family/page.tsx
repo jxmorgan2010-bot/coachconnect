@@ -2,25 +2,25 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { formatCents } from "@/lib/money";
-import { SPORTS, SPORT_LABELS } from "@/lib/sports";
-import Badge from "@/components/Badge";
-import DateTile from "@/components/DateTile";
+import { SPORTS, SPORT_COLOR, SPORT_LABELS, SPORT_TAG } from "@/lib/sports";
 import SportPill from "@/components/SportPill";
 import { IconArrowRight } from "@/components/icons";
-import { secondaryButtonClass, quietLinkClass } from "@/lib/ui";
+import { quietLinkClass } from "@/lib/ui";
 import TrainingPlanChecklist from "@/components/TrainingPlanChecklist";
+import CalendarSync from "@/components/CalendarSync";
 import ParentTabs from "../ParentTabs";
 import ChildLevelsCard from "./ChildLevelsCard";
+import FamilyCalendar, { type FamilyCalendarEvent } from "./FamilyCalendar";
 import MessageEmailToggle from "@/components/MessageEmailToggle";
 import { formatPacificTime } from "@/lib/sessionTiming";
+import { formatSlotLabel, toPacificParts } from "@/lib/availability";
+import { lengthLabel } from "@/lib/sessionLengths";
+import { bookingPath, calendarLinks, toCalendarSession } from "@/lib/calendar";
+import { feedMadeLabel, parseChildIds } from "@/lib/calendarFeed";
+import { feedStatus } from "@/lib/calendarFeedStore";
 
-const STATUS_VARIANT = {
-  PENDING_CONSENT: "warning",
-  CONFIRMED: "accent",
-  COMPLETED: "success",
-  CANCELLED: "neutral",
-} as const;
+const CALENDAR_PAST_DAYS = 365;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default async function FamilyDashboardPage() {
   const session = await getCurrentSession();
@@ -36,11 +36,18 @@ export default async function FamilyDashboardPage() {
   });
   if (!parentProfile) redirect("/dashboard");
 
-  const [upcoming, withNotes, trainingPlanItems] = await Promise.all([
+  const now = new Date();
+  const [calendarBookings, upcoming, withNotes, trainingPlanItems, feed] = await Promise.all([
+    // The calendar: the past year and everything ahead, every status. One family's sessions are
+    // few enough to send to the browser at once, so paging months needs no extra requests.
+    prisma.booking.findMany({
+      where: { parentProfileId: parentProfile.id, scheduledAt: { gte: new Date(now.getTime() - CALENDAR_PAST_DAYS * DAY_MS) } },
+      include: { coachProfile: { include: { user: { select: { name: true } } } }, child: true },
+      orderBy: { scheduledAt: "asc" },
+    }),
     prisma.booking.findMany({
       where: { parentProfileId: parentProfile.id, status: "CONFIRMED" },
-      include: { coachProfile: { include: { user: true } }, child: true },
-      orderBy: { scheduledAt: "asc" },
+      select: { childId: true, sport: true },
     }),
     prisma.booking.findMany({
       where: { parentProfileId: parentProfile.id, status: "COMPLETED", progressNoteAddedAt: { not: null } },
@@ -51,7 +58,34 @@ export default async function FamilyDashboardPage() {
       where: { child: { parentProfileId: parentProfile.id } },
       orderBy: { order: "asc" },
     }),
+    feedStatus(session.user.id),
   ]);
+
+  const calendarEvents: FamilyCalendarEvent[] = calendarBookings.map((b) => {
+    const start = toPacificParts(b.scheduledAt);
+    const end = new Date(b.scheduledAt.getTime() + b.durationMinutes * 60_000);
+    const s = toCalendarSession(b);
+    return {
+      id: b.id,
+      date: start.date,
+      startMinutes: start.minutes,
+      timeLabel: `${formatSlotLabel(start.minutes)} – ${formatPacificTime(end)}`,
+      shortTime: formatSlotLabel(start.minutes).replace(":00", "").replace(" AM", "a").replace(" PM", "p"),
+      lengthLabel: lengthLabel(b.durationMinutes),
+      sport: b.sport,
+      sportLabel: SPORT_LABELS[b.sport],
+      sportTag: SPORT_TAG[b.sport],
+      color: SPORT_COLOR[b.sport],
+      childId: b.childId,
+      childName: b.child?.firstName ?? "Session",
+      coachName: b.coachProfile.user.name,
+      location: b.locationText,
+      status: b.status,
+      bookingHref: bookingPath(b.id, "PARENT"),
+      calendar:
+        (b.status === "CONFIRMED" || b.status === "PENDING_CONSENT") && end > now ? calendarLinks(s, "PARENT") : null,
+    };
+  });
 
   // (childId, sport) pairs across every child, whichever coach taught them — the whole
   // point of this view is collapsing per-booking pages into one cross-kid, cross-sport look.
@@ -96,38 +130,30 @@ export default async function FamilyDashboardPage() {
         </section>
       )}
 
-      <section aria-labelledby="family-upcoming" className="mb-10">
-        <h2 id="family-upcoming" className="mb-3 font-display text-3xl text-ink">Coming up</h2>
-        {upcoming.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 rounded-lg border-2 border-dashed border-line p-5">
-            <p className="text-muted-foreground">
-              {parentProfile.children.length === 0
-                ? "No kids or sessions yet. You'll add each kid the first time you book a session for them."
-                : "Nothing on the calendar right now."}
-            </p>
-            <Link href="/coaches" className={secondaryButtonClass}>Find a coach</Link>
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {upcoming.map((b) => (
-              <li key={b.id} className="card flex gap-4 p-4">
-                <DateTile date={b.scheduledAt} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="flex flex-wrap items-center gap-2 font-bold text-ink">
-                      <SportPill sport={b.sport} />
-                      {b.child?.firstName ?? "Session"} with {b.coachProfile.user.name}
-                    </p>
-                    <Badge variant={STATUS_VARIANT[b.status]}>{formatCents(b.priceCents - b.discountCents)}</Badge>
-                  </div>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {formatPacificTime(b.scheduledAt)} · {b.locationText}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section aria-labelledby="family-calendar" className="mb-10">
+        <h2 id="family-calendar" className="mb-1 font-display text-3xl text-ink">Calendar</h2>
+        <p className="mb-4 text-sm text-muted-foreground">Every kid&apos;s sessions, colored by sport. Tap one for details.</p>
+        <FamilyCalendar
+          events={calendarEvents}
+          kids={parentProfile.children.map((c) => ({ id: c.id, firstName: c.firstName }))}
+          today={toPacificParts(now).date}
+        />
+      </section>
+
+      <section aria-labelledby="family-sync" className="mb-10 rounded-xl border-2 border-ink bg-surface p-4 sm:p-5">
+        <h2 id="family-sync" className="mb-3 font-display text-3xl text-ink">Sync to my calendar</h2>
+        <CalendarSync
+          role="PARENT"
+          feed={
+            feed
+              ? {
+                  madeLabel: feedMadeLabel(feed),
+                  childIds: parseChildIds(feed.childIds),
+                }
+              : null
+          }
+          kids={parentProfile.children.map((c) => ({ id: c.id, firstName: c.firstName }))}
+        />
       </section>
 
       {pairKeys.size > 0 && (
