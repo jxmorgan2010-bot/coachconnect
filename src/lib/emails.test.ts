@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { checkForContactInfo } from "./moderation";
 import { renderText, type Email } from "./email";
 import * as T from "./emails";
+import type { CalendarSession } from "./calendar";
 
 before(() => {
   process.env.SITE_URL = "https://getassistcoaching.com";
@@ -71,8 +72,26 @@ function all(): Email[] {
     T.holdNotFixedCoachEmail({ to, scheduledAt: at }),
     T.bookingNeedsAdminEmail({ to, flag: "HOLD_NOT_FIXED" }),
     T.bookingNeedsAdminEmail({ to, flag: "CHARGE_FAILED" }),
+    T.withCalendar(T.bookingConfirmedParentEmail(to, booking), calendarSession, "PARENT"),
+    T.withCalendar(T.bookingNewCoachEmail(to, booking), calendarSession, "COACH"),
   ];
 }
+
+const calendarSession: CalendarSession = {
+  id: "bk1",
+  sport: "TENNIS",
+  scheduledAt: at,
+  durationMinutes: 60,
+  locationText: "Mitchell Park, Palo Alto",
+  status: "CONFIRMED",
+  childFirstName: "Alex",
+  coachName: "Priya Shah",
+  createdAt: new Date("2026-11-08T12:00:00.000Z"),
+  cancelledAt: null,
+};
+
+// "Add to calendar" links in booking emails are the only links allowed off the site.
+const CALENDAR_HOSTS = ["https://calendar.google.com/", "https://outlook.live.com/"];
 
 test("every email passes the contact-info filter (ignoring our own links)", () => {
   for (const e of all()) {
@@ -84,7 +103,8 @@ test("every email passes the contact-info filter (ignoring our own links)", () =
 test("every link points at the site", () => {
   for (const e of all()) {
     for (const url of renderText(e).match(LINK) ?? []) {
-      assert.ok(url.startsWith("https://getassistcoaching.com"), `${e.subject}: ${url}`);
+      const calendarLink = !!e.attachments && CALENDAR_HOSTS.some((h) => url.startsWith(h));
+      assert.ok(url.startsWith("https://getassistcoaching.com") || calendarLink, `${e.subject}: ${url}`);
     }
   }
 });
@@ -215,4 +235,17 @@ test("a failed hold: one clear action and a deadline, with the update link", () 
   assert.equal(e.button?.url, "https://getassistcoaching.com/dashboard/bookings/b_1/card");
   const cancelled = renderText(T.holdNotFixedParentEmail({ ...hold, to: "x@resend.dev", creditReturnedCents: 0 }));
   assert.ok(cancelled.includes("You weren't charged."));
+});
+
+test("booking emails carry the .ics file and the calendar links", () => {
+  const e = T.withCalendar(T.bookingConfirmedParentEmail("x@resend.dev", booking), calendarSession, "PARENT");
+  assert.equal(e.attachments?.length, 1);
+  assert.equal(e.attachments![0].filename, "assist-coaching-tennis-2026-11-14.ics");
+  assert.match(e.attachments![0].content, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(e.attachments![0].content, /SUMMARY:Tennis with Coach Priya \(Alex\)\r\n/);
+  assert.ok(!e.attachments![0].content.includes("Shah"));
+  const text = renderText(e);
+  assert.match(text, /Google Calendar: https:\/\/calendar\.google\.com\//);
+  assert.match(text, /Microsoft calendar: https:\/\/outlook\.live\.com\//);
+  assert.ok(text.includes("open the attached .ics file"));
 });

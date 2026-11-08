@@ -26,6 +26,10 @@ export type Email = {
   button?: { label: string; url: string };
   /** Small print under the button, e.g. "This link expires in 1 hour." */
   footnote?: string;
+  /** A short row of secondary links under the button, e.g. "Add to calendar: Google Calendar · Outlook". */
+  links?: { intro: string; items: { label: string; url: string }[] };
+  /** Files sent with the email (e.g. a session's .ics). Text content; base64-encoded for Resend. */
+  attachments?: { filename: string; content: string }[];
 };
 
 export type SendResult = { status: "sent"; id: string } | { status: "logged" | "suppressed" | "blocked" | "failed" };
@@ -62,6 +66,7 @@ const BODY = "Karla, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 export function renderText(email: Email): string {
   const parts = [...email.paragraphs];
   if (email.button) parts.push(`${email.button.label}: ${email.button.url}`);
+  if (email.links) parts.push([email.links.intro, ...email.links.items.map((l) => `${l.label}: ${l.url}`)].join("\n"));
   if (email.footnote) parts.push(email.footnote);
   parts.push(`Assist Coaching · Bay Area. This address doesn't take replies; use Need help in the app.\n${siteUrl()}`);
   return parts.join("\n\n");
@@ -76,6 +81,13 @@ export function renderHtml(email: Email): string {
       `<a href="${escapeHtml(email.button.url)}" style="display:inline-block;padding:14px 22px;font-family:${BODY};font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;">${escapeHtml(email.button.label)}</a>` +
       `</td></tr></table>`
     : "";
+  const links = email.links
+    ? `<p style="margin:0 0 16px;font-family:${BODY};font-size:14px;line-height:1.6;color:${C.ink};">${escapeHtml(email.links.intro)} ` +
+      email.links.items
+        .map((l) => `<a href="${escapeHtml(l.url)}" style="color:${C.pitch};font-weight:700;">${escapeHtml(l.label)}</a>`)
+        .join(" · ") +
+      `</p>`
+    : "";
   const footnote = email.footnote
     ? `<p style="margin:0 0 8px;font-family:${BODY};font-size:13px;line-height:1.5;color:${C.soft};">${escapeHtml(email.footnote)}</p>`
     : "";
@@ -89,7 +101,7 @@ export function renderHtml(email: Email): string {
 </td></tr>
 <tr><td style="padding:24px 24px 8px;">
 <h1 style="margin:0 0 16px;font-family:${DISPLAY};font-size:26px;line-height:1.15;font-weight:400;color:${C.ink};">${escapeHtml(email.subject)}</h1>
-${paragraphs}${button}${footnote}
+${paragraphs}${button}${links}${footnote}
 </td></tr>
 <tr><td style="padding:16px 24px 20px;border-top:1px solid ${C.line};">
 <p style="margin:0;font-family:${BODY};font-size:12px;line-height:1.5;color:${C.soft};">Assist Coaching · Bay Area. This address doesn't take replies; use Need help in the app.</p>
@@ -120,7 +132,7 @@ export async function sendEmail(email: Email): Promise<SendResult> {
   }
 
   if (!key || !from) {
-    console.log(`\n📧 [email, not sent] To: ${email.to}\nSubject: ${email.subject}\n${text.replace(LINK, "[link withheld from logs]")}\n`);
+    console.log(`\n📧 [email, not sent] To: ${email.to}\nSubject: ${email.subject}\n${text.replace(LINK, "[link withheld from logs]")}${email.attachments?.length ? `\nAttachments: ${email.attachments.map((a) => a.filename).join(", ")}` : ""}\n`);
     return { status: "logged" };
   }
   if (!canDeliverTo(email.to)) {
@@ -132,7 +144,21 @@ export async function sendEmail(email: Email): Promise<SendResult> {
     const res = await fetch(RESEND_ENDPOINT, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [email.to], subject: email.subject, html: renderHtml(email), text }),
+      body: JSON.stringify({
+        from,
+        to: [email.to],
+        subject: email.subject,
+        html: renderHtml(email),
+        text,
+        ...(email.attachments?.length
+          ? {
+              attachments: email.attachments.map((a) => ({
+                filename: a.filename,
+                content: Buffer.from(a.content, "utf8").toString("base64"),
+              })),
+            }
+          : {}),
+      }),
     });
     if (!res.ok) {
       // Only the status and Resend's error name: the body can echo the email, links included.

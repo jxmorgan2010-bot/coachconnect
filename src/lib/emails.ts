@@ -7,6 +7,14 @@ import { freeCancelPolicyText, parentCancelOutcome, type ParentCancelOutcome } f
 import { lengthLabel } from "@/lib/sessionLengths";
 import { SPORT_LABELS } from "@/lib/sports";
 import type { Sport } from "@/generated/prisma/client";
+import {
+  buildIcs,
+  googleCalendarUrl,
+  icsFileName,
+  outlookCalendarUrl,
+  type CalendarSession,
+  type CalendarViewer,
+} from "@/lib/calendar";
 
 /**
  * Every email the app sends, as pure functions (src/lib/email.ts renders and sends them).
@@ -113,6 +121,27 @@ export function bookingConfirmedParentEmail(to: string, b: BookingFacts, now = n
       ...cancellationPolicyLines(b, now),
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
+  };
+}
+
+/**
+ * Adds "Add to calendar" links and the session's .ics file to a booking email. The entry carries
+ * only what src/lib/calendar.ts allows (no contact details or last names).
+ */
+export function withCalendar(email: Email, session: CalendarSession, viewer: CalendarViewer, now = new Date()): Email {
+  return {
+    ...email,
+    links: {
+      intro: "Add it to your calendar:",
+      items: [
+        { label: "Google Calendar", url: googleCalendarUrl(session, viewer) },
+        // Not "Outlook": the contact-info filter blocks email-provider names (src/lib/moderation.ts),
+        // and sendEmail() would drop the whole email. The link opens Outlook on the web.
+        { label: "Microsoft calendar", url: outlookCalendarUrl(session, viewer) },
+      ],
+    },
+    footnote: [email.footnote, "For Apple Calendar or another app, open the attached .ics file."].filter(Boolean).join(" "),
+    attachments: [{ filename: icsFileName(session), content: buildIcs([session], { viewer, now }) }],
   };
 }
 
