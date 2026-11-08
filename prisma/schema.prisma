@@ -209,6 +209,25 @@ model User {
   // New-message email alerts. Account and booking emails always send.
   messageEmailAlerts  Boolean              @default(true)
   passwordResetTokens PasswordResetToken[]
+  calendarFeed        CalendarFeed?
+}
+
+/// A private calendar feed (src/lib/calendarFeed.ts). The link carries a random secret; only its
+/// SHA-256 hash is kept, so the link is shown once, and a reset replaces the hash, which stops
+/// the old link immediately. Added 2026-11-08 (prisma/sql/2026-11-08-calendar-feed.sql).
+model CalendarFeed {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash       String    @unique
+  // JSON array of Child ids to include; null means every child, including ones added later.
+  childIds        String?
+  createdAt       DateTime  @default(now())
+  resetAt         DateTime?
+  lastFetchedAt   DateTime?
+  // Rate limit, counted in the database (Vercel functions share no memory).
+  rateWindowStart DateTime?
+  rateWindowCount Int       @default(0)
 }
 
 /// A password reset link. Only a SHA-256 hash of the token is stored; the raw token exists
