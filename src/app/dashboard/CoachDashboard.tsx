@@ -16,6 +16,11 @@ import { canMarkComplete, formatPacificDateTime, formatPacificTime } from "@/lib
 import { holdState } from "@/lib/holdTiming";
 import { COACH_TIMEZONE } from "@/lib/availability";
 import VerificationCard, { getVerificationItems } from "./VerificationCard";
+import AddToCalendar from "@/components/AddToCalendar";
+import CalendarSync from "@/components/CalendarSync";
+import { calendarLinks, toCalendarSession } from "@/lib/calendar";
+import { feedMadeLabel } from "@/lib/calendarFeed";
+import { feedStatus } from "@/lib/calendarFeedStore";
 
 export default async function CoachDashboard({
   coachProfileId,
@@ -31,10 +36,14 @@ export default async function CoachDashboard({
   });
   const expiryState = getBackgroundCheckExpiryState(profile);
 
-  const [upcoming, needingNotes, taughtBookings, trainingPlanItems] = await Promise.all([
+  const [upcoming, needingNotes, taughtBookings, trainingPlanItems, feed] = await Promise.all([
     prisma.booking.findMany({
       where: { coachProfileId, status: "CONFIRMED" },
-      include: { parentProfile: { include: { user: true } }, child: true },
+      include: {
+        parentProfile: { include: { user: true } },
+        child: true,
+        coachProfile: { select: { user: { select: { name: true } } } },
+      },
       orderBy: { scheduledAt: "asc" },
     }),
     prisma.booking.findMany({
@@ -48,6 +57,7 @@ export default async function CoachDashboard({
       distinct: ["childId", "sport"],
     }),
     prisma.trainingPlanItem.findMany({ where: { coachProfileId }, orderBy: { order: "asc" } }),
+    feedStatus(profile.userId),
   ]);
 
   const trainingPairs = taughtBookings
@@ -80,7 +90,7 @@ export default async function CoachDashboard({
 
   function SessionCard({ b, waiting = false }: { b: (typeof upcoming)[number]; waiting?: boolean }) {
     return (
-      <li className={`${waiting ? "card-flat" : "card"} flex gap-4 p-4`}>
+      <li id={`booking-${b.id}`} className={`${waiting ? "card-flat" : "card"} flex scroll-mt-24 gap-4 p-4`}>
         <DateTile date={b.scheduledAt} muted={waiting} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -107,8 +117,9 @@ export default async function CoachDashboard({
           <Earnings b={b} />
           {/* videoCallUrl is a mock placeholder link, so it isn't shown until a real provider exists. */}
           {!waiting && (
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-2">
               <CoachCancelButton bookingId={b.id} familyName={`${b.parentProfile.user.name.split(" ")[0]}'s family`} />
+              <AddToCalendar links={calendarLinks(toCalendarSession(b), "COACH")} />
             </div>
           )}
         </div>
@@ -258,6 +269,11 @@ export default async function CoachDashboard({
               ))}
             </ul>
           )}
+
+          <section aria-labelledby="coach-sync" className="mt-6 rounded-xl border-2 border-ink bg-surface p-4">
+            <h2 id="coach-sync" className="mb-3 font-display text-3xl text-ink">Sync to my calendar</h2>
+            <CalendarSync role="COACH" feed={feed ? { madeLabel: feedMadeLabel(feed), childIds: null } : null} />
+          </section>
         </aside>
       </div>
     </div>

@@ -7,6 +7,8 @@ import { goldButtonClass, primaryButtonClass } from "@/lib/ui";
 import DateTile from "@/components/DateTile";
 import Badge from "@/components/Badge";
 import SportPill from "@/components/SportPill";
+import AddToCalendar from "@/components/AddToCalendar";
+import { calendarLinks, toCalendarSession } from "@/lib/calendar";
 import { IconStar, IconArrowRight } from "@/components/icons";
 import ParentTabs from "../ParentTabs";
 import RatingForm from "../RatingForm";
@@ -160,7 +162,11 @@ export default async function MyBookingsPage() {
                 {group.items.map((b) => {
                   const netPriceCents = b.priceCents - b.discountCents;
                   return (
-                    <li key={b.id} className={`${b.status === "CANCELLED" ? "card-flat" : "card"} flex flex-col gap-3 p-4 sm:p-5`}>
+                    <li
+                      key={b.id}
+                      id={`booking-${b.id}`}
+                      className={`${b.status === "CANCELLED" ? "card-flat" : "card"} flex scroll-mt-24 flex-col gap-3 p-4 sm:p-5`}
+                    >
                       <div className="flex gap-4">
                         <DateTile date={b.scheduledAt} muted={b.status === "CANCELLED"} />
                         <div className="min-w-0 flex-1">
@@ -236,6 +242,10 @@ export default async function MyBookingsPage() {
                             renderedAt={now.toISOString()}
                           />
                         </div>
+                      )}
+
+                      {(b.status === "PENDING_CONSENT" || (b.status === "CONFIRMED" && !canMarkComplete(b, now))) && (
+                        <AddToCalendar links={calendarLinks(toCalendarSession(b), "PARENT")} />
                       )}
 
                       {b.status === "COMPLETED" && (

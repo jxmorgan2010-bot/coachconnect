@@ -12,7 +12,9 @@ import {
   refundIssuedEmail,
   refundRequestEmail,
   type BookingFacts,
+  withCalendar,
 } from "@/lib/emails";
+import { toCalendarSession } from "@/lib/calendar";
 import type { ParentCancelOutcome } from "@/lib/cancellation";
 import { getCoachReviewStatus } from "@/lib/coachReview";
 
@@ -63,8 +65,9 @@ export function notifyBookingCreated(bookingId: string): void {
     const b = await loadBooking(bookingId);
     if (!b) return;
     const facts = bookingFacts(b);
-    await sendEmail(bookingConfirmedParentEmail(b.parentProfile.user.email, facts));
-    await sendEmail(bookingNewCoachEmail(b.coachProfile.user.email, facts));
+    const session = toCalendarSession(b);
+    await sendEmail(withCalendar(bookingConfirmedParentEmail(b.parentProfile.user.email, facts), session, "PARENT"));
+    await sendEmail(withCalendar(bookingNewCoachEmail(b.coachProfile.user.email, facts), session, "COACH"));
   });
 }
 
