@@ -8,6 +8,7 @@ let savedEnv: Record<string, string | undefined>;
 let logs: string[];
 let originalLog: typeof console.log;
 let originalError: typeof console.error;
+let originalWarn: typeof console.warn;
 let originalFetch: typeof fetch;
 
 beforeEach(() => {
@@ -16,8 +17,10 @@ beforeEach(() => {
   logs = [];
   originalLog = console.log;
   originalError = console.error;
+  originalWarn = console.warn;
   console.log = (...a: unknown[]) => void logs.push(a.join(" "));
   console.error = (...a: unknown[]) => void logs.push(a.join(" "));
+  console.warn = (...a: unknown[]) => void logs.push(a.join(" "));
   originalFetch = globalThis.fetch;
 });
 
@@ -28,6 +31,7 @@ afterEach(() => {
   }
   console.log = originalLog;
   console.error = originalError;
+  console.warn = originalWarn;
   globalThis.fetch = originalFetch;
 });
 
@@ -138,9 +142,18 @@ test("Resend error: logs status and error name only", async () => {
   assert.ok(!all.includes("SECRET_TOKEN"));
 });
 
-test("an email whose text would trip the contact filter is not sent", async () => {
-  globalThis.fetch = (() => assert.fail("blocked email must not be sent")) as typeof fetch;
-  const result = await sendEmail({ ...sample, paragraphs: ["Call me at 415-555-0123"] });
-  assert.equal(result.status, "blocked");
-  assert.ok(!logs.join("\n").includes("415-555-0123"), "the blocked text itself isn't logged");
+test("an email whose text trips the contact filter is still sent, with only that text replaced", async () => {
+  process.env.RESEND_API_KEY = "re_test_dummy";
+  process.env.EMAIL_FROM = "Assist Coaching <noreply@send.getassistcoaching.com>";
+  let body: { text: string } | null = null;
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    body = JSON.parse(String(init.body));
+    return new Response(JSON.stringify({ id: "email_9" }), { status: 200 });
+  }) as typeof fetch;
+  const result = await sendEmail({ ...sample, paragraphs: ["See you Saturday.", "Call me at 415-555-0123"] });
+  assert.equal(result.status, "sent");
+  assert.ok(body!.text.includes("See you Saturday."));
+  assert.ok(body!.text.includes("[removed]") && !body!.text.includes("415-555-0123"));
+  assert.ok(!logs.join("\n").includes("415-555-0123"), "the matched text itself isn't logged");
+  assert.ok(logs.join("\n").includes("Replaced text"), "the replacement is logged");
 });

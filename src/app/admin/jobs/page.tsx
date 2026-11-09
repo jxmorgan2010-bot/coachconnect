@@ -8,7 +8,40 @@ import { formatPacificDateTime } from "@/lib/sessionTiming";
 import { bookingChargeCents } from "@/lib/cancellation";
 import { holdFixDeadline } from "@/lib/holdTiming";
 import { JOB_LABELS, JOB_SLUGS, NOTHING_DUE, type JobName } from "@/lib/jobs/runLog";
-import { ClearFlagButton, RunJobButton } from "./JobButtons";
+import { ClearFlagButton, ReviewReplacementButton, RunJobButton } from "./JobButtons";
+
+type Replacement = {
+  id: string;
+  createdAt: Date;
+  toEmail: string;
+  subject: string;
+  part: string;
+  categories: string;
+  originalText: string;
+  sentText: string;
+};
+
+/** What was replaced in one sent email, original next to what went out. */
+function ReplacementDetail({ r }: { r: Replacement }) {
+  return (
+    <>
+      <p className="font-bold break-words text-ink">&ldquo;{r.subject}&rdquo;</p>
+      <p className="text-sm break-words text-muted-foreground">
+        {formatPacificDateTime(r.createdAt)} · to {r.toEmail} · {r.part} · matched: {r.categories.replaceAll("_", " ")}
+      </p>
+      <dl className="grid w-full gap-2 text-sm sm:grid-cols-2">
+        <div className="min-w-0 rounded-md border-2 border-line bg-chalk p-2">
+          <dt className="eyebrow mb-1 text-muted-foreground">Original</dt>
+          <dd className="break-words whitespace-pre-wrap text-ink">{r.originalText}</dd>
+        </div>
+        <div className="min-w-0 rounded-md border-2 border-line bg-surface p-2">
+          <dt className="eyebrow mb-1 text-muted-foreground">Sent</dt>
+          <dd className="break-words whitespace-pre-wrap text-ink">{r.sentText}</dd>
+        </div>
+      </dl>
+    </>
+  );
+}
 
 const HOUR = 60 * 60 * 1000;
 // cron-job.org runs each job every 15 to 30 minutes; 90 minutes without a finished run means it
@@ -69,7 +102,7 @@ export default async function AdminJobsPage() {
   // Three jobs on that schedule is 140 or more runs a day, nearly all "Nothing due.", so only runs that
   // did something or failed are listed; "Last good run" above shows the quiet ones are happening.
   const quiet = { status: "OK", succeeded: 0, summary: NOTHING_DUE };
-  const [runs, quietCount, lastGood, flagged, waitingOnParent, overdueHolds, overdueReleases] = await Promise.all([
+  const [runs, quietCount, lastGood, flagged, waitingOnParent, overdueHolds, overdueReleases, toReview, reviewed] = await Promise.all([
     prisma.jobRun.findMany({ where: { NOT: quiet }, orderBy: { startedAt: "desc" }, take: 40 }),
     prisma.jobRun.count({ where: quiet }),
     Promise.all(
@@ -105,6 +138,8 @@ export default async function AdminJobsPage() {
       include: people,
       orderBy: { scheduledAt: "asc" },
     }),
+    prisma.emailTextReplacement.findMany({ where: { reviewedAt: null }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.emailTextReplacement.findMany({ where: { reviewedAt: { not: null } }, orderBy: { reviewedAt: "desc" }, take: 10 }),
   ]);
   // Exact check on the session's end, as the job does, plus an hour's slack.
   const lateReleases = overdueReleases.filter(
@@ -190,6 +225,42 @@ export default async function AdminJobsPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+
+        <section aria-labelledby="email-replacements">
+          <SectionTitle id="email-replacements" title="Emails sent with text removed" count={toReview.length} />
+          <p className="-mt-1 mb-3 text-sm text-muted-foreground">
+            When part of an email matches the contact-info filter, only that text is replaced with [removed] and the email
+            still goes out. Check each one: a person may have typed contact details, or an email&apos;s own wording may need
+            fixing.
+          </p>
+          {toReview.length === 0 ? (
+            <Empty>No emails have needed text removed.</Empty>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {toReview.map((r) => (
+                <li key={r.id} className="card flex flex-col items-start gap-2 p-4 sm:p-5">
+                  <Badge variant="warning">Text removed, email sent</Badge>
+                  <ReplacementDetail r={r} />
+                  <ReviewReplacementButton id={r.id} />
+                </li>
+              ))}
+            </ul>
+          )}
+          {reviewed.length > 0 && (
+            <details className="mt-3">
+              <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-bold text-ink">
+                Recently reviewed ({reviewed.length})
+              </summary>
+              <ul className="mt-2 flex flex-col gap-2">
+                {reviewed.map((r) => (
+                  <li key={r.id} className="card-flat flex flex-col items-start gap-2 p-3 sm:p-4">
+                    <ReplacementDetail r={r} />
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </section>
 

@@ -1,5 +1,7 @@
 import type { Email } from "@/lib/email";
-import { firstName, safeText } from "@/lib/email";
+import { firstName as plainFirstName, safeText as plainSafeText } from "@/lib/email";
+import { checkForContactInfo } from "@/lib/moderation";
+import type { TextReplacement } from "@/lib/emailSafety";
 import { siteLink } from "@/lib/siteUrl";
 import { formatCents, AUTO_RELEASE_GRACE_HOURS } from "@/lib/money";
 import { formatPacificDateTime } from "@/lib/sessionTiming";
@@ -22,7 +24,49 @@ import {
  * Rules: no contact details, ID details, message text, report text or admin notes. Anything a
  * person typed (names, the session location) goes through safeText() / firstName(), which fall
  * back to a neutral phrase if the contact-info filter would block it.
+ *
+ * Each template is wrapped in tracked(): any fallback made while it builds the email is attached
+ * to the email (Email.replaced), and sendEmail() records it for admins with anything it replaces
+ * itself (src/lib/emailSafety.ts). Templates are synchronous, so a fallback can't land on the
+ * wrong email.
  */
+
+/** Fallbacks made while the current template runs, or null outside one. */
+let typedFallbacks: TextReplacement[] | null = null;
+
+function noteFallback(original: string, sent: string): void {
+  if (!typedFallbacks || typedFallbacks.some((r) => r.originalText === original)) return;
+  typedFallbacks.push({ part: "typed text", categories: checkForContactInfo(original).categories, originalText: original, sentText: sent });
+}
+
+/** safeText(), noting a fallback for the admin page. */
+function safeText(value: string | null | undefined, fallback: string): string {
+  const out = plainSafeText(value, fallback);
+  const typed = value?.trim();
+  if (typed && out === fallback && typed !== fallback) noteFallback(typed, fallback);
+  return out;
+}
+
+/** firstName(), noting a fallback for the admin page. */
+function firstName(fullName: string | null | undefined): string {
+  const out = plainFirstName(fullName);
+  const typed = fullName?.trim();
+  if (typed && out !== typed.split(/\s+/)[0]) noteFallback(typed, out);
+  return out;
+}
+
+function tracked<A extends unknown[]>(build: (...args: A) => Email): (...args: A) => Email {
+  return (...args: A) => {
+    const outer = typedFallbacks;
+    typedFallbacks = [];
+    try {
+      const email = build(...args);
+      return typedFallbacks.length ? { ...email, replaced: [...(email.replaced ?? []), ...typedFallbacks] } : email;
+    } finally {
+      typedFallbacks = outer;
+    }
+  };
+}
 
 const PLACE_FALLBACK = "the place in your booking";
 const BOOKINGS = "/dashboard/bookings";
@@ -31,7 +75,7 @@ const BOOKINGS = "/dashboard/bookings";
 
 export const RESET_LINK_TTL_TEXT = "1 hour";
 
-export function passwordResetEmail(p: { to: string; name: string; link: string }): Email {
+export const passwordResetEmail = tracked(function passwordResetEmail(p: { to: string; name: string; link: string }): Email {
   return {
     to: p.to,
     subject: "Reset your password",
@@ -43,9 +87,9 @@ export function passwordResetEmail(p: { to: string; name: string; link: string }
     button: { label: "Choose a new password", url: p.link },
     footnote: `This link works once and expires in ${RESET_LINK_TTL_TEXT}.`,
   };
-}
+});
 
-export function passwordChangedEmail(p: { to: string; name: string }): Email {
+export const passwordChangedEmail = tracked(function passwordChangedEmail(p: { to: string; name: string }): Email {
   return {
     to: p.to,
     subject: "Your password was changed",
@@ -56,7 +100,7 @@ export function passwordChangedEmail(p: { to: string; name: string }): Email {
     ],
     button: { label: "Log in", url: siteLink("/login") },
   };
-}
+});
 
 // ---------------------------------------------------------------- bookings
 
@@ -110,7 +154,7 @@ function paymentLine(b: BookingFacts): string {
   return `We've placed a hold of ${formatCents(charge)} on your card${credit}. ${whenCharged}`;
 }
 
-export function bookingConfirmedParentEmail(to: string, b: BookingFacts, now = new Date()): Email {
+export const bookingConfirmedParentEmail = tracked(function bookingConfirmedParentEmail(to: string, b: BookingFacts, now: Date = new Date()): Email {
   return {
     to,
     subject: `Session booked with ${firstName(b.coachName)}`,
@@ -122,7 +166,7 @@ export function bookingConfirmedParentEmail(to: string, b: BookingFacts, now = n
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
   };
-}
+});
 
 /**
  * Adds "Add to calendar" links and the session's .ics file to a booking email. The entry carries
@@ -145,7 +189,7 @@ export function withCalendar(email: Email, session: CalendarSession, viewer: Cal
   };
 }
 
-export function bookingNewCoachEmail(to: string, b: BookingFacts): Email {
+export const bookingNewCoachEmail = tracked(function bookingNewCoachEmail(to: string, b: BookingFacts): Email {
   return {
     to,
     subject: `New booking: ${formatPacificDateTime(b.scheduledAt)}`,
@@ -156,7 +200,7 @@ export function bookingNewCoachEmail(to: string, b: BookingFacts): Email {
     ],
     button: { label: "See your sessions", url: siteLink("/dashboard") },
   };
-}
+});
 
 export type ParentCancelFacts = BookingFacts & {
   outcome: ParentCancelOutcome;
@@ -194,7 +238,7 @@ export function parentCancelMoneyLine(c: ParentCancelFacts): string {
   return `It was after the free-cancellation deadline, so the ${formatCents(c.discountCents)} of credit you used stays spent. Your card wasn't charged.`;
 }
 
-export function parentCancelledParentEmail(to: string, c: ParentCancelFacts): Email {
+export const parentCancelledParentEmail = tracked(function parentCancelledParentEmail(to: string, c: ParentCancelFacts): Email {
   return {
     to,
     subject: "Your session is cancelled",
@@ -204,9 +248,9 @@ export function parentCancelledParentEmail(to: string, c: ParentCancelFacts): Em
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
   };
-}
+});
 
-export function parentCancelledCoachEmail(to: string, c: ParentCancelFacts): Email {
+export const parentCancelledCoachEmail = tracked(function parentCancelledCoachEmail(to: string, c: ParentCancelFacts): Email {
   const parent = safeText(c.parentName, "The family");
   const child = c.childFirstName ? `${safeText(c.childFirstName, "their child")}'s` : "their";
   const when = formatPacificDateTime(c.scheduledAt);
@@ -220,10 +264,10 @@ export function parentCancelledCoachEmail(to: string, c: ParentCancelFacts): Ema
     ],
     button: { label: "See your sessions", url: siteLink("/dashboard") },
   };
-}
+});
 
 /** Coach cancels: the parent is never charged. */
-export function coachCancelledParentEmail(to: string, c: BookingFacts & { stripeOk: boolean }): Email {
+export const coachCancelledParentEmail = tracked(function coachCancelledParentEmail(to: string, c: BookingFacts & { stripeOk: boolean }): Email {
   const money =
     c.packageSessionsLeft !== null
       ? "You weren't charged, and the session has gone back into your package."
@@ -238,10 +282,10 @@ export function coachCancelledParentEmail(to: string, c: BookingFacts & { stripe
     paragraphs: [`${safeText(c.coachName, "Your coach")} cancelled your session on ${formatPacificDateTime(c.scheduledAt)}.`, money],
     button: { label: "Book another time", url: siteLink(BOOKINGS) },
   };
-}
+});
 
 /** The platform cancelled (a minor coach's guardian withdrew consent). Never charged. */
-export function platformCancelledParentEmail(p: { to: string; coachName: string; scheduledAt: Date; moneyLine: string }): Email {
+export const platformCancelledParentEmail = tracked(function platformCancelledParentEmail(p: { to: string; coachName: string; scheduledAt: Date; moneyLine: string }): Email {
   return {
     to: p.to,
     subject: "Session cancelled",
@@ -250,7 +294,7 @@ export function platformCancelledParentEmail(p: { to: string; coachName: string;
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
   };
-}
+});
 
 // ---------------------------------------------------------------- card holds (src/lib/cardHolds.ts)
 
@@ -262,7 +306,7 @@ export type HoldFacts = {
 };
 
 /** The hold 2 days before the session failed. One email; the update page places the hold. */
-export function holdFailedParentEmail(p: HoldFacts & { to: string; bookingId: string; fixBy: Date; needsAuthentication: boolean }): Email {
+export const holdFailedParentEmail = tracked(function holdFailedParentEmail(p: HoldFacts & { to: string; bookingId: string; fixBy: Date; needsAuthentication: boolean }): Email {
   return {
     to: p.to,
     subject: "Action needed: update your card",
@@ -275,10 +319,10 @@ export function holdFailedParentEmail(p: HoldFacts & { to: string; bookingId: st
     ],
     button: { label: "Update card", url: siteLink(`/dashboard/bookings/${p.bookingId}/card`) },
   };
-}
+});
 
 /** Still no hold 12 hours before: the platform cancelled. Never charged. */
-export function holdNotFixedParentEmail(p: HoldFacts & { to: string; creditReturnedCents: number }): Email {
+export const holdNotFixedParentEmail = tracked(function holdNotFixedParentEmail(p: HoldFacts & { to: string; creditReturnedCents: number }): Email {
   const credit = p.creditReturnedCents > 0 ? ` The ${formatCents(p.creditReturnedCents)} of credit you used is back in your account.` : "";
   return {
     to: p.to,
@@ -289,9 +333,9 @@ export function holdNotFixedParentEmail(p: HoldFacts & { to: string; creditRetur
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
   };
-}
+});
 
-export function holdNotFixedCoachEmail(p: { to: string; scheduledAt: Date }): Email {
+export const holdNotFixedCoachEmail = tracked(function holdNotFixedCoachEmail(p: { to: string; scheduledAt: Date }): Email {
   return {
     to: p.to,
     subject: `Session cancelled: ${formatPacificDateTime(p.scheduledAt)}`,
@@ -300,9 +344,9 @@ export function holdNotFixedCoachEmail(p: { to: string; scheduledAt: Date }): Em
     ],
     button: { label: "See your sessions", url: siteLink("/dashboard") },
   };
-}
+});
 
-export function noShowParentEmail(p: { to: string; coachName: string }): Email {
+export const noShowParentEmail = tracked(function noShowParentEmail(p: { to: string; coachName: string }): Email {
   return {
     to: p.to,
     subject: "We're on it: no-show reported",
@@ -311,9 +355,9 @@ export function noShowParentEmail(p: { to: string; coachName: string }): Email {
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
   };
-}
+});
 
-export function noShowCoachEmail(p: { to: string; scheduledAt: Date }): Email {
+export const noShowCoachEmail = tracked(function noShowCoachEmail(p: { to: string; scheduledAt: Date }): Email {
   return {
     to: p.to,
     subject: "Session flagged as a no-show",
@@ -322,9 +366,9 @@ export function noShowCoachEmail(p: { to: string; scheduledAt: Date }): Email {
     ],
     button: { label: "See your sessions", url: siteLink("/dashboard") },
   };
-}
+});
 
-export function autoReleasedParentEmail(p: { to: string; coachName: string }): Email {
+export const autoReleasedParentEmail = tracked(function autoReleasedParentEmail(p: { to: string; coachName: string }): Email {
   return {
     to: p.to,
     subject: "Session auto-completed",
@@ -333,9 +377,9 @@ export function autoReleasedParentEmail(p: { to: string; coachName: string }): E
     ],
     button: { label: "See your bookings", url: siteLink(BOOKINGS) },
   };
-}
+});
 
-export function autoReleasedCoachEmail(p: { to: string; scheduledAt: Date }): Email {
+export const autoReleasedCoachEmail = tracked(function autoReleasedCoachEmail(p: { to: string; scheduledAt: Date }): Email {
   return {
     to: p.to,
     subject: "Payment released",
@@ -344,9 +388,9 @@ export function autoReleasedCoachEmail(p: { to: string; scheduledAt: Date }): Em
     ],
     button: { label: "See your sessions", url: siteLink("/dashboard") },
   };
-}
+});
 
-export function reminderEmail(p: {
+export const reminderEmail = tracked(function reminderEmail(p: {
   to: string;
   audience: "PARENT" | "COACH";
   kind: "TOMORROW" | "SOON";
@@ -357,7 +401,6 @@ export function reminderEmail(p: {
   locationText: string;
 }): Email {
   const when = formatPacificDateTime(p.scheduledAt);
-  const where = safeText(p.locationText, PLACE_FALLBACK);
   const withWhom =
     p.audience === "PARENT" ? safeText(p.coachName, "your coach") : `${safeText(p.parentName, "the family")}'s family`;
   const line =
@@ -365,14 +408,15 @@ export function reminderEmail(p: {
       ? p.audience === "PARENT"
         ? `Your session with ${withWhom} for ${safeText(p.childFirstName, "your child")} is scheduled for ${when}.`
         : `Your session with ${withWhom} is scheduled for ${when}.`
-      : `Your session with ${withWhom} starts at ${when} at ${where}.`;
+      : // Only this reminder names the place, so only it runs the location through safeText().
+        `Your session with ${withWhom} starts at ${when} at ${safeText(p.locationText, PLACE_FALLBACK)}.`;
   return {
     to: p.to,
     subject: p.kind === "TOMORROW" ? "Session reminder: tomorrow" : "Session reminder: starting soon",
     paragraphs: [line],
     button: { label: p.audience === "PARENT" ? "See your bookings" : "See your sessions", url: siteLink(p.audience === "PARENT" ? BOOKINGS : "/dashboard") },
   };
-}
+});
 
 export type RefundFacts =
   | { kind: "REFUND"; amountCents: number; coachName: string; scheduledAt: Date }
@@ -381,7 +425,7 @@ export type RefundFacts =
 
 const STATEMENT_NOTE = "Card refunds usually show on your statement within 5 to 10 business days.";
 
-export function refundIssuedEmail(to: string, r: RefundFacts): Email {
+export const refundIssuedEmail = tracked(function refundIssuedEmail(to: string, r: RefundFacts): Email {
   const coach = safeText(r.coachName, "your coach");
   let lines: string[];
   if (r.kind === "REFUND") {
@@ -399,11 +443,11 @@ export function refundIssuedEmail(to: string, r: RefundFacts): Email {
     lines = [head, parts.join(" "), ...(r.amountCents > 0 ? [STATEMENT_NOTE] : [])];
   }
   return { to, subject: "Refund issued", paragraphs: lines, button: { label: "See your bookings", url: siteLink(BOOKINGS) } };
-}
+});
 
 // ---------------------------------------------------------------- messages
 
-export function newMessageEmail(p: { to: string; senderName: string; threadId: string }): Email {
+export const newMessageEmail = tracked(function newMessageEmail(p: { to: string; senderName: string; threadId: string }): Email {
   const from = firstName(p.senderName);
   return {
     to: p.to,
@@ -412,11 +456,11 @@ export function newMessageEmail(p: { to: string; senderName: string; threadId: s
     button: { label: "Read it in Assist Coaching", url: siteLink(`/messages/${p.threadId}`) },
     footnote: "You'll get at most one of these an hour for each conversation. You can turn message emails off in your settings.",
   };
-}
+});
 
 // ---------------------------------------------------------------- minor-coach consent
 
-export function consentRequestEmail(p: { to: string; guardianName: string; coachName: string; link: string; ttlDays: number }): Email {
+export const consentRequestEmail = tracked(function consentRequestEmail(p: { to: string; guardianName: string; coachName: string; link: string; ttlDays: number }): Email {
   return {
     to: p.to,
     subject: `${firstName(p.coachName)} needs your consent to coach on Assist Coaching`,
@@ -427,9 +471,9 @@ export function consentRequestEmail(p: { to: string; guardianName: string; coach
     button: { label: "Read and sign", url: p.link },
     footnote: `The link works once and expires in ${p.ttlDays} days.`,
   };
-}
+});
 
-export function consentRecordedEmail(p: { to: string; signerName: string; coachName: string; revokeLink: string }): Email {
+export const consentRecordedEmail = tracked(function consentRecordedEmail(p: { to: string; signerName: string; coachName: string; revokeLink: string }): Email {
   return {
     to: p.to,
     subject: "Your consent is recorded — keep this email",
@@ -439,9 +483,9 @@ export function consentRecordedEmail(p: { to: string; signerName: string; coachN
     ],
     button: { label: "Withdraw consent", url: p.revokeLink },
   };
-}
+});
 
-export function consentWithdrawnGuardianEmail(p: { to: string; coachName: string; cancelledCount: number }): Email {
+export const consentWithdrawnGuardianEmail = tracked(function consentWithdrawnGuardianEmail(p: { to: string; coachName: string; cancelledCount: number }): Email {
   return {
     to: p.to,
     subject: "Consent withdrawn",
@@ -449,9 +493,9 @@ export function consentWithdrawnGuardianEmail(p: { to: string; coachName: string
       `You've withdrawn consent for ${safeText(p.coachName, "your teen")} to coach on Assist Coaching. Their profile is hidden from families and ${p.cancelledCount} upcoming session(s) were cancelled.`,
     ],
   };
-}
+});
 
-export function consentWithdrawnCoachEmail(p: { to: string }): Email {
+export const consentWithdrawnCoachEmail = tracked(function consentWithdrawnCoachEmail(p: { to: string }): Email {
   return {
     to: p.to,
     subject: "Your coach profile is paused",
@@ -460,21 +504,21 @@ export function consentWithdrawnCoachEmail(p: { to: string }): Email {
     ],
     button: { label: "Open onboarding", url: siteLink("/onboarding/coach") },
   };
-}
+});
 
 // ---------------------------------------------------------------- admin alerts
 
-export function coachAwaitingReviewEmail(p: { to: string; coachName: string }): Email {
+export const coachAwaitingReviewEmail = tracked(function coachAwaitingReviewEmail(p: { to: string; coachName: string }): Email {
   return {
     to: p.to,
     subject: "A coach is waiting for review",
     paragraphs: [`${safeText(p.coachName, "A coach")} finished their onboarding steps and is waiting for review.`],
     button: { label: "Open the admin page", url: siteLink("/admin") },
   };
-}
+});
 
 /** A scheduled job left a booking for an admin (src/lib/cardHolds.ts, src/lib/autoRelease.ts). */
-export function bookingNeedsAdminEmail(p: { to: string; flag: "HOLD_NOT_FIXED" | "CHARGE_FAILED" }): Email {
+export const bookingNeedsAdminEmail = tracked(function bookingNeedsAdminEmail(p: { to: string; flag: "HOLD_NOT_FIXED" | "CHARGE_FAILED" }): Email {
   return {
     to: p.to,
     subject: p.flag === "HOLD_NOT_FIXED" ? "A session was cancelled: card not fixed" : "An auto-release charge failed",
@@ -486,20 +530,20 @@ export function bookingNeedsAdminEmail(p: { to: string; flag: "HOLD_NOT_FIXED" |
     ],
     button: { label: "Open Scheduled jobs", url: siteLink("/admin/jobs") },
   };
-}
+});
 
 const REPORT_TARGET_LABEL ={ COACH_PROFILE: "a coach profile", PARENT_PROFILE: "a parent", MESSAGE: "a conversation" } as const;
 
-export function newReportEmail(p: { to: string; targetType: keyof typeof REPORT_TARGET_LABEL }): Email {
+export const newReportEmail = tracked(function newReportEmail(p: { to: string; targetType: keyof typeof REPORT_TARGET_LABEL }): Email {
   return {
     to: p.to,
     subject: "New report",
     paragraphs: [`Someone reported ${REPORT_TARGET_LABEL[p.targetType]}. The details are on the reports page.`],
     button: { label: "Open reports", url: siteLink("/admin/reports") },
   };
-}
+});
 
-export function refundRequestEmail(p: { to: string; kind: "PACKAGE_UNUSED" | "PROBLEM_REPORT" | "NO_SHOW" }): Email {
+export const refundRequestEmail = tracked(function refundRequestEmail(p: { to: string; kind: "PACKAGE_UNUSED" | "PROBLEM_REPORT" | "NO_SHOW" }): Email {
   if (p.kind === "PACKAGE_UNUSED") {
     return {
       to: p.to,
@@ -522,4 +566,4 @@ export function refundRequestEmail(p: { to: string; kind: "PACKAGE_UNUSED" | "PR
     ],
     button: { label: "Open cases", url: siteLink("/admin/disputes") },
   };
-}
+});
