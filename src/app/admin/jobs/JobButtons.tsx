@@ -66,3 +66,32 @@ export function ClearFlagButton({ bookingId, retries }: { bookingId: string; ret
     </div>
   );
 }
+
+/** Marks replaced email text as looked at (POST /api/admin/email-replacements/[id]/review). */
+export function ReviewReplacementButton({ id }: { id: string }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function review() {
+    setLoading(true);
+    setError(null);
+    const res = await fetch(`/api/admin/email-replacements/${id}/review`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <button type="button" onClick={review} className={secondaryButtonClass} disabled={loading}>
+        {loading ? "Saving..." : "Mark reviewed"}
+      </button>
+      {error && <p className={errorClass}>{error}</p>}
+    </div>
+  );
+}

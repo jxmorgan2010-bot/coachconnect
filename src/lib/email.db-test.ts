@@ -190,3 +190,65 @@ test("coach review alert: once when the coach finishes their steps, again after 
   await prisma.coachProfile.update({ where: { id: profile.id }, data: { idPhotoPath: "ids/y.jpg", idVerificationStatus: "PENDING" } });
   assert.equal(await sendCoachReviewAlert(coachUser.id), "sent", "the resubmission alerts again");
 });
+
+// ------------------------------------------------------------ never dropped: replaced and recorded
+
+test("an email with matched text is still sent, and the replacement is recorded for admins", async () => {
+  const { sendEmail } = await import("./email");
+  const { markEmailReplacementReviewed } = await import("./emailReplacementStore");
+  const to = `parent-${randomUUID()}@resend.dev`;
+  const result = await sendEmail({
+    to,
+    subject: "Session booked with Priya",
+    paragraphs: ["See you Saturday at Mitchell Park.", "Text me at 415-555-0123 if you're late."],
+    button: { label: "See your bookings", url: "https://getassistcoaching.com/dashboard/bookings" },
+  });
+  assert.equal(result.status, "logged", "no Resend key here, so logged means it went the whole way through");
+
+  const rows = await prisma.emailTextReplacement.findMany({ where: { toEmail: to } });
+  assert.equal(rows.length, 1);
+  const [row] = rows;
+  assert.equal(row.subject, "Session booked with Priya");
+  assert.equal(row.part, "paragraph 2");
+  assert.ok(row.categories.includes("phone"), row.categories);
+  assert.equal(row.originalText, "Text me at 415-555-0123 if you're late.");
+  assert.ok(row.sentText.includes("[removed]") && !/\d{3}/.test(row.sentText), row.sentText);
+  assert.equal(row.reviewedAt, null);
+
+  const admin = await prisma.user.create({
+    data: { name: "Test Admin", email: `admin-${randomUUID()}@resend.dev`, passwordHash: "x", role: "ADMIN" },
+  });
+  assert.equal(await markEmailReplacementReviewed(row.id, admin.id), true);
+  assert.equal(await markEmailReplacementReviewed(row.id, admin.id), false, "can't be reviewed twice");
+  const after = await prisma.emailTextReplacement.findUniqueOrThrow({ where: { id: row.id } });
+  assert.ok(after.reviewedAt);
+  assert.equal(after.reviewedById, admin.id);
+});
+
+test("a clean email records nothing", async () => {
+  const { sendEmail } = await import("./email");
+  const to = `parent-${randomUUID()}@resend.dev`;
+  await sendEmail({ to, subject: "Session booked", paragraphs: ["Alex's session is booked for Nov 14, 1:00 PM PT."] });
+  assert.equal(await prisma.emailTextReplacement.count({ where: { toEmail: to } }), 0);
+});
+
+test("a typed value the template swapped for a neutral phrase is recorded too", async () => {
+  const { sendEmail } = await import("./email");
+  const { bookingConfirmedParentEmail } = await import("./emails");
+  const to = `parent-${randomUUID()}@resend.dev`;
+  const place = "Mitchell Park, text me at 415-555-0199 for the gate";
+  const result = await sendEmail(
+    bookingConfirmedParentEmail(to, {
+      coachName: "Priya Shah", parentName: "Jordan Lee", childFirstName: "Alex", sport: "TENNIS",
+      scheduledAt: new Date("2026-11-14T21:00:00.000Z"), durationMinutes: 60, locationText: place,
+      priceCents: 5000, discountCents: 0, packageSessionsLeft: null, hasCardHold: true, cardHoldDueAt: null,
+    }),
+  );
+  assert.equal(result.status, "logged");
+  const rows = await prisma.emailTextReplacement.findMany({ where: { toEmail: to } });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].part, "typed text");
+  assert.equal(rows[0].originalText, place);
+  assert.equal(rows[0].sentText, "the place in your booking");
+  assert.equal(rows[0].subject, "Session booked with Priya");
+});

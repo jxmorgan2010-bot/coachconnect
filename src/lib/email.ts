@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { checkForContactInfo } from "@/lib/moderation";
 import { siteUrl } from "@/lib/siteUrl";
+import { makeEmailSafe, type TextReplacement } from "@/lib/emailSafety";
 
 /**
  * Email through Resend (https://resend.com), with RESEND_API_KEY and EMAIL_FROM from the
@@ -12,8 +13,9 @@ import { siteUrl } from "@/lib/siteUrl";
  * - Outside Vercel production, only @resend.dev test addresses are ever sent to. Previews share
  *   the production database, so this keeps a preview from emailing real families.
  * - Nothing in an email may be something the contact-info filter would block. Templates pass
- *   user-typed values through safeText(); sendEmail() checks the finished text again and drops
- *   the email if anything slips through.
+ *   user-typed values through safeText(); sendEmail() checks the finished text again and replaces
+ *   only what slipped through (src/lib/emailSafety.ts), records it for admins, and still sends.
+ *   An email is never dropped for its content.
  * - No open or click tracking: no pixels, no rewritten links. (Resend's own tracking is a domain
  *   setting and must stay off in the Resend dashboard.)
  */
@@ -30,9 +32,14 @@ export type Email = {
   links?: { intro: string; items: { label: string; url: string }[] };
   /** Files sent with the email (e.g. a session's .ics). Text content; base64-encoded for Resend. */
   attachments?: { filename: string; content: string }[];
+  /**
+   * Typed text a template already swapped for a neutral phrase (safeText/firstName fallbacks, see
+   * src/lib/emails.ts). Not sent: sendEmail() records it for admins.
+   */
+  replaced?: TextReplacement[];
 };
 
-export type SendResult = { status: "sent"; id: string } | { status: "logged" | "suppressed" | "blocked" | "failed" };
+export type SendResult = { status: "sent"; id: string } | { status: "logged" | "suppressed" | "failed" };
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const LINK = /https?:\/\/\S+/g;
@@ -113,16 +120,33 @@ ${paragraphs}${button}${links}${footnote}
 
 let announced = false;
 
-/** Sends now and resolves when done. Most callers want queueEmail() instead. */
-export async function sendEmail(email: Email): Promise<SendResult> {
-  const text = renderText(email);
-
-  // Our own links are fine; everything else must pass the contact-info filter.
-  const check = checkForContactInfo(`${email.subject}\n${text}`.replace(LINK, " "));
-  if (check.flagged) {
-    console.error(`[email] Not sent: "${email.subject}" matched the contact-info filter (${check.categories.join(", ")}).`);
-    return { status: "blocked" };
+/**
+ * Saves replacements for the admin page. Loaded only when needed, so the database is never touched
+ * for a clean email, and a failed write is logged, never thrown: the email still goes out.
+ */
+async function recordReplacements(email: Email, replacements: TextReplacement[]): Promise<void> {
+  try {
+    const { saveEmailReplacements } = await import("@/lib/emailReplacementStore");
+    await saveEmailReplacements(email, replacements);
+  } catch (err) {
+    console.error(`[email] Couldn't record replaced text for "${email.subject}": ${(err as Error)?.message ?? err}`);
   }
+}
+
+/** Sends now and resolves when done. Most callers want queueEmail() instead. */
+export async function sendEmail(original: Email): Promise<SendResult> {
+  // Our own links are fine; everything else must pass the contact-info filter. Anything that
+  // doesn't is replaced, never the whole email (src/lib/emailSafety.ts), and every replacement is
+  // recorded for admins (/admin/jobs).
+  const { email, replacements: found } = makeEmailSafe(original, renderText);
+  const replacements = [...(original.replaced ?? []), ...found];
+  if (replacements.length > 0) {
+    const parts = replacements.map((r) => `${r.part} (${r.categories.join(", ")})`).join("; ");
+    // The text itself stays out of server logs: it may hold someone's contact details.
+    console.warn(`[email] Replaced text the contact filter matched in "${email.subject}": ${parts}. Sending the rest.`);
+    await recordReplacements(email, replacements);
+  }
+  const text = renderText(email);
 
   const key = process.env.RESEND_API_KEY?.trim();
   const from = process.env.EMAIL_FROM?.trim();

@@ -210,6 +210,30 @@ model User {
   messageEmailAlerts  Boolean              @default(true)
   passwordResetTokens PasswordResetToken[]
   calendarFeed        CalendarFeed?
+  emailReplacementsReviewed EmailTextReplacement[] @relation("EmailTextReplacementReviewedBy")
+}
+
+/// Text sendEmail() replaced because the contact-info filter matched it (src/lib/emailSafety.ts).
+/// The email still went out with only that text replaced; admins see these on /admin/jobs.
+/// originalText may hold contact details someone typed, so it's shown to admins only and never
+/// written to server logs. Added 2026-11-08 (prisma/sql/2026-11-08-email-text-replacements.sql).
+model EmailTextReplacement {
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  toEmail      String
+  // As sent (already cleaned).
+  subject      String
+  // "subject", "paragraph 2", "button", "link 1", "footnote" or "whole email".
+  part         String
+  // Comma-separated filter categories, e.g. "email" or "phone, contact_phrase".
+  categories   String
+  originalText String
+  sentText     String
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?     @relation("EmailTextReplacementReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([reviewedAt, createdAt])
 }
 
 /// A private calendar feed (src/lib/calendarFeed.ts). The link carries a random secret; only its
