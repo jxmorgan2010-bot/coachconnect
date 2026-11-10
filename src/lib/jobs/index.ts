@@ -1,6 +1,7 @@
 import { runCardHoldsJob } from "@/lib/cardHolds";
 import { runAutoReleaseJob } from "@/lib/autoRelease";
 import { runRemindersJob } from "@/lib/reminders";
+import { cleanUpJobRuns } from "@/lib/jobs/jobRunCleanup";
 import { JOB_SLUGS, runJob, type JobLog, type JobName, type JobTrigger } from "@/lib/jobs/runLog";
 
 const WORK: Record<JobName, (log: JobLog, now: Date) => Promise<void>> = {
@@ -15,5 +16,12 @@ export function jobFromSlug(slug: string): JobName | null {
 }
 
 export function runNamedJob(job: JobName, trigger: JobTrigger) {
+  if (job === "REMINDERS") {
+    // Reminders also clears out old JobRun rows, once a day: it's the one job that touches no payments.
+    return runJob(job, trigger, async (log, now) => {
+      await runRemindersJob(log, now);
+      await cleanUpJobRuns(log, now, trigger);
+    });
+  }
   return runJob(job, trigger, WORK[job]);
 }
