@@ -268,7 +268,8 @@ export default async function AdminJobsPage() {
           <SectionTitle id="runs" title="Recent runs" count={runs.length} />
           <p className="-mt-1 mb-3 text-sm text-muted-foreground">
             Runs that did something or had a failure, newest first. {quietCount} run{quietCount === 1 ? "" : "s"} with nothing
-            due in the last 30 days {quietCount === 1 ? "isn't" : "aren't"} listed.
+            due in the last 30 days {quietCount === 1 ? "isn't" : "aren't"} listed. Runs are kept for 30 days, or 90 days
+            if anything failed.
           </p>
           {runs.length === 0 ? (
             <Empty>Nothing yet. Runs appear here once the scheduler is set up, or when you run a job now.</Empty>

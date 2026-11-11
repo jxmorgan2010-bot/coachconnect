@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 /**
  * Every scheduled job runs through runJob(): one JobRun row per run (shown on /admin/jobs), each
  * booking handled on its own so one failure never stops the rest, and a console line per run for
- * the Vercel logs. Failures record a booking id and a short reason (a Stripe decline code, an
+ * the Vercel logs. Old runs are deleted once a day by the Reminders job (jobRunCleanup.ts). Failures record a booking id and a short reason (a Stripe decline code, an
  * error type), never names, emails or card details.
  */
 
@@ -22,7 +22,6 @@ export const JOB_LABELS: Record<JobName, string> = {
   REMINDERS: "Reminders",
 };
 
-const KEEP_RUNS_DAYS = 30;
 export const NOTHING_DUE = "Nothing due.";
 const MAX_FAILURES = 40;
 
@@ -100,9 +99,6 @@ export async function runJob(
       failures: log.failures.length ? log.failures.join("\n") : null,
     },
   });
-  await prisma.jobRun
-    .deleteMany({ where: { startedAt: { lt: new Date(now.getTime() - KEEP_RUNS_DAYS * 24 * 60 * 60 * 1000) } } })
-    .catch((err) => console.error("[jobs] couldn't prune old runs", err));
 
   console.log(`[jobs] ${job} (${trigger}) ${status}: ${summary}${log.failed ? ` (${log.failed} failed)` : ""}`);
   return { job, status, succeeded: log.succeeded, failed: log.failed, summary };
