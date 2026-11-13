@@ -506,6 +506,29 @@ export const consentWithdrawnCoachEmail = tracked(function consentWithdrawnCoach
   };
 });
 
+// ---------------------------------------------------------------- teen interest list
+
+/** Sent once to the address given (never to the parent/guardian email). */
+export const teenInterestConfirmationEmail = tracked(function teenInterestConfirmationEmail(p: {
+  to: string;
+  firstName: string;
+  turns18On: string;
+  removeLink: string;
+}): Email {
+  return {
+    to: p.to,
+    subject: "You're on the Assist Coaching interest list",
+    paragraphs: [
+      `Hi ${safeText(p.firstName, "there")},`,
+      "Thanks for wanting to coach. Coaches must be 18 or older for now. You're on our interest list, and we'll email you at this address when we can welcome younger coaches.",
+      `You can also sign up as a coach yourself on or after your 18th birthday, ${p.turns18On}.`,
+      "We didn't create an account. We kept only what you gave us: your first name, this email address, your sports, school and graduation year, a parent or guardian email if you added one, and the date you turn 18 (not your date of birth).",
+      "Changed your mind, or didn't sign up? The link below deletes the entry.",
+    ],
+    button: { label: "Remove me from the list", url: p.removeLink },
+  };
+});
+
 // ---------------------------------------------------------------- admin alerts
 
 export const coachAwaitingReviewEmail = tracked(function coachAwaitingReviewEmail(p: { to: string; coachName: string }): Email {

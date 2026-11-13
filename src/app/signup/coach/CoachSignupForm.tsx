@@ -10,6 +10,7 @@ import { inputClass, labelClass, goldButtonClass, errorClass, quietLinkClass } f
 import { PLATFORM_FEE_RATE } from "@/lib/money";
 import { CONTACT_RULE_TEXT } from "@/lib/contactRule";
 import type { CoachType } from "@/generated/prisma/client";
+import TeenInterestForm from "./TeenInterestForm";
 
 const COACH_TYPE_OPTIONS: { value: CoachType; label: string; description: string }[] = [
   {
@@ -47,6 +48,8 @@ export default function CoachSignupForm({
   const [outOfArea, setOutOfArea] = useState(false);
   // Under 18 while the Minor Coach tier is off: a notice, not an error.
   const [notAcceptedYet, setNotAcceptedYet] = useState<string | null>(null);
+  // 16–17 while the tier is off: the teen interest list instead (from the banner, or after signup checks the age).
+  const [teenInterest, setTeenInterest] = useState<{ turns18On: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -71,6 +74,12 @@ export default function CoachSignupForm({
         body: JSON.stringify({ name, email, password, dateOfBirth, zip, coachType }),
       });
       const data = await res.json();
+      if (data.interestList) {
+        setTeenInterest({ turns18On: data.turns18On ?? null });
+        setLoading(false);
+        window.scrollTo({ top: 0 }); // the submit button was at the bottom; the new form starts at the top
+        return;
+      }
       if (data.code === "UNDER_18_NOT_ACCEPTED" || data.code === "EXPERIENCED_UNDER_18") {
         setNotAcceptedYet(data.error);
         setLoading(false);
@@ -97,6 +106,35 @@ export default function CoachSignupForm({
     }
   }
 
+  if (teenInterest) {
+    return (
+      <AuthLayout
+        panelColor="gold"
+        panelIcon={<IconWhistle className="h-7 w-7" />}
+        panelTitle="Coaches must be 18 or older for now."
+        panelPoints={[
+          "No account and no password. We check your date of birth, then keep only the date you turn 18.",
+          "Changed your mind? The link in your confirmation email removes you from the list.",
+          ...(teenInterest.turns18On ? [`You can sign up as a coach yourself on or after ${teenInterest.turns18On}.`] : []),
+        ]}
+      >
+        <TeenInterestForm
+          initial={{ firstName: name.trim().split(/\s+/)[0] ?? "", email, dateOfBirth }}
+          todayPacific={todayPacific}
+          onBackToSignup={() => {
+            setTeenInterest(null);
+            window.scrollTo({ top: 0 });
+          }}
+          onTooYoung={(reason) => {
+            setTeenInterest(null);
+            setNotAcceptedYet(reason);
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout
       panelColor="gold"
@@ -117,8 +155,21 @@ export default function CoachSignupForm({
       </p>
       {/* Signup rejects under-18s while the Minor Coach tier is off — say so before they fill anything in */}
       {!minorCoachesEnabled ? (
-        <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm font-bold text-ink">
-          You need to be 18 or older to coach on Assist Coaching for now.
+        <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm text-ink">
+          <span className="font-bold">Coaches must be 18 or older for now.</span> Under 18?{" "}
+          {/* The ::after box widens the tap area to 44px tall without changing the line height */}
+          <button
+            type="button"
+            onClick={() => {
+              setNotAcceptedYet(null);
+              setTeenInterest({ turns18On: null });
+              window.scrollTo({ top: 0 });
+            }}
+            className="relative font-bold text-pitch underline underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] hover:no-underline"
+          >
+            Join the interest list
+          </button>{" "}
+          and we&apos;ll email you when we can welcome younger coaches.
         </p>
       ) : (
         <p className="mb-6 rounded-lg border-2 border-ink bg-accent/15 px-3.5 py-2.5 text-sm text-ink">

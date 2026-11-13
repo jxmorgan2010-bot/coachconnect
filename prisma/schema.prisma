@@ -842,6 +842,28 @@ model WaitlistEntry {
   createdAt DateTime      @default(now())
 }
 
+/// A 16- or 17-year-old who tried coach signup while Assist Coaching takes 18+ coaches only.
+/// No account; not linked to User. Only these fields are kept (src/lib/teenInterest.ts); the
+/// person can remove the entry with the link in their confirmation email.
+/// Added 2026-11-12 (prisma/sql/2026-11-12-teen-interest-list.sql).
+model TeenInterestEntry {
+  id                 String    @id @default(cuid())
+  createdAt          DateTime  @default(now())
+  firstName          String
+  email              String    @unique
+  // Comma-separated Sport values.
+  sports             String
+  school             String
+  gradYear           Int
+  // Kept for later; nothing is emailed to it.
+  parentEmail        String?
+  // UTC midnight of the date they turn 18. The date of birth itself isn't stored.
+  turns18On          DateTime
+  contactedAt        DateTime?
+  removeTokenHash    String    @unique
+  confirmationSentAt DateTime?
+}
+
 model Dispute {
   id              String        @id @default(cuid())
   bookingId       String        @unique
