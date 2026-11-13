@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, withRetry } from "@/lib/email";
 import { bookingNeedsAdminEmail, holdFailedParentEmail, holdNotFixedCoachEmail, holdNotFixedParentEmail } from "@/lib/emails";
 import { emailAdmins } from "@/lib/notify";
 import { bookingChargeCents } from "@/lib/cancellation";
@@ -123,16 +123,20 @@ async function recordFailure(b: DueBooking, code: string, log: JobLog, now: Date
   if (count !== 1) return;
   log.count("card problems (parent emailed)");
   const sent = await sendEmail(
-    holdFailedParentEmail({
-      to: b.parentProfile.user.email,
-      bookingId: b.id,
-      coachName: b.coachProfile.user.name,
-      childFirstName: b.child?.firstName ?? null,
-      scheduledAt: b.scheduledAt,
-      amountCents: bookingChargeCents(b),
-      fixBy: holdFixDeadline(b.scheduledAt),
-      needsAuthentication: code === "authentication_required",
-    }),
+    withRetry(
+      holdFailedParentEmail({
+        to: b.parentProfile.user.email,
+        bookingId: b.id,
+        coachName: b.coachProfile.user.name,
+        childFirstName: b.child?.firstName ?? null,
+        scheduledAt: b.scheduledAt,
+        amountCents: bookingChargeCents(b),
+        fixBy: holdFixDeadline(b.scheduledAt),
+        needsAuthentication: code === "authentication_required",
+      }),
+      // Retry recipe only (src/lib/emailRetry.ts); nothing here changes.
+      { kind: "HOLD_FAILED_PARENT", ref: b.id },
+    ),
   );
   if (sent.status === "failed") log.fail(`booking ${b.id}`, "card-problem email to the parent wasn't sent");
 }
@@ -174,16 +178,21 @@ async function cancelUnfixedHolds(log: JobLog, now: Date) {
     log.ok("cancelled (card not fixed)");
 
     const parent = await sendEmail(
-      holdNotFixedParentEmail({
-        to: b.parentProfile.user.email,
-        coachName: b.coachProfile.user.name,
-        childFirstName: b.child?.firstName ?? null,
-        scheduledAt: b.scheduledAt,
-        amountCents: bookingChargeCents(b),
-        creditReturnedCents: b.discountCents,
-      }),
+      withRetry(
+        holdNotFixedParentEmail({
+          to: b.parentProfile.user.email,
+          coachName: b.coachProfile.user.name,
+          childFirstName: b.child?.firstName ?? null,
+          scheduledAt: b.scheduledAt,
+          amountCents: bookingChargeCents(b),
+          creditReturnedCents: b.discountCents,
+        }),
+        { kind: "HOLD_NOT_FIXED_PARENT", ref: b.id },
+      ),
     );
-    const coach = await sendEmail(holdNotFixedCoachEmail({ to: b.coachProfile.user.email, scheduledAt: b.scheduledAt }));
+    const coach = await sendEmail(
+      withRetry(holdNotFixedCoachEmail({ to: b.coachProfile.user.email, scheduledAt: b.scheduledAt }), { kind: "HOLD_NOT_FIXED_COACH", ref: b.id }),
+    );
     if (parent.status === "failed" || coach.status === "failed") log.fail(`booking ${b.id}`, "a cancellation email wasn't sent");
     await emailAdmins((to) => bookingNeedsAdminEmail({ to, flag: "HOLD_NOT_FIXED" }));
   });

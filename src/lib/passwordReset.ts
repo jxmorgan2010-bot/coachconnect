@@ -50,7 +50,7 @@ export function hashIp(ip: string | null): string {
 }
 
 export type ResetRequestOutcome =
-  | { status: "SENT"; token: string; user: { email: string; name: string } }
+  | { status: "SENT"; token: string; user: { id: string; email: string; name: string } }
   | { status: "NO_ACCOUNT" | "ACCOUNT_LIMIT" | "IP_LIMIT" };
 
 /** Records the request and, if allowed, makes a new link. The caller emails it; never tells the visitor which outcome happened. */
@@ -85,7 +85,39 @@ export async function requestPasswordReset({
       data: { userId: user.id, tokenHash, expiresAt: new Date(now.getTime() + RESET_TOKEN_TTL_MS), createdAt: now },
     }),
   ]);
-  return { status: "SENT", token, user: { email: user.email, name: user.name } };
+  return { status: "SENT", token, user: { id: user.id, email: user.email, name: user.name } };
+}
+
+export type ResetRetryOutcome =
+  | { ok: true; token: string; user: { email: string; name: string } }
+  | { ok: false; reason: string };
+
+/**
+ * An admin is resending a reset email that never went out ("Email problems" on /admin/jobs).
+ * The old link's token was never stored, so this makes a new one, which, like any new request,
+ * cancels earlier unused links. Refused if any link was made for the account after the failed
+ * send: the person asked again (and may have reset already), so the newer one stands.
+ * No rate limits: one admin click, and the retry itself is claimed (src/lib/emailRetry.ts).
+ */
+export async function issueResetLinkForRetry(userId: string, failedAt: Date, now = new Date()): Promise<ResetRetryOutcome> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } });
+  if (!user) return { ok: false, reason: "That account no longer exists." };
+  const newer = await prisma.passwordResetToken.count({ where: { userId, createdAt: { gt: failedAt } } });
+  if (newer > 0) return { ok: false, reason: "They asked for another reset link after this one, so that newer link stands." };
+
+  const { token, tokenHash } = newResetToken();
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: now } }),
+    prisma.passwordResetToken.create({
+      data: { userId, tokenHash, expiresAt: new Date(now.getTime() + RESET_TOKEN_TTL_MS), createdAt: now },
+    }),
+  ]);
+  return { ok: true, token, user: { email: user.email, name: user.name } };
+}
+
+/** A retry's email didn't go out either: drop its link, so it can't block the next retry. */
+export async function discardResetToken(token: string): Promise<void> {
+  await prisma.passwordResetToken.deleteMany({ where: { tokenHash: hashResetToken(token) } });
 }
 
 /** Whether a link can still be used, for the reset page. Doesn't say why not. */

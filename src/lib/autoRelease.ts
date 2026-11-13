@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, withRetry } from "@/lib/email";
 import { autoReleasedCoachEmail, autoReleasedParentEmail, bookingNeedsAdminEmail } from "@/lib/emails";
 import { emailAdmins } from "@/lib/notify";
 import { captureHeldPayment, classifyStripeFailure } from "@/lib/payment";
@@ -98,8 +98,13 @@ export async function runAutoReleaseJob(log: JobLog, now: Date) {
     await settleReferralAfterCompletion(b.id);
     log.ok("auto-completed and charged");
 
-    const parent = await sendEmail(autoReleasedParentEmail({ to: b.parentProfile.user.email, coachName: b.coachProfile.user.name }));
-    const coach = await sendEmail(autoReleasedCoachEmail({ to: b.coachProfile.user.email, scheduledAt: b.scheduledAt }));
+    // Retry recipes only (src/lib/emailRetry.ts); nothing here changes.
+    const parent = await sendEmail(
+      withRetry(autoReleasedParentEmail({ to: b.parentProfile.user.email, coachName: b.coachProfile.user.name }), { kind: "AUTO_RELEASED_PARENT", ref: b.id }),
+    );
+    const coach = await sendEmail(
+      withRetry(autoReleasedCoachEmail({ to: b.coachProfile.user.email, scheduledAt: b.scheduledAt }), { kind: "AUTO_RELEASED_COACH", ref: b.id }),
+    );
     if (parent.status === "failed" || coach.status === "failed") log.fail(`booking ${b.id}`, "an auto-release email wasn't sent");
   });
 }

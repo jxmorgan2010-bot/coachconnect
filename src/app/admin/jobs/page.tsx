@@ -8,7 +8,8 @@ import { formatPacificDateTime } from "@/lib/sessionTiming";
 import { bookingChargeCents } from "@/lib/cancellation";
 import { holdFixDeadline } from "@/lib/holdTiming";
 import { JOB_LABELS, JOB_SLUGS, NOTHING_DUE, type JobName } from "@/lib/jobs/runLog";
-import { ClearFlagButton, ReviewReplacementButton, RunJobButton } from "./JobButtons";
+import { isRetryKind, RETRY_KIND_LABELS } from "@/lib/emailRetry";
+import { ClearFlagButton, EmailFailureButtons, ReviewReplacementButton, RunJobButton } from "./JobButtons";
 
 type Replacement = {
   id: string;
@@ -39,6 +40,45 @@ function ReplacementDetail({ r }: { r: Replacement }) {
           <dd className="break-words whitespace-pre-wrap text-ink">{r.sentText}</dd>
         </div>
       </dl>
+    </>
+  );
+}
+
+type Failure = {
+  id: string;
+  createdAt: Date;
+  toEmail: string;
+  subject: string;
+  reason: string;
+  retryKind: string | null;
+  retryCount: number;
+  lastRetryAt: Date | null;
+  lastRetryError: string | null;
+  resolution: string | null;
+  resolvedAt: Date | null;
+};
+
+/** An email that never went out: what, to whom, why, and any retries. */
+function FailureDetail({ f }: { f: Failure }) {
+  return (
+    <>
+      <p className="font-bold break-words text-ink">&ldquo;{f.subject}&rdquo;</p>
+      <p className="text-sm break-words text-muted-foreground">
+        {formatPacificDateTime(f.createdAt)} · to {f.toEmail}
+        {isRetryKind(f.retryKind) && ` · ${RETRY_KIND_LABELS[f.retryKind]}`}
+      </p>
+      <p className="text-sm break-words text-ink">
+        <span className="font-bold">Why:</span> {f.reason}
+      </p>
+      {f.retryCount > 0 && f.lastRetryAt && (
+        <p className="text-sm break-words text-ink">
+          <span className="font-bold">
+            Retried {f.retryCount} {f.retryCount === 1 ? "time" : "times"}, last {formatPacificDateTime(f.lastRetryAt)}
+            {f.lastRetryError ? ":" : "."}
+          </span>{" "}
+          {f.lastRetryError}
+        </p>
+      )}
     </>
   );
 }
@@ -102,7 +142,7 @@ export default async function AdminJobsPage() {
   // Three jobs on that schedule is 140 or more runs a day, nearly all "Nothing due.", so only runs that
   // did something or failed are listed; "Last good run" above shows the quiet ones are happening.
   const quiet = { status: "OK", succeeded: 0, summary: NOTHING_DUE };
-  const [runs, quietCount, lastGood, flagged, waitingOnParent, overdueHolds, overdueReleases, toReview, reviewed] = await Promise.all([
+  const [runs, quietCount, lastGood, flagged, waitingOnParent, overdueHolds, overdueReleases, toReview, reviewed, failures, resolvedFailures] = await Promise.all([
     prisma.jobRun.findMany({ where: { NOT: quiet }, orderBy: { startedAt: "desc" }, take: 40 }),
     prisma.jobRun.count({ where: quiet }),
     Promise.all(
@@ -140,6 +180,8 @@ export default async function AdminJobsPage() {
     }),
     prisma.emailTextReplacement.findMany({ where: { reviewedAt: null }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.emailTextReplacement.findMany({ where: { reviewedAt: { not: null } }, orderBy: { reviewedAt: "desc" }, take: 10 }),
+    prisma.emailSendFailure.findMany({ where: { resolvedAt: null }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.emailSendFailure.findMany({ where: { resolvedAt: { not: null } }, orderBy: { resolvedAt: "desc" }, take: 10 }),
   ]);
   // Exact check on the session's end, as the job does, plus an hour's slack.
   const lateReleases = overdueReleases.filter(
@@ -228,9 +270,35 @@ export default async function AdminJobsPage() {
           )}
         </section>
 
-        <section aria-labelledby="email-replacements">
-          <SectionTitle id="email-replacements" title="Emails sent with text removed" count={toReview.length} />
-          <p className="-mt-1 mb-3 text-sm text-muted-foreground">
+        <section aria-labelledby="email-problems">
+          <SectionTitle id="email-problems" title="Email problems" count={failures.length + toReview.length} />
+
+          <h3 id="emails-not-sent" className="mb-1 text-base font-bold text-ink">
+            Not sent <span className="ml-1 text-sm text-muted-foreground">{failures.length}</span>
+          </h3>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Resend rejected these or couldn&apos;t be reached, or the email key is missing in production. Retry rebuilds the
+            email from the booking or account as it is now, and won&apos;t send one that&apos;s no longer right (a password reset
+            gets a new link). If Resend did deliver but didn&apos;t answer, a retry sends it twice.
+          </p>
+          {failures.length === 0 ? (
+            <Empty>Every email has gone out.</Empty>
+          ) : (
+            <ul className="flex flex-col gap-3" aria-labelledby="emails-not-sent">
+              {failures.map((f) => (
+                <li key={f.id} className="card flex flex-col items-start gap-2 p-4 sm:p-5">
+                  <Badge variant="danger">Not sent</Badge>
+                  <FailureDetail f={f} />
+                  <EmailFailureButtons id={f.id} canRetry={isRetryKind(f.retryKind)} lastRetryError={f.lastRetryError} />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h3 id="emails-text-removed" className="mt-8 mb-1 text-base font-bold text-ink">
+            Sent with text removed <span className="ml-1 text-sm text-muted-foreground">{toReview.length}</span>
+          </h3>
+          <p className="mb-3 text-sm text-muted-foreground">
             When part of an email matches the contact-info filter, only that text is replaced with [removed] and the email
             still goes out. Check each one: a person may have typed contact details, or an email&apos;s own wording may need
             fixing.
@@ -248,14 +316,23 @@ export default async function AdminJobsPage() {
               ))}
             </ul>
           )}
-          {reviewed.length > 0 && (
+          {reviewed.length + resolvedFailures.length > 0 && (
             <details className="mt-3">
               <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-bold text-ink">
-                Recently reviewed ({reviewed.length})
+                Recently resolved ({reviewed.length + resolvedFailures.length})
               </summary>
               <ul className="mt-2 flex flex-col gap-2">
+                {resolvedFailures.map((f) => (
+                  <li key={f.id} className="card-flat flex flex-col items-start gap-2 p-3 sm:p-4">
+                    <Badge variant={f.resolution === "RESENT" ? "success" : "neutral"}>
+                      {f.resolution === "RESENT" ? "Resent" : "Not sent, marked reviewed"} {formatPacificDateTime(f.resolvedAt!)}
+                    </Badge>
+                    <FailureDetail f={f} />
+                  </li>
+                ))}
                 {reviewed.map((r) => (
                   <li key={r.id} className="card-flat flex flex-col items-start gap-2 p-3 sm:p-4">
+                    <Badge variant="neutral">Text removed, reviewed</Badge>
                     <ReplacementDetail r={r} />
                   </li>
                 ))}

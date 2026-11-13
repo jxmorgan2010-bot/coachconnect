@@ -4,7 +4,7 @@ import { getCurrentSession } from "@/lib/session";
 import { enforceContactPolicy } from "@/lib/contactPolicy";
 import { noShowSchema } from "@/lib/validation";
 import { cancelPaymentIntent } from "@/lib/payment";
-import { queueEmail } from "@/lib/email";
+import { queueEmail, withRetry } from "@/lib/email";
 import { noShowCoachEmail, noShowParentEmail } from "@/lib/emails";
 import { notifyRefundRequest } from "@/lib/notify";
 import { canReportNoShow, formatPacificTime, noShowOpensAt, NO_SHOW_GRACE_MINUTES } from "@/lib/sessionTiming";
@@ -102,8 +102,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ]);
   }
 
-  queueEmail(noShowParentEmail({ to: booking.parentProfile.user.email, coachName: booking.coachProfile.user.name }));
-  queueEmail(noShowCoachEmail({ to: booking.coachProfile.user.email, scheduledAt: booking.scheduledAt }));
+  queueEmail(
+    withRetry(noShowParentEmail({ to: booking.parentProfile.user.email, coachName: booking.coachProfile.user.name }), { kind: "NO_SHOW_PARENT", ref: booking.id }),
+  );
+  queueEmail(
+    withRetry(noShowCoachEmail({ to: booking.coachProfile.user.email, scheduledAt: booking.scheduledAt }), { kind: "NO_SHOW_COACH", ref: booking.id }),
+  );
   notifyRefundRequest("NO_SHOW");
 
   return NextResponse.json({ ok: true });

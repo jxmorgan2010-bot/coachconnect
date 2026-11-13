@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { canDeliverTo, firstName, renderHtml, renderText, safeText, sendEmail, type Email } from "./email";
+import { canDeliverTo, firstName, renderHtml, renderText, safeText, sendEmail, withRetry, type Email } from "./email";
 import { siteLink, siteUrl } from "./siteUrl";
 
 const ENV_KEYS = ["RESEND_API_KEY", "EMAIL_FROM", "VERCEL_ENV", "VERCEL_URL", "SITE_URL"] as const;
@@ -156,4 +156,59 @@ test("an email whose text trips the contact filter is still sent, with only that
   assert.ok(body!.text.includes("[removed]") && !body!.text.includes("415-555-0123"));
   assert.ok(!logs.join("\n").includes("415-555-0123"), "the matched text itself isn't logged");
   assert.ok(logs.join("\n").includes("Replaced text"), "the replacement is logged");
+});
+
+// ---------------------------------------------------------------- failed sends (fix/email-send-failures)
+
+test("production with no key or sender: a failure with a reason, never a silent log", async () => {
+  process.env.VERCEL_ENV = "production";
+  globalThis.fetch = (() => assert.fail("must not call Resend without a key")) as typeof fetch;
+  const result = await sendEmail(sample, { record: false });
+  assert.deepEqual(result, { status: "failed", reason: "RESEND_API_KEY or EMAIL_FROM not set in production" });
+  assert.ok(!logs.join("\n").includes("SECRET_TOKEN"));
+
+  process.env.RESEND_API_KEY = "re_test_dummy"; // key but no sender
+  assert.equal((await sendEmail(sample, { record: false })).status, "failed");
+});
+
+test("outside production, no key is still just a log line", async () => {
+  process.env.VERCEL_ENV = "preview";
+  globalThis.fetch = (() => assert.fail("must not call Resend without a key")) as typeof fetch;
+  assert.equal((await sendEmail(sample, { record: false })).status, "logged");
+});
+
+test("Resend rejection: the reason has the status and error name, never the message or links", async () => {
+  process.env.RESEND_API_KEY = "re_test_dummy";
+  process.env.EMAIL_FROM = "Assist Coaching <noreply@send.getassistcoaching.com>";
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ name: "validation_error", message: "bad https://getassistcoaching.com/reset-password/SECRET_TOKEN_abc123" }), {
+      status: 401,
+    })) as typeof fetch;
+  const result = await sendEmail(sample, { record: false });
+  assert.deepEqual(result, { status: "failed", reason: "Resend rejected it (401 validation_error)" });
+});
+
+test("Resend unreachable: the reason names the error type only", async () => {
+  process.env.RESEND_API_KEY = "re_test_dummy";
+  process.env.EMAIL_FROM = "Assist Coaching <noreply@send.getassistcoaching.com>";
+  globalThis.fetch = (async () => {
+    throw new TypeError("fetch failed: getaddrinfo ENOTFOUND api.resend.com");
+  }) as typeof fetch;
+  const result = await sendEmail(sample, { record: false });
+  assert.deepEqual(result, { status: "failed", reason: "Couldn't reach Resend (TypeError)" });
+});
+
+test("a retry recipe is never sent to Resend", async () => {
+  process.env.RESEND_API_KEY = "re_test_dummy";
+  process.env.EMAIL_FROM = "Assist Coaching <noreply@send.getassistcoaching.com>";
+  let body: Record<string, unknown> | null = null;
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    body = JSON.parse(String(init.body));
+    return new Response(JSON.stringify({ id: "email_7" }), { status: 200 });
+  }) as typeof fetch;
+  const email = withRetry(sample, { kind: "PASSWORD_RESET", ref: "user_1" });
+  assert.deepEqual(email.retry, { kind: "PASSWORD_RESET", ref: "user_1" });
+  assert.equal((await sendEmail(email)).status, "sent");
+  assert.deepEqual(Object.keys(body!).sort(), ["from", "html", "subject", "text", "to"]);
+  assert.ok(!JSON.stringify(body).includes("user_1"));
 });

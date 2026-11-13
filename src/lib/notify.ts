@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { later, sendEmail, type Email } from "@/lib/email";
+import { later, sendEmail, withRetry, type Email } from "@/lib/email";
 import {
   bookingConfirmedParentEmail,
   bookingNewCoachEmail,
@@ -33,10 +33,10 @@ const bookingInclude = {
   package: true,
 } as const;
 
-async function loadBooking(bookingId: string) {
+export async function loadBooking(bookingId: string) {
   return prisma.booking.findUnique({ where: { id: bookingId }, include: bookingInclude });
 }
-type LoadedBooking = NonNullable<Awaited<ReturnType<typeof loadBooking>>>;
+export type LoadedBooking = NonNullable<Awaited<ReturnType<typeof loadBooking>>>;
 
 function bookingFacts(b: LoadedBooking): BookingFacts {
   return {
@@ -59,15 +59,47 @@ function bookingFacts(b: LoadedBooking): BookingFacts {
 
 // ---------------------------------------------------------------- bookings
 
+// The builders below are shared by the notify* functions and by admin retries
+// (src/lib/emailRetry.ts), so a resent email is built exactly like the original. Each carries its
+// retry recipe.
+
+export function bookingConfirmedParentFor(b: LoadedBooking): Email {
+  return withRetry(
+    withCalendar(bookingConfirmedParentEmail(b.parentProfile.user.email, bookingFacts(b)), toCalendarSession(b), "PARENT"),
+    { kind: "BOOKING_CONFIRMED_PARENT", ref: b.id },
+  );
+}
+
+export function bookingNewCoachFor(b: LoadedBooking): Email {
+  return withRetry(
+    withCalendar(bookingNewCoachEmail(b.coachProfile.user.email, bookingFacts(b)), toCalendarSession(b), "COACH"),
+    { kind: "BOOKING_NEW_COACH", ref: b.id },
+  );
+}
+
+export function parentCancelledFor(b: LoadedBooking, audience: "PARENT" | "COACH", outcome: ParentCancelOutcome, stripeOk: boolean): Email {
+  const facts = { ...bookingFacts(b), outcome, stripeOk };
+  const params = { outcome, stripeOk };
+  return audience === "PARENT"
+    ? withRetry(parentCancelledParentEmail(b.parentProfile.user.email, facts), { kind: "PARENT_CANCELLED_PARENT", ref: b.id, params })
+    : withRetry(parentCancelledCoachEmail(b.coachProfile.user.email, facts), { kind: "PARENT_CANCELLED_COACH", ref: b.id, params });
+}
+
+export function coachCancelledParentFor(b: LoadedBooking, stripeOk: boolean): Email {
+  return withRetry(coachCancelledParentEmail(b.parentProfile.user.email, { ...bookingFacts(b), stripeOk }), {
+    kind: "COACH_CANCELLED_PARENT",
+    ref: b.id,
+    params: { stripeOk },
+  });
+}
+
 /** A new booking (regular, package or quick rebook): confirmation to the parent, heads-up to the coach. */
 export function notifyBookingCreated(bookingId: string): void {
   later(async () => {
     const b = await loadBooking(bookingId);
     if (!b) return;
-    const facts = bookingFacts(b);
-    const session = toCalendarSession(b);
-    await sendEmail(withCalendar(bookingConfirmedParentEmail(b.parentProfile.user.email, facts), session, "PARENT"));
-    await sendEmail(withCalendar(bookingNewCoachEmail(b.coachProfile.user.email, facts), session, "COACH"));
+    await sendEmail(bookingConfirmedParentFor(b));
+    await sendEmail(bookingNewCoachFor(b));
   });
 }
 
@@ -75,9 +107,8 @@ export function notifyParentCancelled(bookingId: string, outcome: ParentCancelOu
   later(async () => {
     const b = await loadBooking(bookingId);
     if (!b) return;
-    const facts = { ...bookingFacts(b), outcome, stripeOk };
-    await sendEmail(parentCancelledParentEmail(b.parentProfile.user.email, facts));
-    await sendEmail(parentCancelledCoachEmail(b.coachProfile.user.email, facts));
+    await sendEmail(parentCancelledFor(b, "PARENT", outcome, stripeOk));
+    await sendEmail(parentCancelledFor(b, "COACH", outcome, stripeOk));
   });
 }
 
@@ -85,7 +116,7 @@ export function notifyCoachCancelled(bookingId: string, stripeOk: boolean): void
   later(async () => {
     const b = await loadBooking(bookingId);
     if (!b) return;
-    await sendEmail(coachCancelledParentEmail(b.parentProfile.user.email, { ...bookingFacts(b), stripeOk }));
+    await sendEmail(coachCancelledParentFor(b, stripeOk));
   });
 }
 
@@ -94,43 +125,55 @@ export type RefundNotice =
   | { kind: "LATE_CANCEL_WAIVER"; bookingId: string; amountCents: number; sessionsReturned: number }
   | { kind: "PACKAGE_UNUSED"; packageId: string; amountCents: number; sessions: number };
 
+/** The refund email for a notice, or null if its booking or package is gone. */
+export async function refundIssuedFor(r: RefundNotice): Promise<Email | null> {
+  const { kind, amountCents } = r;
+  if (r.kind === "PACKAGE_UNUSED") {
+    const pkg = await prisma.sessionPackage.findUnique({
+      where: { id: r.packageId },
+      include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } } },
+    });
+    if (!pkg) return null;
+    return withRetry(
+      refundIssuedEmail(pkg.parentProfile.user.email, {
+        kind: "PACKAGE_UNUSED",
+        amountCents,
+        sessions: r.sessions,
+        coachName: pkg.coachProfile.user.name,
+      }),
+      { kind: "REFUND_ISSUED", ref: r.packageId, params: { kind, amountCents, sessions: r.sessions } },
+    );
+  }
+  const b = await loadBooking(r.bookingId);
+  if (!b) return null;
+  const base = { coachName: b.coachProfile.user.name, scheduledAt: b.scheduledAt };
+  return withRetry(
+    refundIssuedEmail(
+      b.parentProfile.user.email,
+      r.kind === "REFUND"
+        ? { kind: "REFUND", amountCents, ...base }
+        : {
+            kind: "LATE_CANCEL_WAIVER",
+            amountCents,
+            sessionsReturned: r.sessionsReturned,
+            // waiveLateCancel returns referral credit spent on a non-package booking.
+            creditReturnedCents: !b.packageId && b.discountCents > 0 ? b.discountCents : 0,
+            ...base,
+          },
+    ),
+    {
+      kind: "REFUND_ISSUED",
+      ref: r.bookingId,
+      params: r.kind === "REFUND" ? { kind, amountCents } : { kind, amountCents, sessionsReturned: r.sessionsReturned },
+    },
+  );
+}
+
 /** Sent after an admin refund, waiver or unused-package refund has gone through. */
 export function notifyRefundIssued(r: RefundNotice): void {
   later(async () => {
-    if (r.kind === "PACKAGE_UNUSED") {
-      const pkg = await prisma.sessionPackage.findUnique({
-        where: { id: r.packageId },
-        include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } } },
-      });
-      if (!pkg) return;
-      await sendEmail(
-        refundIssuedEmail(pkg.parentProfile.user.email, {
-          kind: "PACKAGE_UNUSED",
-          amountCents: r.amountCents,
-          sessions: r.sessions,
-          coachName: pkg.coachProfile.user.name,
-        }),
-      );
-      return;
-    }
-    const b = await loadBooking(r.bookingId);
-    if (!b) return;
-    const base = { coachName: b.coachProfile.user.name, scheduledAt: b.scheduledAt };
-    await sendEmail(
-      refundIssuedEmail(
-        b.parentProfile.user.email,
-        r.kind === "REFUND"
-          ? { kind: "REFUND", amountCents: r.amountCents, ...base }
-          : {
-              kind: "LATE_CANCEL_WAIVER",
-              amountCents: r.amountCents,
-              sessionsReturned: r.sessionsReturned,
-              // waiveLateCancel returns referral credit spent on a non-package booking.
-              creditReturnedCents: !b.packageId && b.discountCents > 0 ? b.discountCents : 0,
-              ...base,
-            },
-      ),
-    );
+    const email = await refundIssuedFor(r);
+    if (email) await sendEmail(email);
   });
 }
 
