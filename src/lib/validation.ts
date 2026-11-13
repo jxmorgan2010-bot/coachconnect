@@ -5,6 +5,7 @@ import { SKILL_LEVELS } from "@/lib/skillLevels";
 import { BAY_AREA_CITIES, isBayAreaZip } from "@/lib/bayArea";
 import { PUBLIC_PLACE_REQUIRED } from "@/lib/sessionPlace";
 import { parseCalendarDate, compareCalendarDates, todayInPacific } from "@/lib/age";
+import { gradYearOptions } from "@/lib/teenInterest";
 import { CERTIFICATIONS_MAX, MAX_YEARS_COACHING, PLAYING_HISTORY_MAX } from "@/lib/coachTypes";
 import {
   ACCOMMODATION_NOTE_MAX,
@@ -296,6 +297,30 @@ export const waitlistSchema = z.object({
   email: z.email("Please enter a valid email address."),
   zip: z.string().trim().min(5, "Enter a 5-digit zip code.").max(10),
   role: z.enum(["PARENT", "COACH"]).optional(),
+});
+
+/** Teen interest list (src/lib/teenInterest.ts). The date of birth is checked, then only the date they turn 18 is kept. */
+export const teenInterestSchema = z.object({
+  firstName: z.string().trim().min(1, "Enter your first name.").max(50, "Keep your first name under 50 characters."),
+  email: z.email("Please enter a valid email address."),
+  dateOfBirth: coachRegisterSchema.shape.dateOfBirth,
+  sports: z
+    .array(z.enum(SPORTS as [string, ...string[]]))
+    .min(1, "Pick at least one sport.")
+    .transform((sports) => sports as Sport[]),
+  school: z.string().trim().min(2, "Enter your school.").max(100, "Keep the school name under 100 characters."),
+  gradYear: z.coerce
+    .number({ error: "Choose your graduation year." })
+    .int("Choose your graduation year.")
+    .refine(
+      (year) => gradYearOptions(todayInPacific().year).includes(year),
+      "Choose your graduation year.",
+    ),
+  // A blank box means none given.
+  parentEmail: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.email("Enter a valid parent or guardian email, or leave it blank.").optional(),
+  ),
 });
 
 export const loginSchema = z.object({

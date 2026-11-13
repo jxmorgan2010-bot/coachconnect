@@ -3,8 +3,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { coachRegisterSchema } from "@/lib/validation";
 import { evaluateCoachAgeEligibility } from "@/lib/coach";
-import { calendarDateToStoredDate } from "@/lib/age";
+import { calendarDateToStoredDate, describeCalendarDate, todayInPacific } from "@/lib/age";
 import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
+import { ENABLE_MINOR_COACHES } from "@/lib/flags";
+import { isTeenInterestAge, turns18OnFor } from "@/lib/teenInterest";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -28,7 +30,17 @@ export async function POST(req: Request) {
   // shows them as such.
   const eligibility = evaluateCoachAgeEligibility(dateOfBirth, { coachType });
   if (!eligibility.ok) {
-    return NextResponse.json({ error: eligibility.reason, code: eligibility.code }, { status: 422 });
+    // 16–17 while the Minor Coach tier is off: signup offers the teen interest list instead
+    // (src/lib/teenInterest.ts). Still nothing is saved here.
+    const interestList = isTeenInterestAge(dateOfBirth, todayInPacific(), ENABLE_MINOR_COACHES);
+    return NextResponse.json(
+      {
+        error: eligibility.reason,
+        code: eligibility.code,
+        ...(interestList ? { interestList: true, turns18On: describeCalendarDate(turns18OnFor(dateOfBirth)) } : {}),
+      },
+      { status: 422 },
+    );
   }
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
