@@ -6,7 +6,11 @@ import {
   validateBookingRequest,
   validatePackageBookingRequest,
   createConfirmedBooking,
+  assertChildFree,
+  isBookingConflict,
   BookingValidationError,
+  ChildBusyError,
+  CHILD_BUSY,
 } from "@/lib/bookingValidation";
 import { generateMockVideoCallUrl } from "@/lib/videoCall";
 import { rangesOverlap } from "@/lib/bookingConflicts";
@@ -109,11 +113,13 @@ export async function POST(req: Request) {
     holdDueAt: holdDue,
   });
 
-  if (!booking) {
+  if (isBookingConflict(booking)) {
     if (stripePaymentIntentId) {
       await getStripe().paymentIntents.cancel(stripePaymentIntentId).catch(() => {});
     }
-    return NextResponse.json({ error: "That time was just booked by someone else. Pick another time." }, { status: 409 });
+    return booking.conflict === CHILD_BUSY
+      ? NextResponse.json({ error: booking.message, code: CHILD_BUSY }, { status: 409 })
+      : NextResponse.json({ error: "That time was just booked by someone else. Pick another time." }, { status: 409 });
   }
 
   notifyBookingCreated(booking.id);
@@ -164,6 +170,8 @@ async function handlePackageBooking(
     if (stillActive.some((b) => rangesOverlap(data.scheduledAt, pkg.durationMinutes, b.scheduledAt, b.durationMinutes))) {
       throw new Error("CONFLICT");
     }
+    // The child's other sessions with any coach, re-checked inside the write.
+    await assertChildFree(tx, data.childId, data.scheduledAt, pkg.durationMinutes);
 
     const created = await tx.booking.create({
       data: {
@@ -204,12 +212,16 @@ async function handlePackageBooking(
 
     return { ...created, videoCallUrl };
   }).catch((err) => {
+    if (err instanceof ChildBusyError) return { childBusy: err.message };
     if (err instanceof Error && err.message === "CONFLICT") return null;
     throw err;
   });
 
   if (!booking) {
     return NextResponse.json({ error: "That time was just booked by someone else. Pick another time." }, { status: 409 });
+  }
+  if ("childBusy" in booking) {
+    return NextResponse.json({ error: booking.childBusy, code: CHILD_BUSY }, { status: 409 });
   }
 
   notifyBookingCreated(booking.id);

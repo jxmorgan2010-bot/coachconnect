@@ -201,7 +201,7 @@ test("createConfirmedBooking stores the child's level on the booking", async () 
     stripePaymentIntentId: `pi_test_${randomUUID()}`,
     stripePaymentMethodId: null,
   });
-  assert.ok(booking);
+  assert.ok(!("conflict" in booking), "no conflict");
   assert.equal((await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } })).childLevel, "BEGINNER");
 });
 

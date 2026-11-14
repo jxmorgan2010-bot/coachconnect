@@ -9,7 +9,8 @@ import { enforceContactPolicy, rejectIfSuspended, ACCOUNT_SUSPENDED_MESSAGE } fr
 import { SKILL_LEVEL_LABELS, levelsFromFlags, listLevels } from "@/lib/skillLevels";
 import { SPORT_LABELS } from "@/lib/sports";
 import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
-import type { Child, ParentProfile, SkillLevel, Sport } from "@/generated/prisma/client";
+import { formatPacificDateTime } from "@/lib/sessionTiming";
+import type { Child, ParentProfile, Prisma, SkillLevel, Sport } from "@/generated/prisma/client";
 
 export class BookingValidationError extends Error {
   status: number;
@@ -19,6 +20,66 @@ export class BookingValidationError extends Error {
     super(message);
     this.status = status;
     this.code = code;
+  }
+}
+
+/** The child already has an overlapping session, with any coach. */
+export const CHILD_BUSY = "CHILD_BUSY";
+export const CHILD_BUSY_NEXT_STEP = "Pick another time.";
+
+/** "Alex already has a session then: Soccer with Priya Shah, Nov 15, 1:00 PM PT. Pick another time." */
+export function childBusyMessage(clash: { childFirstName: string | null; sport: Sport; coachName: string; scheduledAt: Date }): string {
+  const who = clash.childFirstName?.trim() || "Your child";
+  return `${who} already has a session then: ${SPORT_LABELS[clash.sport]} with ${clash.coachName}, ${formatPacificDateTime(clash.scheduledAt)}. ${CHILD_BUSY_NEXT_STEP}`;
+}
+
+export class ChildBusyError extends BookingValidationError {
+  constructor(message: string) {
+    super(message, 409, CHILD_BUSY);
+  }
+}
+
+// Bookings are never longer than this, so a session that started more than this long before the
+// requested start can't overlap it. Only narrows the query; the overlap test is exact.
+const LONGEST_SESSION_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Rejects a booking when the same child already has a non-cancelled session, with any coach, that
+ * overlaps it (back-to-back is fine). Runs during validation, before any card is touched, and again
+ * inside the booking's write transaction (pass the transaction) to close the race window.
+ */
+export async function assertChildFree(
+  db: Pick<Prisma.TransactionClient, "booking">,
+  childId: string,
+  scheduledAt: Date,
+  durationMinutes: number,
+): Promise<void> {
+  const end = new Date(scheduledAt.getTime() + durationMinutes * 60_000);
+  const nearby = await db.booking.findMany({
+    where: {
+      childId,
+      status: SLOT_HOLDING_STATUS_FILTER,
+      scheduledAt: { gt: new Date(scheduledAt.getTime() - LONGEST_SESSION_MS), lt: end },
+    },
+    select: {
+      scheduledAt: true,
+      durationMinutes: true,
+      sport: true,
+      child: { select: { firstName: true } },
+      coachProfile: { select: { user: { select: { name: true } } } },
+    },
+    orderBy: { scheduledAt: "asc" },
+  });
+  const clash = nearby.find((b) => rangesOverlap(scheduledAt, durationMinutes, b.scheduledAt, b.durationMinutes));
+  if (clash) {
+    throw new ChildBusyError(
+      childBusyMessage({
+        childFirstName: clash.child?.firstName ?? null,
+        sport: clash.sport,
+        coachName: clash.coachProfile.user.name,
+        scheduledAt: clash.scheduledAt,
+      }),
+    );
   }
 }
 
@@ -71,6 +132,7 @@ export async function validateBookingRequest(parentProfile: ParentProfile, data:
   await assertSecondAdultNamed(coach, parentProfile, data.secondAdultName);
 
   await assertSlotOpen(coach.id, data.scheduledAt, data.durationMinutes);
+  await assertChildFree(prisma, child.id, data.scheduledAt, data.durationMinutes);
 
   const breakdown = calculatePriceBreakdown(coach.hourlyRateCents, data.durationMinutes);
   const discountCents = Math.min(parentProfile.creditCents, breakdown.sessionCostCents);
@@ -129,6 +191,7 @@ export async function validatePackageBookingRequest(parentProfile: ParentProfile
   await assertSecondAdultNamed(pkg.coachProfile, parentProfile, data.secondAdultName);
 
   await assertSlotOpen(pkg.coachProfileId, data.scheduledAt, pkg.durationMinutes);
+  await assertChildFree(prisma, child.id, data.scheduledAt, pkg.durationMinutes);
 
   const breakdown = perSessionBreakdown(pkg.pricePerSessionCents, pkg.discountPercent);
   const isFirstSession = await isFirstSessionWithCoach(parentProfile.id, pkg.coachProfileId);
@@ -263,10 +326,13 @@ type CreateConfirmedBookingInput = {
  * Creates a normal (non-package) CONFIRMED booking backed by a Stripe hold — the
  * "insert row, decrement referral credit, generate a first-session video call link"
  * sequence shared by the ordinary booking flow (POST /api/bookings) and quick rebook
- * (POST /api/bookings/quick-rebook). Re-checks the conflict inside the transaction to
- * close the race window between validation and this write; returns null on conflict
- * rather than throwing, so callers can void any Stripe hold before responding.
+ * (POST /api/bookings/quick-rebook). Re-checks both conflicts (the coach's time, and the
+ * child's other sessions with any coach) inside the transaction to close the race window
+ * between validation and this write; returns a conflict rather than throwing, so callers can
+ * void any Stripe hold before responding.
  */
+export type CreateBookingConflict = { conflict: "SLOT_TAKEN" } | { conflict: typeof CHILD_BUSY; message: string };
+
 export async function createConfirmedBooking(input: CreateConfirmedBookingInput) {
   return prisma.$transaction(async (tx) => {
     const stillActive = await tx.booking.findMany({
@@ -276,6 +342,7 @@ export async function createConfirmedBooking(input: CreateConfirmedBookingInput)
     if (stillActive.some((b) => rangesOverlap(input.scheduledAt, input.durationMinutes, b.scheduledAt, b.durationMinutes))) {
       throw new Error("CONFLICT");
     }
+    await assertChildFree(tx, input.childId, input.scheduledAt, input.durationMinutes);
 
     const created = await tx.booking.create({
       data: {
@@ -315,8 +382,13 @@ export async function createConfirmedBooking(input: CreateConfirmedBookingInput)
     }
 
     return { ...created, videoCallUrl };
-  }).catch((err) => {
-    if (err instanceof Error && err.message === "CONFLICT") return null;
+  }).catch((err): CreateBookingConflict => {
+    if (err instanceof ChildBusyError) return { conflict: CHILD_BUSY, message: err.message };
+    if (err instanceof Error && err.message === "CONFLICT") return { conflict: "SLOT_TAKEN" };
     throw err;
   });
+}
+
+export function isBookingConflict(result: object): result is CreateBookingConflict {
+  return "conflict" in result;
 }
