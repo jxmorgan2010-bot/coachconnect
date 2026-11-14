@@ -5,9 +5,16 @@ import { quickRebookSchema } from "@/lib/validation";
 import {
   validateBookingRequest,
   createConfirmedBooking,
+  isBookingConflict,
   BookingValidationError,
   SECOND_ADULT_REQUIRED_MESSAGE,
+  CHILD_BUSY,
+  CHILD_BUSY_NEXT_STEP,
 } from "@/lib/bookingValidation";
+
+// Quick rebook picks the time itself, so the way forward is the form where the parent picks one.
+const rebookChildBusy = (message: string) =>
+  message.replace(CHILD_BUSY_NEXT_STEP, "Use the regular booking form to pick another time.");
 import { nextOccurrences } from "@/lib/rebook";
 import { chargeOffSessionHold, cancelPaymentIntent, STRIPE_MIN_CENTS } from "@/lib/payment";
 import { rangesOverlap } from "@/lib/bookingConflicts";
@@ -112,7 +119,9 @@ export async function POST(req: Request) {
       const message =
         err.message === SECOND_ADULT_REQUIRED_MESSAGE
           ? "This coach is under 18, so each session needs a second adult named. Use the regular booking form to add one."
-          : err.message;
+          : err.code === CHILD_BUSY
+            ? rebookChildBusy(err.message)
+            : err.message;
       // LEVEL_REQUIRED: the rebook button asks for the level inline, saves it, and retries.
       return NextResponse.json(
         { error: message, code: err.code, childId: priorBooking.childId, sport: priorBooking.sport },
@@ -182,11 +191,13 @@ export async function POST(req: Request) {
     bookedViaQuickRebook: true,
   });
 
-  if (!booking) {
+  if (isBookingConflict(booking)) {
     if (stripePaymentIntentId) {
       await cancelPaymentIntent(stripePaymentIntentId);
     }
-    return NextResponse.json({ error: "That time was just booked by someone else. Try the regular booking form." }, { status: 409 });
+    return booking.conflict === CHILD_BUSY
+      ? NextResponse.json({ error: rebookChildBusy(booking.message), code: CHILD_BUSY }, { status: 409 })
+      : NextResponse.json({ error: "That time was just booked by someone else. Try the regular booking form." }, { status: 409 });
   }
 
   notifyBookingCreated(booking.id);
