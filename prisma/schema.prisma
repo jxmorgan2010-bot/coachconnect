@@ -211,6 +211,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   calendarFeed        CalendarFeed?
   emailReplacementsReviewed EmailTextReplacement[] @relation("EmailTextReplacementReviewedBy")
+  emailFailuresResolved     EmailSendFailure[]     @relation("EmailSendFailureResolvedBy")
 }
 
 /// Text sendEmail() replaced because the contact-info filter matched it (src/lib/emailSafety.ts).
@@ -234,6 +235,33 @@ model EmailTextReplacement {
   reviewedBy   User?     @relation("EmailTextReplacementReviewedBy", fields: [reviewedById], references: [id])
 
   @@index([reviewedAt, createdAt])
+}
+
+/// An email that didn't go out at all (src/lib/emailFailureStore.ts): Resend rejected it or
+/// couldn't be reached, or the key/sender is missing in production. Never stores the key, the
+/// body or links; a retry rebuilds the email from the database (src/lib/emailRetry.ts).
+/// Added 2026-11-13 (prisma/sql/2026-11-13-email-send-failures.sql).
+model EmailSendFailure {
+  id             String    @id @default(cuid())
+  createdAt      DateTime  @default(now())
+  toEmail        String
+  subject        String
+  reason         String
+  // Null: can't be retried, only marked reviewed. retryRef is a User, Booking or SessionPackage id.
+  retryKind      String?
+  retryRef       String?
+  // Small JSON of non-content values (e.g. {"stripeOk":true}).
+  retryParams    String?
+  retryCount     Int       @default(0)
+  lastRetryAt    DateTime?
+  lastRetryError String?
+  // "RESENT" or "REVIEWED".
+  resolution     String?
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolvedBy     User?     @relation("EmailSendFailureResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([resolvedAt, createdAt])
 }
 
 /// A private calendar feed (src/lib/calendarFeed.ts). The link carries a random secret; only its

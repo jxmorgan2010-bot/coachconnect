@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { errorClass, secondaryButtonClass, successClass } from "@/lib/ui";
+import { errorClass, primaryButtonClass, secondaryButtonClass, successClass } from "@/lib/ui";
 
 /** Runs one job now (POST /api/admin/jobs/[slug]), logged with trigger ADMIN. */
 export function RunJobButton({ slug, label }: { slug: string; label: string }) {
@@ -92,6 +92,48 @@ export function ReviewReplacementButton({ id }: { id: string }) {
         {loading ? "Saving..." : "Mark reviewed"}
       </button>
       {error && <p className={errorClass}>{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * For an email that never went out: Retry (POST /api/admin/email-failures/[id]/retry) when it can
+ * be rebuilt, and Mark reviewed (.../review) either way.
+ */
+export function EmailFailureButtons({ id, canRetry, lastRetryError }: { id: string; canRetry: boolean; lastRetryError: string | null }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<"retry" | "review" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function post(action: "retry" | "review") {
+    setBusy(action);
+    setError(null);
+    const res = await fetch(`/api/admin/email-failures/${id}/${action}`, { method: "POST" }).catch(() => null);
+    const data = await res?.json().catch(() => ({}));
+    setBusy(null);
+    if (!res?.ok) setError(data?.error ?? "Something went wrong.");
+    // Refresh either way: a failed retry updates the row's last error and count.
+    router.refresh();
+  }
+
+  return (
+    <div className="flex w-full flex-col items-start gap-2">
+      <div className="flex flex-wrap gap-2">
+        {canRetry && (
+          <button type="button" onClick={() => post("retry")} className={primaryButtonClass} disabled={busy !== null}>
+            {busy === "retry" ? "Sending..." : "Retry"}
+          </button>
+        )}
+        <button type="button" onClick={() => post("review")} className={secondaryButtonClass} disabled={busy !== null}>
+          {busy === "review" ? "Saving..." : "Mark reviewed"}
+        </button>
+      </div>
+      {/* A failed retry's reason is saved and shown in the row above after the refresh; don't repeat it */}
+      {error && error !== lastRetryError && (
+        <p role="alert" className={errorClass}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

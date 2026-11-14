@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { forgotPasswordSchema } from "@/lib/validation";
 import { requestPasswordReset, resetLink } from "@/lib/passwordReset";
 import { clientIp } from "@/lib/minorConsent";
-import { later, sendEmail } from "@/lib/email";
+import { later, sendEmail, withRetry } from "@/lib/email";
 import { passwordResetEmail } from "@/lib/emails";
 
 /**
@@ -20,7 +20,13 @@ export async function POST(req: Request) {
   later(async () => {
     const outcome = await requestPasswordReset({ email: parsed.data.email, ip });
     if (outcome.status === "SENT") {
-      await sendEmail(passwordResetEmail({ to: outcome.user.email, name: outcome.user.name, link: resetLink(outcome.token) }));
+      // An admin retry makes a new link (src/lib/emailRetry.ts): only this one's hash is stored.
+      await sendEmail(
+        withRetry(passwordResetEmail({ to: outcome.user.email, name: outcome.user.name, link: resetLink(outcome.token) }), {
+          kind: "PASSWORD_RESET",
+          ref: outcome.user.id,
+        }),
+      );
     } else if (outcome.status !== "NO_ACCOUNT") {
       console.log(`[password reset] request not sent: ${outcome.status}`);
     }

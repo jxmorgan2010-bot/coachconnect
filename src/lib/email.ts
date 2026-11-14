@@ -16,6 +16,10 @@ import { makeEmailSafe, type TextReplacement } from "@/lib/emailSafety";
  *   user-typed values through safeText(); sendEmail() checks the finished text again and replaces
  *   only what slipped through (src/lib/emailSafety.ts), records it for admins, and still sends.
  *   An email is never dropped for its content.
+ * - An email that doesn't go out at all (Resend rejects it or can't be reached, or the key or sender
+ *   is missing in production) is recorded for admins under "Email problems" on /admin/jobs
+ *   (src/lib/emailFailureStore.ts), without its body or links. Emails built with withRetry() can be
+ *   resent from there (src/lib/emailRetry.ts).
  * - No open or click tracking: no pixels, no rewritten links. (Resend's own tracking is a domain
  *   setting and must stay off in the Resend dashboard.)
  */
@@ -37,9 +41,42 @@ export type Email = {
    * src/lib/emails.ts). Not sent: sendEmail() records it for admins.
    */
   replaced?: TextReplacement[];
+  /**
+   * How to rebuild this email if it fails to send (src/lib/emailRetry.ts). Not sent. Only ids and
+   * small values: the email itself is never stored.
+   */
+  retry?: RetryRecipe;
 };
 
-export type SendResult = { status: "sent"; id: string } | { status: "logged" | "suppressed" | "failed" };
+/** Emails an admin can resend from "Email problems" on /admin/jobs. */
+export const RETRY_KINDS = [
+  "PASSWORD_RESET",
+  "BOOKING_CONFIRMED_PARENT",
+  "BOOKING_NEW_COACH",
+  "PARENT_CANCELLED_PARENT",
+  "PARENT_CANCELLED_COACH",
+  "COACH_CANCELLED_PARENT",
+  "REFUND_ISSUED",
+  "REMINDER_PARENT",
+  "REMINDER_COACH",
+  "HOLD_FAILED_PARENT",
+  "HOLD_NOT_FIXED_PARENT",
+  "HOLD_NOT_FIXED_COACH",
+  "NO_SHOW_PARENT",
+  "NO_SHOW_COACH",
+  "AUTO_RELEASED_PARENT",
+  "AUTO_RELEASED_COACH",
+] as const;
+export type RetryKind = (typeof RETRY_KINDS)[number];
+
+/** ref is a User id (PASSWORD_RESET), a SessionPackage id (unused-package refund) or a Booking id. */
+export type RetryRecipe = { kind: RetryKind; ref: string; params?: Record<string, string | number | boolean> };
+
+export function withRetry(email: Email, retry: RetryRecipe): Email {
+  return { ...email, retry };
+}
+
+export type SendResult = { status: "sent"; id: string } | { status: "logged" | "suppressed" } | { status: "failed"; reason: string };
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const LINK = /https?:\/\/\S+/g;
@@ -133,8 +170,34 @@ async function recordReplacements(email: Email, replacements: TextReplacement[])
   }
 }
 
-/** Sends now and resolves when done. Most callers want queueEmail() instead. */
-export async function sendEmail(original: Email): Promise<SendResult> {
+/**
+ * Records an email that didn't go out, for "Email problems" on /admin/jobs. Loaded only on a
+ * failure, and never throws: a failed write is only logged.
+ */
+async function recordFailure(email: Email, reason: string): Promise<void> {
+  try {
+    const { saveEmailFailure } = await import("@/lib/emailFailureStore");
+    await saveEmailFailure(email, reason);
+  } catch (err) {
+    console.error(`[email] Couldn't record the failed send of "${email.subject}": ${(err as Error)?.message ?? err}`);
+  }
+}
+
+/** In production a missing key or sender means no email can go out, so it's a failure, not a log line. */
+export function isProduction(vercelEnv = process.env.VERCEL_ENV): boolean {
+  return vercelEnv === "production";
+}
+
+/**
+ * Sends now and resolves when done. Most callers want queueEmail() instead.
+ * A send that fails is recorded for admins, unless record is false (an admin retry updates its
+ * own row instead).
+ */
+export async function sendEmail(original: Email, { record = true }: { record?: boolean } = {}): Promise<SendResult> {
+  const fail = async (sent: Email, reason: string): Promise<SendResult> => {
+    if (record) await recordFailure(sent, reason);
+    return { status: "failed", reason };
+  };
   // Our own links are fine; everything else must pass the contact-info filter. Anything that
   // doesn't is replaced, never the whole email (src/lib/emailSafety.ts), and every replacement is
   // recorded for admins (/admin/jobs).
@@ -155,6 +218,10 @@ export async function sendEmail(original: Email): Promise<SendResult> {
     console.log(key && from ? "[email] Sending through Resend." : "[email] RESEND_API_KEY or EMAIL_FROM not set: logging emails, not sending.");
   }
 
+  if ((!key || !from) && isProduction()) {
+    console.error(`[email] RESEND_API_KEY or EMAIL_FROM not set in production: "${email.subject}" wasn't sent.`);
+    return fail(email, "RESEND_API_KEY or EMAIL_FROM not set in production");
+  }
   if (!key || !from) {
     console.log(`\n📧 [email, not sent] To: ${email.to}\nSubject: ${email.subject}\n${text.replace(LINK, "[link withheld from logs]")}${email.attachments?.length ? `\nAttachments: ${email.attachments.map((a) => a.filename).join(", ")}` : ""}\n`);
     return { status: "logged" };
@@ -188,14 +255,14 @@ export async function sendEmail(original: Email): Promise<SendResult> {
       // Only the status and Resend's error name: the body can echo the email, links included.
       const name = await res.json().then((b: { name?: string }) => b?.name ?? "").catch(() => "");
       console.error(`[email] Resend rejected "${email.subject}": ${res.status} ${name}`);
-      return { status: "failed" };
+      return fail(email, `Resend rejected it (${res.status}${name ? ` ${String(name).slice(0, 60)}` : ""})`);
     }
     const { id } = (await res.json()) as { id: string };
     console.log(`[email] Sent "${email.subject}" (Resend id ${id})`);
     return { status: "sent", id };
   } catch (err) {
     console.error(`[email] Couldn't reach Resend for "${email.subject}": ${(err as Error).name}`);
-    return { status: "failed" };
+    return fail(email, `Couldn't reach Resend (${(err as Error)?.name ?? "error"})`);
   }
 }
 

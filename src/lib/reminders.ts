@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, withRetry } from "@/lib/email";
 import { reminderEmail } from "@/lib/emails";
 import type { JobLog } from "@/lib/jobs/runLog";
 
@@ -49,8 +49,13 @@ export async function runRemindersJob(log: JobLog, now: Date) {
         scheduledAt: b.scheduledAt,
         locationText: b.locationText,
       };
-      const parent = await sendEmail(reminderEmail({ to: b.parentProfile.user.email, audience: "PARENT", ...shared }));
-      const coach = await sendEmail(reminderEmail({ to: b.coachProfile.user.email, audience: "COACH", ...shared }));
+      const params = { kind: w.kind };
+      const parent = await sendEmail(
+        withRetry(reminderEmail({ to: b.parentProfile.user.email, audience: "PARENT", ...shared }), { kind: "REMINDER_PARENT", ref: b.id, params }),
+      );
+      const coach = await sendEmail(
+        withRetry(reminderEmail({ to: b.coachProfile.user.email, audience: "COACH", ...shared }), { kind: "REMINDER_COACH", ref: b.id, params }),
+      );
       if (parent.status === "failed" || coach.status === "failed") {
         log.fail(`booking ${b.id}`, "a reminder email wasn't sent");
         return;
