@@ -31,7 +31,6 @@ export type FamilyCalendarEvent = {
   lengthLabel: string;
   sport: Sport;
   sportLabel: string;
-  sportTag: string;
   color: { bg: string; fg: string };
   childId: string | null;
   childName: string;
@@ -197,15 +196,22 @@ function Chip({ e, onOpen, compact = false }: { e: FamilyCalendarEvent; onOpen: 
       type="button"
       onClick={() => onOpen(e)}
       title={`${e.sportLabel}, ${e.childName}, ${e.timeLabel}${cancelled ? " (cancelled)" : ""}`}
-      className={`flex w-full min-w-0 items-center gap-1 rounded-md border-2 px-1.5 text-left text-xs font-bold ${
-        compact ? "min-h-7 py-0.5" : "min-h-11 py-1"
+      className={`flex w-full min-w-0 rounded-md border-2 px-1.5 text-left text-xs font-bold ${
+        compact ? "min-h-7 items-center gap-1 py-0.5" : "min-h-11 flex-col items-start justify-center py-1"
       } ${cancelled ? "border-dashed border-ink/50 bg-surface text-muted-foreground line-through" : "border-ink"} ${
         e.status === "PENDING_CONSENT" ? "border-dashed" : ""
       }`}
       style={cancelled ? undefined : { background: e.color.bg, color: e.color.fg }}
     >
-      <span className="font-display tracking-wide">{e.sportTag}</span>
-      <span className="truncate">
+      {/* Month cells (compact) are too narrow for the full sport name: the chip's color carries it
+          there, screen readers still hear it, and a tap opens the details. Week chips put it on
+          its own line so the time and child aren't cut off. */}
+      {compact ? (
+        <span className="sr-only">{e.sportLabel}</span>
+      ) : (
+        <span className="max-w-full truncate font-display leading-tight tracking-wide">{e.sportLabel}</span>
+      )}
+      <span className="max-w-full truncate">
         {e.shortTime} {e.childName}
       </span>
       {cancelled && <span className="sr-only">(cancelled)</span>}

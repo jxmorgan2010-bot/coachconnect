@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { CoachType, Sport, SchoolLevel, SkillLevel } from "@/generated/prisma/client";
-import { SPORTS, SPORT_LABELS, SPORT_TAG, SPORT_COLOR, ADULT_ONLY_SPORTS, ADULT_ONLY_SPORT_NOTE, isSportAllowedForCoach } from "@/lib/sports";
+import { SPORTS, SPORT_LABELS, SPORT_COLOR, ADULT_ONLY_SPORTS, ADULT_ONLY_SPORT_NOTE, isSportAllowedForCoach } from "@/lib/sports";
 import { SKILL_LEVELS, SKILL_LEVEL_LABELS, SKILL_LEVEL_DESCRIPTIONS } from "@/lib/skillLevels";
 import SportPill from "@/components/SportPill";
 import { BAY_AREA_CITIES } from "@/lib/bayArea";
@@ -151,7 +151,6 @@ export default function ProfileForm({
                   }`}
                   style={selected ? { background: c.bg, color: c.fg } : undefined}
                 >
-                  <span className="font-display tracking-wide">{SPORT_TAG[sport]}</span>
                   {SPORT_LABELS[sport]}
                 </button>
               );

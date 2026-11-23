@@ -3,7 +3,8 @@ import Link from "next/link";
 import { getCurrentSession } from "@/lib/session";
 import { getCoachReviewStatus } from "@/lib/coachReview";
 import SubmittedForReviewBanner from "@/components/SubmittedForReviewBanner";
-import { SPORTS, SPORT_TAG, SPORT_COLOR, SPORT_LABELS, SPORT_GROUPS, sportsInGroup } from "@/lib/sports";
+import { SPORTS } from "@/lib/sports";
+import SportBrowser from "@/components/SportBrowser";
 import { IconShieldCheck, IconMessage, IconPin, IconUsers, IconArrowRight } from "@/components/icons";
 import { goldButtonClass, secondaryButtonClass } from "@/lib/ui";
 import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
@@ -133,48 +134,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SPORTS STRIP — roster tags, not icon cards. Grouped (SPORT_GROUP in lib/sports): a grid on
-          desktop, one swipeable row per group on phones. */}
+      {/* SPORTS STRIP — roster chips with full sport names: six up front, every sport (grouped) behind
+          "All sports". See SportBrowser. */}
       <section aria-labelledby="sports-heading" className="border-b-2 border-ink bg-chalk">
         <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 md:py-8">
           <h2 id="sports-heading" className="eyebrow mb-5 text-muted-foreground">
             Browse by sport
           </h2>
-          <div className="grid gap-5 md:grid-cols-2 md:gap-x-10 md:gap-y-6">
-            {SPORT_GROUPS.map((group) => (
-              <div key={group.id} className="min-w-0">
-                <h3
-                  id={`sport-group-${group.id}`}
-                  className="mb-2.5 border-l-4 border-gold pl-2 font-sans text-xs font-bold uppercase leading-none tracking-wide text-ink"
-                >
-                  {group.label}
-                </h3>
-                {/* Phones: bleeds to the screen edge so a cut-off chip shows the row scrolls.
-                    The bottom padding leaves room for the chips' patch shadow. */}
-                <ul
-                  aria-labelledby={`sport-group-${group.id}`}
-                  className="-mx-4 -mt-1.5 flex gap-2.5 overflow-x-auto px-4 pb-1.5 pt-1.5 md:mt-0 md:pt-0 [scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
-                >
-                  {sportsInGroup(group.id).map((sport) => {
-                    const c = SPORT_COLOR[sport];
-                    return (
-                      <li key={sport} className="shrink-0">
-                        <Link
-                          href={`/coaches?sport=${sport}`}
-                          aria-label={`${SPORT_LABELS[sport]} coaches`}
-                          className="press flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg border-2 border-ink px-3 font-display text-sm tracking-wide shadow-patch-xs"
-                          style={{ background: c.bg, color: c.fg }}
-                        >
-                          {SPORT_TAG[sport]}
-                          <span className="hidden font-sans text-xs font-bold opacity-85 xl:inline">{SPORT_LABELS[sport]}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
+          <SportBrowser />
         </div>
       </section>
 

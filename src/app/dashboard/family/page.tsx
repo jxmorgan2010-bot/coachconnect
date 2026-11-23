@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { SPORTS, SPORT_COLOR, SPORT_LABELS, SPORT_TAG } from "@/lib/sports";
+import { SPORTS, SPORT_COLOR, SPORT_LABELS } from "@/lib/sports";
 import SportPill from "@/components/SportPill";
 import { IconArrowRight } from "@/components/icons";
 import { quietLinkClass } from "@/lib/ui";
@@ -74,7 +74,6 @@ export default async function FamilyDashboardPage() {
       lengthLabel: lengthLabel(b.durationMinutes),
       sport: b.sport,
       sportLabel: SPORT_LABELS[b.sport],
-      sportTag: SPORT_TAG[b.sport],
       color: SPORT_COLOR[b.sport],
       childId: b.childId,
       childName: b.child?.firstName ?? "Session",

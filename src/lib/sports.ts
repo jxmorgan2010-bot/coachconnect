@@ -38,26 +38,6 @@ export const SPORT_LABELS: Record<Sport, string> = {
   TABLE_TENNIS: "Table Tennis",
 };
 
-/** Roster-style abbreviations, the way these sports actually get shorthanded on a schedule board. */
-export const SPORT_TAG: Record<Sport, string> = {
-  BASKETBALL: "BBALL",
-  SOCCER: "SOCCER",
-  FOOTBALL: "FTBL",
-  LACROSSE: "LAX",
-  TENNIS: "TNS",
-  PICKLEBALL: "PKL",
-  BASEBALL: "BSB",
-  SOFTBALL: "SFTBL",
-  MARTIAL_ARTS: "MA",
-  BOXING: "BOX",
-  WRESTLING: "WRES",
-  GOLF: "GOLF",
-  VOLLEYBALL: "VBALL",
-  TRACK_AND_FIELD: "T&F",
-  BADMINTON: "BDMTN",
-  TABLE_TENNIS: "TT",
-};
-
 /** One brand color per sport so the roster reads like real team colors, not a single accent repeated. */
 export const SPORT_COLOR: Record<Sport, { bg: string; fg: string }> = {
   BASKETBALL: { bg: "#EFB811", fg: "#10201A" },

@@ -1,5 +1,5 @@
 import type { Sport } from "@/generated/prisma/client";
-import { SPORT_COLOR, SPORT_TAG } from "@/lib/sports";
+import { SPORT_COLOR, SPORT_LABELS } from "@/lib/sports";
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -46,7 +46,7 @@ export default function CoachPhotoPlaceholder({
           "Book again" pin and the recommended ribbon. */}
       {size === "profile" && sport && (
         <span aria-hidden className="eyebrow absolute left-3 top-3 opacity-80">
-          {SPORT_TAG[sport]}
+          {SPORT_LABELS[sport]}
         </span>
       )}
       {size === "profile" && gradYear && (
