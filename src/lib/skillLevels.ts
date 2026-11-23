@@ -10,14 +10,6 @@ export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {
   COMPETITIVE: "Competitive",
 };
 
-/** Roster-board shorthand, to sit next to the sport tags (see SPORT_TAG). */
-export const SKILL_LEVEL_TAG: Record<SkillLevel, string> = {
-  BEGINNER: "BEG",
-  INTERMEDIATE: "INT",
-  ADVANCED: "ADV",
-  COMPETITIVE: "COMP",
-};
-
 /** Shown wherever a level is picked, so parents and coaches mean the same thing by it. */
 export const SKILL_LEVEL_DESCRIPTIONS: Record<SkillLevel, string> = {
   BEGINNER: "New to the sport or still learning the basics.",

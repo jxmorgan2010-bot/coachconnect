@@ -16,6 +16,7 @@ import LevelPicker from "@/components/LevelPicker";
 import CardSection from "./CardSection";
 import CancellationPolicyNote from "./CancellationPolicyNote";
 import LengthPicker from "@/components/LengthPicker";
+import { SafetySummary } from "@/components/SafetyPoints";
 import { DEFAULT_SESSION_LENGTH, SESSION_LENGTHS, lengthLabel, lengthOptions } from "@/lib/sessionLengths";
 import { holdDueAt, holdsAtBooking } from "@/lib/holdTiming";
 import { formatPacificDateTime } from "@/lib/sessionTiming";
@@ -412,6 +413,10 @@ function BookingFormInner({
         {formatCents(coach.hourlyRateCents).replace(".00", "")}/hr · You choose where you meet — a park, a school or rec
         center gym, or a dojo or boxing gym.
       </p>
+
+      <div className="mt-5">
+        <SafetySummary />
+      </div>
 
       {activePackage && (
         <p className="mt-5 rounded-lg border-2 border-ink bg-accent/15 px-4 py-3 text-sm font-bold text-ink">
@@ -819,8 +824,8 @@ function BookingFormInner({
                   required
                 />
                 <span>
-                  I&apos;m the parent/guardian booking this session and I consent to my child meeting with this coach at
-                  the location above.
+                  I&apos;m the parent/guardian booking this session, a parent or guardian will stay for the whole session,
+                  and I consent to my child meeting with this coach at the location above.
                 </span>
               </label>
             </fieldset>

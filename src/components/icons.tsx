@@ -63,6 +63,15 @@ export function IconCalendar(props: IconProps) {
   );
 }
 
+export function IconCard(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="5.5" width="18" height="13" rx="1.5" />
+      <path d="M3 10h18M7 14.5h4" />
+    </svg>
+  );
+}
+
 export function IconArrowRight(props: IconProps) {
   return (
     <svg {...base} {...props}>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Sport } from "@/generated/prisma/client";
-import { SPORTS, SPORT_LABELS, SPORT_TAG, SPORT_COLOR } from "@/lib/sports";
+import { SPORTS, SPORT_LABELS, SPORT_COLOR } from "@/lib/sports";
 import { gradYearOptions } from "@/lib/teenInterest";
 import { inputClass, labelClass, goldButtonClass, errorClass, quietLinkClass, successClass } from "@/lib/ui";
 
@@ -165,7 +165,6 @@ export default function TeenInterestForm({
                   }`}
                   style={selected ? { background: c.bg, color: c.fg } : undefined}
                 >
-                  <span className="font-display tracking-wide" aria-hidden="true">{SPORT_TAG[sport]}</span>
                   {SPORT_LABELS[sport]}
                 </button>
               );

@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SPORTS,
-  SPORT_TAG,
   SPORT_COLOR,
   SPORT_LABELS,
   SPORT_GROUPS,
@@ -50,11 +49,6 @@ test("sport colours are unique and their text passes WCAG AA", () => {
     const ratio = (a + 0.05) / (b + 0.05);
     assert.ok(ratio >= 4.5, `${sport}: ${ratio.toFixed(2)}:1`);
   }
-});
-
-test("roster tags are unique", () => {
-  const tags = SPORTS.map((s) => SPORT_TAG[s]);
-  assert.equal(new Set(tags).size, tags.length);
 });
 
 test("coaches under 18 can't offer adult-only sports; adults can offer every sport", () => {
