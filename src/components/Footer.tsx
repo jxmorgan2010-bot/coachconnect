@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconShieldCheck, IconMessage, IconPin } from "@/components/icons";
 
@@ -30,9 +31,14 @@ export default function Footer() {
           </ul>
         )}
         <div className="flex flex-col gap-2 text-xs text-white/70 sm:flex-row sm:items-end sm:justify-between">
-          <p className="font-display text-2xl tracking-wide text-white">
-            Assist <span className="text-gold">Coaching</span>
-          </p>
+          <div className="flex flex-col gap-1">
+            <p className="font-display text-2xl tracking-wide text-white">
+              Assist <span className="text-gold">Coaching</span>
+            </p>
+            <Link href="/about" className="inline-flex min-h-11 items-center text-sm font-bold text-white underline-offset-4 hover:text-gold-bright hover:underline">
+              About Assist Coaching
+            </Link>
+          </div>
           <p className="max-w-md sm:text-right">
             &copy; {new Date().getFullYear()} Assist Coaching · Bay Area. See something off? Use Report on any coach
             profile or message thread.
