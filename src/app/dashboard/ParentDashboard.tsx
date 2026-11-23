@@ -76,7 +76,7 @@ export default async function ParentDashboard({ userId, name }: { userId: string
           <h1 className="text-display-lg font-display text-ink">Welcome, {firstName}</h1>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/coaches" className={primaryButtonClass}>Find a coach</Link>
+          <Link href="/coaches" className={primaryButtonClass}>Find your kid&apos;s coach</Link>
           <Link href="/messages" className={secondaryButtonClass}>
             <IconMessage className="h-4 w-4" /> Messages
           </Link>
@@ -91,7 +91,7 @@ export default async function ParentDashboard({ userId, name }: { userId: string
         {bookings.length === 0 ? (
           // First visit: nothing booked yet (packages and referral still show alongside)
           <div className="card-flat flex flex-col items-start gap-4 self-start p-6 sm:p-8">
-            <h2 className="text-display-md font-display text-ink">No sessions booked yet</h2>
+            <h2 className="text-display-md font-display text-ink">Let&apos;s book your first session</h2>
             <p className="max-w-lg text-muted-foreground">
               Find a coach for your kid&apos;s sport, pick a time and a public place, and book. Your upcoming
               sessions, progress notes, and reviews will show up here.

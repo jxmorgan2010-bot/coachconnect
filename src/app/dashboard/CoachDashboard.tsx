@@ -141,7 +141,7 @@ export default async function CoachDashboard({
           <Link href="/messages" className={secondaryButtonClass}>
             <IconMessage className="h-4 w-4" /> Messages
           </Link>
-          <Link href="/dashboard/points" className={secondaryButtonClass}>Points</Link>
+          <Link href="/dashboard/points" className={secondaryButtonClass}>Your points</Link>
           <Link href="/dashboard/profile" className={secondaryButtonClass}>My profile</Link>
         </div>
       </div>

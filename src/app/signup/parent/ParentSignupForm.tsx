@@ -82,7 +82,7 @@ export default function ParentSignupForm({ referralBonusCents }: { referralBonus
         "You pick the place — a park, gym or rec center — not the coach",
       ]}
     >
-      <h1 className="text-display-lg mb-2 font-display text-ink">Create a parent account</h1>
+      <h1 className="text-display-lg mb-2 font-display text-ink">Set up your parent account</h1>
       <p className="mb-6 text-sm text-muted-foreground">
         For parents and guardians. Only parent accounts can book sessions.
       </p>

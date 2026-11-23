@@ -47,7 +47,7 @@ function LoginForm() {
         "Coaches: check your verification status and upcoming sessions",
       ]}
     >
-      <h1 className="text-display-lg mb-6 font-display text-ink">Log in</h1>
+      <h1 className="text-display-lg mb-6 font-display text-ink">Welcome back</h1>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         {accountCreated && !error && (
           <p role="status" className={successClass}>Your account is ready. Log in to continue.</p>

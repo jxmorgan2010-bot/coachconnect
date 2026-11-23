@@ -12,7 +12,7 @@ import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 // Background checks are a placeholder, so they are not claimed anywhere here.
 const STEPS = [
   {
-    title: "Find a coach",
+    title: "Find your kid's coach",
     body: "Filter by sport, city, price, and day. Coaches only show up once an admin has approved their ID.",
   },
   {
@@ -153,7 +153,7 @@ export default function Home() {
                     The bottom padding leaves room for the chips' patch shadow. */}
                 <ul
                   aria-labelledby={`sport-group-${group.id}`}
-                  className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1.5 [scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
+                  className="-mx-4 -mt-1.5 flex gap-2.5 overflow-x-auto px-4 pb-1.5 pt-1.5 md:mt-0 md:pt-0 [scrollbar-width:none] sm:-mx-6 sm:px-6 md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
                 >
                   {sportsInGroup(group.id).map((sport) => {
                     const c = SPORT_COLOR[sport];
@@ -180,8 +180,8 @@ export default function Home() {
 
       {/* HOW IT WORKS — a real sequence, so it's numbered. Heading pinned left, steps right. */}
       <section className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          <h2 className="text-display-lg font-display text-ink">How a session actually happens</h2>
+        <div className="reveal lg:sticky lg:top-24 lg:self-start">
+          <h2 className="text-display-lg font-display text-ink">Here&apos;s how a session works</h2>
           <p className="mt-4 max-w-sm text-muted-foreground">
             Four steps, start to finish. You choose where and when, and your card is charged when you mark the session
             complete.
@@ -189,7 +189,7 @@ export default function Home() {
         </div>
         <ol className="flex flex-col">
           {STEPS.map((step, i) => (
-            <li key={step.title} className={`flex gap-5 py-6 sm:gap-7 ${i !== STEPS.length - 1 ? "border-b-2 border-line" : ""} ${i === 0 ? "pt-0" : ""}`}>
+            <li key={step.title} className={`reveal flex gap-5 py-6 sm:gap-7 ${i !== STEPS.length - 1 ? "border-b-2 border-line" : ""} ${i === 0 ? "pt-0" : ""}`}>
               <span
                 aria-hidden
                 className="w-12 shrink-0 font-display text-5xl leading-none text-gold"
@@ -208,7 +208,7 @@ export default function Home() {
 
       {/* SAFEGUARDS — two column on ink, gold rule per item, not a card grid */}
       <section className="on-dark border-y-2 border-ink bg-ink text-white">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:items-center md:py-24">
+        <div className="reveal mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:items-center md:py-24">
           <div>
             <h2 className="text-display-lg font-display">Built like a program a parent would actually trust.</h2>
             <p className="mt-4 max-w-md text-white/75">
@@ -231,7 +231,7 @@ export default function Home() {
 
       {/* COACH CTA — bold gold block, full-width, off the grid pattern used above */}
       <section className="bg-gold texture-hatch-dark">
-        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center md:justify-between md:py-16">
+        <div className="reveal mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center md:justify-between md:py-16">
           <div>
             <h2 className="text-display-lg font-display text-ink">
               {EXPERIENCED_COACHES_ENABLED ? "Played varsity or coached for years? Coach your sport." : "Played varsity? Coach your sport."}

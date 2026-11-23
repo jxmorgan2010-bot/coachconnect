@@ -110,6 +110,13 @@
     outline-offset: 2px;
   }
 
+  /* Hover colors ease in instead of snapping. Color only, so it's fine with reduced motion. */
+  a, button, summary, select, input, textarea {
+    transition-property: color, background-color, border-color, text-decoration-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+
   /* Anton ships one weight; never let the browser fake a bold version of it. */
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
@@ -148,20 +155,35 @@
   border-radius: 0.85rem;
 }
 
+/* Hover and press states for .press live unlayered at the end of this file. */
 .press {
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
-}
-.press:active {
-  transform: translate(4px, 4px);
-  box-shadow: 0 0 0 var(--ink) !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, color 0.15s ease, background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .press {
-    transition: none;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
   }
-  .press:active {
-    transform: none;
+}
+
+/* Sections ease up into view as they scroll in. Pure CSS (scroll-driven animation), so
+   content is never hidden waiting on a script; browsers without support, and anyone
+   with reduced motion on, just see it in place. Marketing pages only, not forms. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
   }
 }
 
@@ -186,4 +208,44 @@
     transparent 34px
   );
 }
+}
+
+/* Hover lift and click press for buttons, chips and clickable cards. Deliberately outside
+   @layer: the patch shadow comes from a Tailwind utility (shadow-patch*), and only unlayered
+   CSS can change it. --press is how far each size sinks: exactly its shadow, so a pressed
+   element lands flat where its shadow was. */
+.press {
+  --press: 2px;
+}
+.press.shadow-patch-sm {
+  --press: 4px;
+}
+.press.shadow-patch {
+  --press: 6px;
+}
+
+/* Mouse only: on touch screens a hover can stick after a tap. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .press:not(:disabled):hover {
+    transform: translate(-2px, -2px);
+  }
+  .press.shadow-patch-xs:not(:disabled):hover {
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .press.shadow-patch-sm:not(:disabled):hover {
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+  .press.shadow-patch:not(:disabled):hover {
+    box-shadow: 8px 8px 0 var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .press:not(:disabled):active {
+    transform: translate(var(--press), var(--press));
+  }
+}
+
+.press:not(:disabled):active {
+  box-shadow: 0 0 0 var(--ink) !important;
 }

@@ -60,7 +60,7 @@ export default function RatingForm({ bookingId, coachName }: { bookingId: string
         onChange={(e) => setComment(e.target.value)}
       />
       <button type="submit" className={`${primaryButtonClass} w-full sm:w-auto sm:self-start`} disabled={loading}>
-        {loading ? "Submitting..." : "Submit rating"}
+        {loading ? "Posting..." : "Post your rating"}
       </button>
     </form>
   );

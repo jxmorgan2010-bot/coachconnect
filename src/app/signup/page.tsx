@@ -20,7 +20,7 @@ export default function SignupChooser() {
           </span>
           <h2 className="text-display-md font-display">I&apos;m a parent or guardian</h2>
           <p className="text-white/85">
-            Find a coach, book sessions for your kid, message coaches, and leave reviews.
+            Find your kid&apos;s coach, book sessions, message coaches, and leave reviews.
           </p>
           <span className="mt-auto flex min-h-11 items-center gap-1.5 font-bold text-gold-bright group-hover:underline">
             Sign up as a parent <IconArrowRight className="h-4 w-4" />
