@@ -92,7 +92,14 @@ export default function Home() {
 
           {/* Signature illustration: a stylized pitch diagram, the one deliberate graphic moment */}
           <div className="relative mx-auto hidden aspect-square w-full max-w-sm text-gold-bright md:block" aria-hidden>
-            <svg viewBox="0 0 300 300" className="h-full w-full" fill="none" stroke="currentColor" strokeWidth="3">
+            <svg
+              viewBox="0 0 300 300"
+              className="float h-full w-full"
+              style={{ "--float-duration": "6s", "--float-distance": "-4px" } as React.CSSProperties}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+            >
               <g opacity="0.55">
                 <rect x="10" y="10" width="280" height="280" rx="12" />
                 <line x1="150" y1="10" x2="150" y2="290" />
@@ -103,7 +110,10 @@ export default function Home() {
               <circle cx="150" cy="150" r="3" fill="currentColor" stroke="none" opacity="0.8" />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="rotate-[-6deg] rounded-lg border-2 border-ink bg-white px-4 py-3 text-center font-display text-3xl leading-none text-ink shadow-patch">
+              <span
+                className="float rotate-[-6deg] rounded-lg border-2 border-ink bg-white px-4 py-3 text-center font-display text-3xl leading-none text-ink shadow-patch"
+                style={{ "--float-duration": "5s", "--float-distance": "-7px", "--float-delay": "-1.5s" } as React.CSSProperties}
+              >
                 YOU&apos;RE
                 <br />
                 UP
@@ -116,7 +126,7 @@ export default function Home() {
       {/* SPORTS STRIP — roster chips with full sport names: six up front, every sport (grouped) behind
           "All sports". See SportBrowser. */}
       <section aria-labelledby="sports-heading" className="border-b-2 border-ink bg-chalk">
-        <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 md:py-8">
+        <div data-reveal className="mx-auto max-w-6xl px-4 py-7 sm:px-6 md:py-8">
           <h2 id="sports-heading" className="eyebrow mb-5 text-muted-foreground">
             Browse by sport
           </h2>
@@ -126,16 +136,16 @@ export default function Home() {
 
       {/* HOW IT WORKS — a real sequence, so it's numbered. Heading pinned left, steps right. */}
       <section className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-        <div className="reveal lg:sticky lg:top-24 lg:self-start">
+        <div data-reveal className="lg:sticky lg:top-24 lg:self-start">
           <h2 className="text-display-lg font-display text-ink">Here&apos;s how a session works</h2>
           <p className="mt-4 max-w-sm text-muted-foreground">
             Four steps, start to finish. You choose where and when, and your card is charged when you mark the session
             complete.
           </p>
         </div>
-        <ol className="flex flex-col">
+        <ol data-reveal-group className="flex flex-col">
           {STEPS.map((step, i) => (
-            <li key={step.title} className={`reveal flex gap-5 py-6 sm:gap-7 ${i !== STEPS.length - 1 ? "border-b-2 border-line" : ""} ${i === 0 ? "pt-0" : ""}`}>
+            <li key={step.title} className={`flex gap-5 py-6 sm:gap-7 ${i !== STEPS.length - 1 ? "border-b-2 border-line" : ""} ${i === 0 ? "pt-0" : ""}`}>
               <span
                 aria-hidden
                 className="w-12 shrink-0 font-display text-5xl leading-none text-gold"
@@ -156,7 +166,7 @@ export default function Home() {
 
       {/* COACH CTA — bold gold block, full-width, off the grid pattern used above */}
       <section className="bg-gold texture-hatch-dark">
-        <div className="reveal mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center md:justify-between md:py-16">
+        <div data-reveal className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center md:justify-between md:py-16">
           <div>
             <h2 className="text-display-lg font-display text-ink">
               {EXPERIENCED_COACHES_ENABLED ? "Played varsity or coached for years? Coach your sport." : "Played varsity? Coach your sport."}

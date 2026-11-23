@@ -354,7 +354,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
           )
         ) : (
           <>
-            <h2 className="mb-5 flex items-baseline gap-3 font-display text-ink">
+            <h2 data-reveal className="mb-5 flex items-baseline gap-3 font-display text-ink">
               <span className="text-display-md">
                 {coaches.length} coach{coaches.length === 1 ? "" : "es"}
               </span>
@@ -362,7 +362,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
                 {activeFilterLabels.length > 0 ? activeFilterLabels.join(" · ") : "on the roster"}
               </span>
             </h2>
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div data-reveal-group className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {coaches.map((coach) => (
                 <CoachCard key={coach.id} coach={coach} />
               ))}

@@ -10,7 +10,7 @@ export default function SignupChooser() {
       <h1 className="text-display-xl font-display text-ink">Join Assist Coaching</h1>
       <p className="mt-3 max-w-xl text-muted-foreground">Tell us who you are so we set up the right account.</p>
 
-      <div className="mt-8 grid gap-6 md:grid-cols-2 md:gap-8">
+      <div data-reveal-group className="mt-8 grid gap-6 md:grid-cols-2 md:gap-8">
         <Link
           href="/signup/parent"
           className="on-dark press texture-hatch group flex flex-col items-start gap-4 rounded-xl border-2 border-ink bg-pitch p-6 text-white shadow-patch sm:p-8"

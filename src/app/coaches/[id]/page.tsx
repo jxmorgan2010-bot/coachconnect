@@ -229,7 +229,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
         </aside>
 
         {/* PROFILE BODY */}
-        <div className="order-2 flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1">
+        <div data-reveal-group className="order-2 flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1">
           {siblingNote && (
             <p className="rounded-lg border-2 border-ink bg-accent/20 px-4 py-2.5 text-sm font-bold text-ink">
               {siblingNote}
