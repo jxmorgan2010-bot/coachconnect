@@ -167,23 +167,22 @@
   }
 }
 
-/* Sections ease up into view as they scroll in. Pure CSS (scroll-driven animation), so
-   content is never hidden waiting on a script; browsers without support, and anyone
-   with reduced motion on, just see it in place. Marketing pages only, not forms. */
-@keyframes reveal {
-  from {
-    opacity: 0;
-    transform: translateY(1.5rem);
+/* Gentle float for a few decorative objects (the home hero only). A full up-and-down cycle
+   takes --float-duration; vary it and --float-delay so objects never move in sync. Never on
+   text, buttons, form fields, or booking, payment and dashboard pages. Transform only. */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(var(--float-distance, -6px));
   }
 }
 
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .reveal {
-      animation: reveal linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 60%;
-    }
+@media (prefers-reduced-motion: no-preference) {
+  .float {
+    animation: float var(--float-duration, 5s) ease-in-out var(--float-delay, 0s) infinite;
   }
 }
 
@@ -248,4 +247,26 @@
 
 .press:not(:disabled):active {
   box-shadow: 0 0 0 var(--ink) !important;
+}
+
+/* Scroll reveal states, set only by src/components/ScrollReveal.tsx on elements it has measured
+   to be below the screen. Unlayered so the move beats a card's own (layered) transitions while
+   it plays; the script removes .reveal-in afterwards. Opacity and transform only, so nothing
+   reflows. */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-pending {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  .reveal-in {
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+}
+
+@media print {
+  .reveal-pending {
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }

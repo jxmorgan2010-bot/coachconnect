@@ -62,10 +62,10 @@ export default function AboutPage() {
       {/* HOW IT WORKS — a real sequence, so it's numbered */}
       <section aria-labelledby="how-heading" className="border-b-2 border-ink bg-chalk">
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 md:py-20">
-          <h2 id="how-heading" className="text-display-md font-display text-ink">
+          <h2 id="how-heading" data-reveal className="text-display-md font-display text-ink">
             How it works
           </h2>
-          <ol className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <ol data-reveal-group className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, i) => (
               <li key={step.title} className="border-t-4 border-gold pt-4">
                 <span aria-hidden className="font-display text-3xl leading-none text-pitch">
@@ -81,7 +81,7 @@ export default function AboutPage() {
 
       {/* OUR STORY — editorial two-column: heading pinned left, the founder's words right */}
       <section aria-labelledby="story-heading" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 md:py-24">
-        <div className="reveal grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+        <div data-reveal className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
           <div>
             <h2 id="story-heading" className="text-display-lg font-display text-ink">
               Our story
@@ -108,11 +108,11 @@ export default function AboutPage() {
 
       {/* WHAT WE BELIEVE — on ink, linking to the full safety list on the home page */}
       <section aria-labelledby="beliefs-heading" className="on-dark border-y-2 border-ink bg-ink text-white">
-        <div className="reveal mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
-          <h2 id="beliefs-heading" className="text-display-lg font-display">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
+          <h2 id="beliefs-heading" data-reveal className="text-display-lg font-display">
             What we believe
           </h2>
-          <ul className="mt-8 grid gap-6 md:grid-cols-3">
+          <ul data-reveal-group className="mt-8 grid gap-6 md:grid-cols-3">
             {BELIEFS.map((b) => (
               <li key={b.title} className="border-l-4 border-gold pl-4">
                 <p className="font-bold text-white">{b.title}</p>
@@ -131,7 +131,7 @@ export default function AboutPage() {
 
       {/* CALLS TO ACTION — the two sign-up audiences, as trading cards like /signup */}
       <section aria-label="Get started" className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 md:py-20">
-        <div className="grid gap-6 md:grid-cols-2 md:gap-8">
+        <div data-reveal-group className="grid gap-6 md:grid-cols-2 md:gap-8">
           <div className="on-dark texture-hatch flex flex-col items-start gap-4 rounded-xl border-2 border-ink bg-pitch p-6 text-white shadow-patch sm:p-8">
             <span className="grid h-12 w-12 place-items-center rounded-lg border-2 border-ink bg-white text-pitch">
               <IconUsers className="h-6 w-6" />

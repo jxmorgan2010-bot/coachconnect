@@ -79,14 +79,14 @@ const BOOKING_POINT_IDS = ["id", "parent", "place", "chat"];
 export function SafetySection() {
   return (
     <section id="safety" aria-labelledby="safety-heading" className="on-dark scroll-mt-20 border-y-2 border-ink bg-ink text-white">
-      <div className="reveal mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[0.75fr_1.25fr] lg:gap-14">
-        <div>
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[0.75fr_1.25fr] lg:gap-14">
+        <div data-reveal>
           <h2 id="safety-heading" className="text-display-lg font-display">
             How we keep sessions safe
           </h2>
           <p className="mt-4 max-w-sm text-white/75">What&apos;s in place today, in plain terms.</p>
         </div>
-        <ul className="grid gap-x-8 gap-y-7 sm:grid-cols-2">
+        <ul data-reveal-group className="grid gap-x-8 gap-y-7 sm:grid-cols-2">
           {SAFETY_POINTS.map(({ id, icon: Icon, title, body }) => (
             <li key={id} className="flex gap-4 border-l-4 border-gold pl-4">
               <Icon className="mt-0.5 h-6 w-6 shrink-0 text-gold" aria-hidden />

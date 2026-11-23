@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SupportWidget from "@/components/SupportWidget";
 import SuspensionNotice from "@/components/SuspensionNotice";
+import ScrollReveal from "@/components/ScrollReveal";
 import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 const anton = Anton({
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <main className="flex-1">{children}</main>
           <Footer />
           <SupportWidget />
+          <ScrollReveal />
         </SessionProviderWrapper>
       </body>
     </html>
