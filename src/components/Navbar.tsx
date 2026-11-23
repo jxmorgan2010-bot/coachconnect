@@ -39,6 +39,7 @@ export default function Navbar() {
           { href: "/dashboard/family", label: "My family" },
         ]
       : []),
+    { href: "/about", label: "About" },
   ];
   const linkContent = (l: NavLink) => (
     <>
