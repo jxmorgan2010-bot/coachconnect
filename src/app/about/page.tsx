@@ -18,7 +18,8 @@ const STEPS = [
   { title: "Find a coach", body: "Filter by sport, city, price, and day." },
   {
     title: "Book and pay in the app",
-    body: "Pick a time and a public place. For a single session, your card is held, not charged, until it's over.",
+    // Owner's wording, scoped to single sessions: packages are charged in full at purchase.
+    body: "Pick a time and a public place. For a single session, your card isn't charged until after the session.",
   },
   { title: "Show up together", body: "A parent or guardian stays for the whole session." },
   { title: "Mark it done", body: "Then leave a review so other families know how it went." },
@@ -89,17 +90,17 @@ export default function AboutPage() {
           </div>
           <div className="flex max-w-2xl flex-col gap-5 border-l-4 border-gold pl-5 text-lg text-ink sm:pl-7">
             <p>
-              Growing up, I saw a lot of unemployment. I watched people I knew struggle, some of them in tears, because
-              they couldn&apos;t find a job. I wanted to build an easier way for people to earn extra money and stay
-              afloat, doing something they&apos;re already good at.
+              I coached young kids before I started Assist Coaching, and I still do. It&apos;s been an amazing
+              experience: making new connections, teaching kids, and seeing them smile when they learn something new.
             </p>
             <p>
               Coaching teaches more than a sport. Talking with families, showing up on time and keeping a schedule
               organized are real people skills and real job skills, and they&apos;re a great start for young athletes.
             </p>
             <p>
-              I coached young kids before I started Assist Coaching, and I still do. It&apos;s been an amazing
-              experience: making new connections, teaching kids, and seeing them smile when they learn something new.
+              Growing up, I saw a lot of unemployment. I watched people I knew struggle, some of them in tears, because
+              they couldn&apos;t find a job. I wanted to build an easier way for people to earn extra money and stay
+              afloat, doing something they&apos;re already good at.
             </p>
           </div>
         </div>
