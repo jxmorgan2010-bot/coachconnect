@@ -191,7 +191,7 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
       <div className="on-dark texture-hatch border-b-2 border-ink bg-pitch text-white">
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-14">
           <p className="eyebrow mb-3 text-gold-bright">Bay Area</p>
-          <h1 className="text-display-xl font-display">Find your coach</h1>
+          <h1 className="text-display-xl font-display">Find your kid&apos;s coach</h1>
           <p className="mt-4 max-w-xl text-white/85">
             {EXPERIENCED_COACHES_ENABLED
               ? "Student-athletes and experienced adult coaches, 1‑on‑1."
@@ -290,11 +290,11 @@ export default async function CoachesPage({ searchParams }: { searchParams: Prom
           <div className="col-span-2 flex items-center justify-end gap-4 lg:col-span-1">
             {hasFilters && (
               <Link href="/coaches" className={`${quietLinkClass} text-muted-foreground hover:text-ink`}>
-                Clear
+                Clear filters
               </Link>
             )}
             <button type="submit" className={`${primaryButtonClass} flex-1 lg:flex-none`}>
-              Search
+              Show coaches
             </button>
           </div>
 

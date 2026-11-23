@@ -44,7 +44,7 @@ export default function ForgotPasswordPage() {
         "Choosing a new password signs you out on every other device",
       ]}
     >
-      <h1 className="text-display-lg mb-2 font-display text-ink">Forgot password?</h1>
+      <h1 className="text-display-lg mb-2 font-display text-ink">Forgot your password?</h1>
       <p className="mb-6 text-muted-foreground">Enter the email you signed up with and we&apos;ll send you a link to choose a new password.</p>
       {sent ? (
         <div className="flex flex-col gap-4">

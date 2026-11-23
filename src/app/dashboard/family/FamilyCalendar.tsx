@@ -415,9 +415,9 @@ function Agenda({ byDate, today, onOpen }: ViewProps) {
     <section aria-label="List of sessions" className="flex flex-col gap-4">
       {upcoming.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-lg border-2 border-dashed border-line p-4">
-          <p className="text-muted-foreground">Nothing coming up.</p>
+          <p className="text-muted-foreground">Nothing on the calendar yet.</p>
           <Link href="/coaches" className={secondaryButtonClass}>
-            Find a coach
+            Find your kid&apos;s coach
           </Link>
         </div>
       ) : (

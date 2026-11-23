@@ -151,7 +151,7 @@ export default async function CoachProfilePage({ params }: { params: Promise<{ i
               ) : live ? (
                 <>
                   <Link href={`/coaches/${profile.id}/book`} className={`${primaryButtonClass} w-full`}>
-                    Book a session
+                    Book a session with {firstName}
                   </Link>
                   {profile.hourlyRateCents && (
                     <Link href={`/coaches/${profile.id}/packages`} className={`${secondaryButtonClass} w-full`}>

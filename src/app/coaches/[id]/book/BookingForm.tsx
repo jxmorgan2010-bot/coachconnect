@@ -407,7 +407,7 @@ function BookingFormInner({
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
       <p className="eyebrow mb-2 text-pitch">Book a session</p>
-      <h1 className="text-display-lg font-display text-ink">Book {coach.name}</h1>
+      <h1 className="text-display-lg font-display text-ink">Book a session with {coach.name}</h1>
       <p className="mt-2 text-muted-foreground">
         {formatCents(coach.hourlyRateCents).replace(".00", "")}/hr · You choose where you meet — a park, a school or rec
         center gym, or a dojo or boxing gym.
