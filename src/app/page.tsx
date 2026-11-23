@@ -5,12 +5,14 @@ import { getCoachReviewStatus } from "@/lib/coachReview";
 import SubmittedForReviewBanner from "@/components/SubmittedForReviewBanner";
 import { SPORTS } from "@/lib/sports";
 import SportBrowser from "@/components/SportBrowser";
-import { IconShieldCheck, IconMessage, IconPin, IconUsers, IconArrowRight } from "@/components/icons";
+import { IconArrowRight } from "@/components/icons";
+import { SafetySection } from "@/components/SafetyPoints";
 import { goldButtonClass, secondaryButtonClass } from "@/lib/ui";
 import { EXPERIENCED_COACHES_ENABLED } from "@/lib/features";
 
 // Every line on this page has to be something the app actually does today.
 // Background checks are a placeholder, so they are not claimed anywhere here.
+// The safety list lives in components/SafetyPoints (shared with the booking page).
 const STEPS = [
   {
     title: "Find your kid's coach",
@@ -27,29 +29,6 @@ const STEPS = [
   {
     title: "Mark it done and leave a review",
     body: "Your card is saved when you book, held 2 days before, and charged when you mark the session complete.",
-  },
-];
-
-const SAFEGUARDS = [
-  {
-    icon: IconShieldCheck,
-    title: "An admin approves every coach",
-    body: "Each profile has to be approved by an admin before it can appear in search. No automatic approvals.",
-  },
-  {
-    icon: IconUsers,
-    title: "Parents book, not kids",
-    body: "Only a parent account can book or pay for a session. Whoever signs up confirms they're the parent or guardian.",
-  },
-  {
-    icon: IconPin,
-    title: "You pick the place",
-    body: "You set the session location when you book. The coach doesn't choose where you meet.",
-  },
-  {
-    icon: IconMessage,
-    title: "Chat stays in the app",
-    body: "Coaches never see your phone number or email, and you can report any message thread.",
   },
 ];
 
@@ -173,28 +152,7 @@ export default function Home() {
         </ol>
       </section>
 
-      {/* SAFEGUARDS — two column on ink, gold rule per item, not a card grid */}
-      <section className="on-dark border-y-2 border-ink bg-ink text-white">
-        <div className="reveal mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:items-center md:py-24">
-          <div>
-            <h2 className="text-display-lg font-display">Built like a program a parent would actually trust.</h2>
-            <p className="mt-4 max-w-md text-white/75">
-              Here&apos;s what&apos;s in place today, in plain terms.
-            </p>
-          </div>
-          <ul className="flex flex-col gap-6">
-            {SAFEGUARDS.map((f) => (
-              <li key={f.title} className="flex gap-4 border-l-4 border-gold pl-4">
-                <f.icon className="mt-0.5 h-6 w-6 shrink-0 text-gold" />
-                <div>
-                  <p className="font-bold text-white">{f.title}</p>
-                  <p className="mt-1 text-sm text-white/75">{f.body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+      <SafetySection />
 
       {/* COACH CTA — bold gold block, full-width, off the grid pattern used above */}
       <section className="bg-gold texture-hatch-dark">
