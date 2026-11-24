@@ -389,6 +389,89 @@ export async function createConfirmedBooking(input: CreateConfirmedBookingInput)
   });
 }
 
-export function isBookingConflict(result: object): result is CreateBookingConflict {
+type CreatePackageBookingInput = {
+  parentProfileId: string;
+  childId: string;
+  scheduledAt: Date;
+  locationText: string;
+  secondAdultName?: string | null;
+  /** What validatePackageBookingRequest returned. */
+  validated: Pick<Awaited<ReturnType<typeof validatePackageBookingRequest>>, "package" | "childLevel" | "sport" | "breakdown" | "isFirstSession">;
+  /** Set by quick rebook; its points are awarded at completion. */
+  bookedViaQuickRebook?: boolean;
+};
+
+/**
+ * Creates a CONFIRMED booking drawn from a prepaid package, used by the booking form
+ * (POST /api/bookings) and quick rebook. The package was paid in full at purchase, so no
+ * Stripe call is made: this spends one session and marks the booking CAPTURED. Re-checks both
+ * conflicts inside the transaction, like createConfirmedBooking, and returns a conflict
+ * rather than throwing.
+ */
+export async function createPackageBooking(input: CreatePackageBookingInput) {
+  const { package: pkg, childLevel, sport, breakdown, isFirstSession } = input.validated;
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const stillActive = await tx.booking.findMany({
+      where: { coachProfileId: pkg.coachProfileId, status: SLOT_HOLDING_STATUS_FILTER },
+      select: { scheduledAt: true, durationMinutes: true },
+    });
+    if (stillActive.some((b) => rangesOverlap(input.scheduledAt, pkg.durationMinutes, b.scheduledAt, b.durationMinutes))) {
+      throw new Error("CONFLICT");
+    }
+    // The child's other sessions with any coach, re-checked inside the write.
+    await assertChildFree(tx, input.childId, input.scheduledAt, pkg.durationMinutes);
+
+    const created = await tx.booking.create({
+      data: {
+        parentProfileId: input.parentProfileId,
+        coachProfileId: pkg.coachProfileId,
+        childId: input.childId,
+        childLevel,
+        sport,
+        scheduledAt: input.scheduledAt,
+        durationMinutes: pkg.durationMinutes,
+        locationText: input.locationText,
+        priceCents: breakdown.priceCents,
+        platformFeeCents: breakdown.platformFeeCents,
+        discountCents: breakdown.discountCents,
+        status: "CONFIRMED",
+        parentalConsent: true,
+        secondAdultName: input.secondAdultName?.trim() || null,
+        paymentStatus: "CAPTURED",
+        capturedAt: now,
+        packageId: pkg.id,
+        bookedViaQuickRebook: input.bookedViaQuickRebook ?? false,
+      },
+    });
+
+    // Re-read inside the write, so two bookings at once can't both spend the last session.
+    const fresh = await tx.sessionPackage.findUniqueOrThrow({ where: { id: pkg.id } });
+    if (fresh.status !== "ACTIVE" || sessionsLeft(fresh) <= 0) {
+      throw new Error("PACKAGE_EMPTY");
+    }
+    const sessionsUsed = fresh.sessionsUsed + 1;
+    const left = sessionsLeft({ ...fresh, sessionsUsed });
+    await tx.sessionPackage.update({
+      where: { id: pkg.id },
+      data: { sessionsUsed, status: left <= 0 ? "DEPLETED" : "ACTIVE" },
+    });
+
+    let videoCallUrl: string | null = null;
+    if (isFirstSession) {
+      videoCallUrl = generateMockVideoCallUrl(created.id);
+      await tx.booking.update({ where: { id: created.id }, data: { videoCallUrl } });
+    }
+
+    return { ...created, videoCallUrl, packageSessionsLeft: left };
+  }).catch((err): CreateBookingConflict | { conflict: "PACKAGE_EMPTY" } => {
+    if (err instanceof ChildBusyError) return { conflict: CHILD_BUSY, message: err.message };
+    if (err instanceof Error && err.message === "CONFLICT") return { conflict: "SLOT_TAKEN" };
+    if (err instanceof Error && err.message === "PACKAGE_EMPTY") return { conflict: "PACKAGE_EMPTY" };
+    throw err;
+  });
+}
+
+export function isBookingConflict<T extends object>(result: T): result is Extract<T, { conflict: string }> {
   return "conflict" in result;
 }

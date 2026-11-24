@@ -6,17 +6,12 @@ import {
   validateBookingRequest,
   validatePackageBookingRequest,
   createConfirmedBooking,
-  assertChildFree,
+  createPackageBooking,
   isBookingConflict,
   BookingValidationError,
-  ChildBusyError,
   CHILD_BUSY,
 } from "@/lib/bookingValidation";
-import { generateMockVideoCallUrl } from "@/lib/videoCall";
-import { rangesOverlap } from "@/lib/bookingConflicts";
-import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { getStripe } from "@/lib/stripe";
-import { sessionsLeft } from "@/lib/bundles";
 import { notifyBookingCreated } from "@/lib/notify";
 import { STRIPE_MIN_CENTS } from "@/lib/payment";
 import { holdDueAt } from "@/lib/holdTiming";
@@ -159,71 +154,25 @@ async function handlePackageBooking(
     }
     throw err;
   }
-  const { package: pkg, childLevel, sport, breakdown, isFirstSession } = validated;
-
-  const now = new Date();
-  const booking = await prisma.$transaction(async (tx) => {
-    const stillActive = await tx.booking.findMany({
-      where: { coachProfileId: pkg.coachProfileId, status: SLOT_HOLDING_STATUS_FILTER },
-      select: { scheduledAt: true, durationMinutes: true },
-    });
-    if (stillActive.some((b) => rangesOverlap(data.scheduledAt, pkg.durationMinutes, b.scheduledAt, b.durationMinutes))) {
-      throw new Error("CONFLICT");
-    }
-    // The child's other sessions with any coach, re-checked inside the write.
-    await assertChildFree(tx, data.childId, data.scheduledAt, pkg.durationMinutes);
-
-    const created = await tx.booking.create({
-      data: {
-        parentProfileId,
-        coachProfileId: pkg.coachProfileId,
-        childId: data.childId,
-        childLevel,
-        sport,
-        scheduledAt: data.scheduledAt,
-        durationMinutes: pkg.durationMinutes,
-        locationText: data.locationText,
-        priceCents: breakdown.priceCents,
-        platformFeeCents: breakdown.platformFeeCents,
-        discountCents: breakdown.discountCents,
-        status: "CONFIRMED",
-        parentalConsent: true,
-        secondAdultName: data.secondAdultName?.trim() || null,
-        paymentStatus: "CAPTURED",
-        capturedAt: now,
-        packageId: pkg.id,
-      },
-    });
-
-    const sessionsUsed = pkg.sessionsUsed + 1;
-    await tx.sessionPackage.update({
-      where: { id: pkg.id },
-      data: {
-        sessionsUsed,
-        status: sessionsLeft({ ...pkg, sessionsUsed }) <= 0 ? "DEPLETED" : "ACTIVE",
-      },
-    });
-
-    let videoCallUrl: string | null = null;
-    if (isFirstSession) {
-      videoCallUrl = generateMockVideoCallUrl(created.id);
-      await tx.booking.update({ where: { id: created.id }, data: { videoCallUrl } });
-    }
-
-    return { ...created, videoCallUrl };
-  }).catch((err) => {
-    if (err instanceof ChildBusyError) return { childBusy: err.message };
-    if (err instanceof Error && err.message === "CONFLICT") return null;
-    throw err;
+  const booking = await createPackageBooking({
+    parentProfileId,
+    childId: data.childId,
+    scheduledAt: data.scheduledAt,
+    locationText: data.locationText,
+    secondAdultName: data.secondAdultName,
+    validated,
   });
 
-  if (!booking) {
+  if (isBookingConflict(booking)) {
+    if (booking.conflict === CHILD_BUSY) {
+      return NextResponse.json({ error: booking.message, code: CHILD_BUSY }, { status: 409 });
+    }
+    if (booking.conflict === "PACKAGE_EMPTY") {
+      return NextResponse.json({ error: "This package has no sessions left." }, { status: 400 });
+    }
     return NextResponse.json({ error: "That time was just booked by someone else. Pick another time." }, { status: 409 });
-  }
-  if ("childBusy" in booking) {
-    return NextResponse.json({ error: booking.childBusy, code: CHILD_BUSY }, { status: 409 });
   }
 
   notifyBookingCreated(booking.id);
-  return NextResponse.json({ ok: true, bookingId: booking.id, isFirstSession, videoCallUrl: booking.videoCallUrl });
+  return NextResponse.json({ ok: true, bookingId: booking.id, isFirstSession: validated.isFirstSession, videoCallUrl: booking.videoCallUrl });
 }
