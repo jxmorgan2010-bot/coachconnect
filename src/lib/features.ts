@@ -22,3 +22,13 @@ export const BIO_VIDEO_PAUSED_MESSAGE = "Bio video uploads are paused during the
  * only. Experienced coaches who signed up while it was on stay listed and can finish onboarding.
  */
 export const EXPERIENCED_COACHES_ENABLED = false;
+
+/**
+ * Tips. Off until coach payouts exist: the tip form says 100% goes to the coach, but coaches aren't
+ * paid out yet and can't see tips. While off, the form is hidden and the tip route refuses. Before
+ * turning it on: pay tips out and show them to coaches, stop two requests at once charging twice
+ * (no idempotency key today), and keep the tip's PaymentIntent so an admin can refund it.
+ */
+export const TIPS_ENABLED = false;
+
+export const TIPS_OFF_MESSAGE = "Tips aren't available during the beta.";

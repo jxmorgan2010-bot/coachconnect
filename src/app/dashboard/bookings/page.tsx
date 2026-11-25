@@ -16,6 +16,8 @@ import SatisfactionGuaranteeNotice from "@/components/SatisfactionGuaranteeNotic
 import { CancelSessionButton, SessionTimingActions, TipForm, QuickRebookButton } from "../BookingActions";
 import { canMarkComplete, formatPacificDateTime, formatPacificTime } from "@/lib/sessionTiming";
 import { HOLD_NOT_FIXED_REASON, holdFixDeadline, holdState } from "@/lib/holdTiming";
+import { TIPS_ENABLED } from "@/lib/features";
+import { canTip, tipWasCharged } from "@/lib/tips";
 import { sessionReturnedToPackage } from "@/lib/packageSession";
 import { bookingChargeCents, canParentCancel, freeCancelPolicyText, parentCancelOutcome } from "@/lib/cancellation";
 
@@ -193,7 +195,7 @@ export default async function MyBookingsPage() {
                             ) : (
                               <>
                                 <span className="font-bold text-pitch">{formatCents(netPriceCents)}</span>
-                                {b.tippedAt && <span className="ml-1 font-bold text-ink">+ {formatCents(b.tipCents)} tip</span>}
+                                {tipWasCharged(b) && <span className="ml-1 font-bold text-ink">+ {formatCents(b.tipCents)} tip</span>}
                                 <span className="text-muted-foreground"> · {paymentLabel(b)}</span>
                               </>
                             )}
@@ -279,7 +281,7 @@ export default async function MyBookingsPage() {
                           )}
 
                           <div className="flex flex-wrap items-start gap-3">
-                            {b.tippedAt ? null : <TipForm bookingId={b.id} />}
+                            {canTip(b, TIPS_ENABLED) && <TipForm bookingId={b.id} />}
                             <QuickRebookButton
                               bookingId={b.id}
                               coachName={b.coachProfile.user.name}
