@@ -3,12 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { tipSchema } from "@/lib/validation";
 import { chargeTipOffSession } from "@/lib/payment";
+import { TIPS_ENABLED, TIPS_OFF_MESSAGE } from "@/lib/features";
+import { canTip } from "@/lib/tips";
 
 /** Tips are only offered after a session is marked complete, and pass through to the coach in full. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
   if (!session?.user || session.user.role !== "PARENT") {
     return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  }
+
+  if (!TIPS_ENABLED) {
+    return NextResponse.json({ error: TIPS_OFF_MESSAGE }, { status: 403 });
   }
 
   const { id } = await params;
@@ -21,6 +27,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   if (booking.tippedAt) {
     return NextResponse.json({ error: "You've already tipped for this session." }, { status: 409 });
+  }
+  if (!canTip(booking, TIPS_ENABLED)) {
+    return NextResponse.json({ error: "This session wasn't paid by card, so there's no card to charge a tip to." }, { status: 400 });
   }
 
   const body = await req.json().catch(() => null);

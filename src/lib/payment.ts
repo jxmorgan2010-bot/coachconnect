@@ -189,11 +189,13 @@ export async function refundCapturedPayment(stripePaymentIntentId: string, amoun
   return refund.id;
 }
 
-/** Tips are charged off-session against the card saved during booking, no further customer action needed. */
+/**
+ * Tips are charged off-session against the card saved during booking, no further customer action
+ * needed. Throws when there's no card, so a tip that wasn't charged is never recorded as sent.
+ */
 export async function chargeTipOffSession(stripeCustomerId: string | null, stripePaymentMethodId: string | null, amountCents: number) {
   if (!stripeCustomerId || !stripePaymentMethodId) {
-    console.log(`💳 [payment] No saved card on file to charge a $${(amountCents / 100).toFixed(2)} tip — skipping charge.`);
-    return;
+    throw new Error("Tip not charged: no saved card on file.");
   }
   const stripe = getStripe();
   await stripe.paymentIntents.create({
