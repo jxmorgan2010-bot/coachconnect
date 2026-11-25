@@ -16,6 +16,7 @@ import SatisfactionGuaranteeNotice from "@/components/SatisfactionGuaranteeNotic
 import { CancelSessionButton, SessionTimingActions, TipForm, QuickRebookButton } from "../BookingActions";
 import { canMarkComplete, formatPacificDateTime, formatPacificTime } from "@/lib/sessionTiming";
 import { HOLD_NOT_FIXED_REASON, holdFixDeadline, holdState } from "@/lib/holdTiming";
+import { sessionReturnedToPackage } from "@/lib/packageSession";
 import { bookingChargeCents, canParentCancel, freeCancelPolicyText, parentCancelOutcome } from "@/lib/cancellation";
 
 const STATUS_VARIANT = {
@@ -110,7 +111,7 @@ export default async function MyBookingsPage() {
       child: true,
       review: true,
       dispute: true,
-      refunds: { select: { kind: true } },
+      refunds: { select: { kind: true, amountCents: true } },
     },
     orderBy: { scheduledAt: "desc" },
   });
@@ -187,9 +188,15 @@ export default async function MyBookingsPage() {
                             {b.durationMinutes} min · {b.locationText}
                           </p>
                           <p className="mt-1.5 text-sm">
-                            <span className="font-bold text-pitch">{formatCents(netPriceCents)}</span>
-                            {b.tippedAt && <span className="ml-1 font-bold text-ink">+ {formatCents(b.tipCents)} tip</span>}
-                            <span className="text-muted-foreground"> · {paymentLabel(b)}</span>
+                            {sessionReturnedToPackage(b) ? (
+                              <span className="font-bold text-pitch">Session returned to your package</span>
+                            ) : (
+                              <>
+                                <span className="font-bold text-pitch">{formatCents(netPriceCents)}</span>
+                                {b.tippedAt && <span className="ml-1 font-bold text-ink">+ {formatCents(b.tipCents)} tip</span>}
+                                <span className="text-muted-foreground"> · {paymentLabel(b)}</span>
+                              </>
+                            )}
                             {b.autoCompleted && (
                               <span className="text-muted-foreground">
                                 {" "}· Auto-completed after {AUTO_RELEASE_GRACE_HOURS}h with no response

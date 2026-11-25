@@ -6,6 +6,7 @@ import DisputeRow, { type DisputeData } from "./DisputeRow";
 import { COACH_TIMEZONE } from "@/lib/availability";
 import { bookingChargeCents } from "@/lib/cancellation";
 import { isCardRefundable, waiveOutcomeText } from "@/lib/refunds";
+import { sessionReturnedToPackage } from "@/lib/packageSession";
 
 export default async function AdminDisputesPage() {
   const session = await getCurrentSession();
@@ -33,6 +34,7 @@ export default async function AdminDisputesPage() {
       chargedCents: bookingChargeCents(b),
       refundedCents,
       paymentStatus: b.paymentStatus,
+      returnedToPackage: sessionReturnedToPackage(b),
       refundable: isCardRefundable(b, refundedCents),
       lateCancellation: b.lateCancellation,
       waiveOutcome: b.lateCancellation && !waived ? waiveOutcomeText(b, refundedCents) : null,

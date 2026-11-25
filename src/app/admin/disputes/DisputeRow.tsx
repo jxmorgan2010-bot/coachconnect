@@ -16,6 +16,8 @@ export type DisputeData = {
   chargedCents: number;
   refundedCents: number;
   paymentStatus: PaymentStatus;
+  /** A package session that went back into its package: no money moved (src/lib/packageSession.ts). */
+  returnedToPackage: boolean;
   /** Captured and paid by card (the booking's own or its package's), with money left to refund. */
   refundable: boolean;
   lateCancellation: boolean;
@@ -60,6 +62,8 @@ const NO_REFUND_NOTE: Record<PaymentStatus, string> = {
   CAPTURED: "This session was covered by referral credit, not a card, so there's nothing to refund through Stripe.",
   PARTIALLY_REFUNDED: "",
 };
+
+const RETURNED_NOTE = "No refund needed: the session went back into the parent's package.";
 
 const REASON_LABEL: Record<string, string> = {
   NO_SHOW: "No-show",
@@ -113,7 +117,10 @@ export default function DisputeRow({ dispute }: { dispute: DisputeData }) {
         <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
       </div>
       <p className="text-sm text-muted-foreground">
-        Session {dispute.sessionDate} · {formatCents(dispute.chargedCents)} · {PAYMENT_LABEL[dispute.paymentStatus]}
+        Session {dispute.sessionDate} ·{" "}
+        {dispute.returnedToPackage
+          ? "Session returned to package"
+          : `${formatCents(dispute.chargedCents)} · ${PAYMENT_LABEL[dispute.paymentStatus]}`}
       </p>
       <p className="border-l-4 border-gold pl-3 text-sm text-ink">{dispute.details}</p>
       {dispute.refundedCents > 0 && (
@@ -130,7 +137,11 @@ export default function DisputeRow({ dispute }: { dispute: DisputeData }) {
           {dispute.refundable ? (
             <RefundForm endpoint={endpoint} extra={{ action: "refund" }} defaultCents={remainingCents} maxCents={remainingCents} />
           ) : (
-            !resolved && <p className="text-xs font-bold text-muted-foreground">{NO_REFUND_NOTE[dispute.paymentStatus]}</p>
+            !resolved && (
+              <p className="text-xs font-bold text-muted-foreground">
+                {dispute.returnedToPackage ? RETURNED_NOTE : NO_REFUND_NOTE[dispute.paymentStatus]}
+              </p>
+            )
           )}
           {!resolved && (
             <>
