@@ -14,6 +14,10 @@ import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLength
  * hold, this uses automatic capture — buying a package is a real purchase, not a hold
  * released later. The SessionPackage row itself isn't created until the card is
  * confirmed — see POST /api/packages.
+ *
+ * The card is also saved on the parent's Stripe customer (the form says so), so a family that only
+ * buys packages can quick rebook once the package is used up (src/lib/quickRebookPayment.ts). Any
+ * bank authentication happens now, while the parent is here.
  */
 export async function POST(req: Request) {
   const session = await getCurrentSession();
@@ -76,6 +80,7 @@ export async function POST(req: Request) {
     currency: "usd",
     customer: stripeCustomerId,
     payment_method_types: ["card"],
+    setup_future_usage: "off_session",
     metadata: {
       parentProfileId: parentProfile.id,
       coachProfileId: coach.id,

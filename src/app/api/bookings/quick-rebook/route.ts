@@ -20,7 +20,7 @@ import { SLOT_HOLDING_STATUS_FILTER } from "@/lib/availability";
 import { notifyBookingCreated } from "@/lib/notify";
 import { getStripe } from "@/lib/stripe";
 import { holdDueAt, holdsAtBooking } from "@/lib/holdTiming";
-import { findRebookCard, findRebookPackage, type SavedCardInfo } from "@/lib/quickRebookPayment";
+import { findRebookCard, findRebookPackage, type PackageCardInfo, type SavedCardInfo } from "@/lib/quickRebookPayment";
 import { isAllowedLength, lengthLabel, lengthOptions, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
 
 // Quick rebook picks the time itself, so the way forward is the form where the parent picks one.
@@ -39,7 +39,7 @@ const REBOOK_WEEKS_TO_TRY = 4;
  * 1. A session left in a package with this coach, for the same sport and length, is used first.
  *    No Stripe call, same as booking from the package on the booking form.
  * 2. Otherwise a saved card (no Stripe Elements on this screen): the card from the prior booking,
- *    or else the newest card saved on another booking, which the parent must confirm by name
+ *    or else the newest card saved on another booking or a package, which the parent must confirm by name
  *    first (CONFIRM_CARD). A session 2 days away or less is held off-session now; one further
  *    out is booked on the saved card and the card-holds job places the hold 2 days before, same
  *    as the booking form (src/lib/holdTiming.ts).
@@ -204,6 +204,7 @@ export async function POST(req: Request) {
       stripeCustomerId: customer,
       priorBooking,
       retrieveCard: retrieveSavedCard,
+      retrievePackageCard,
     });
     if (!customer || !card) {
       return NextResponse.json(
@@ -215,13 +216,13 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    // A card from a different booking is only used once the parent has seen which one it is.
-    if (card.fromOtherBooking && parsed.data.confirmCardId !== card.paymentMethodId) {
+    // A card from a different booking or a package is only used once the parent has seen which one it is.
+    if (card.source !== "PRIOR_BOOKING" && parsed.data.confirmCardId !== card.paymentMethodId) {
       return NextResponse.json(
         {
           error: `Confirm the card for this session: ${card.label}.`,
           code: "CONFIRM_CARD",
-          card: { id: card.paymentMethodId, label: card.label },
+          card: { id: card.paymentMethodId, label: card.label, source: card.source },
           scheduledAt,
           totalDueCents,
         },
@@ -285,6 +286,18 @@ export async function POST(req: Request) {
 
   notifyBookingCreated(booking.id);
   return NextResponse.json({ ok: true, bookingId: booking.id, scheduledAt: booking.scheduledAt, paidWith: "card", cardLabel });
+}
+
+async function retrievePackageCard(paymentIntentId: string): Promise<PackageCardInfo | null> {
+  const intent = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ["payment_method"] });
+  const card = intent.payment_method;
+  if (!card || typeof card === "string") return null;
+  return {
+    paymentMethodId: card.id,
+    customerId: typeof card.customer === "string" ? card.customer : (card.customer?.id ?? null),
+    brand: card.card?.brand ?? null,
+    last4: card.card?.last4 ?? null,
+  };
 }
 
 async function retrieveSavedCard(paymentMethodId: string): Promise<SavedCardInfo> {
