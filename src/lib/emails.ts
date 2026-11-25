@@ -418,6 +418,28 @@ export const reminderEmail = tracked(function reminderEmail(p: {
   };
 });
 
+/** A package is paid for and ready: sent once, by whichever of the browser or Stripe's webhook delivered it. */
+export const packageReadyEmail = tracked(function packageReadyEmail(p: {
+  to: string;
+  coachName: string;
+  sport: Sport;
+  sessions: number;
+  durationMinutes: number;
+  totalChargedCents: number;
+  coachProfileId: string;
+  packageId: string;
+}): Email {
+  return {
+    to: p.to,
+    subject: "Your package is ready to book",
+    paragraphs: [
+      `Your package with ${safeText(p.coachName, "your coach")} is paid for: ${p.sessions} ${SPORT_LABELS[p.sport]} sessions, ${lengthLabel(p.durationMinutes)} each. We charged your card ${formatCents(p.totalChargedCents)}.`,
+      "Book a session whenever you're ready. Sessions from this package need no further charge.",
+    ],
+    button: { label: "Book your first session", url: siteLink(`/coaches/${p.coachProfileId}/book?packageId=${p.packageId}`) },
+  };
+});
+
 export type RefundFacts =
   | { kind: "REFUND"; amountCents: number; coachName: string; scheduledAt: Date }
   | { kind: "LATE_CANCEL_WAIVER"; amountCents: number; sessionsReturned: number; creditReturnedCents: number; coachName: string; scheduledAt: Date }

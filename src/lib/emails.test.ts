@@ -55,6 +55,7 @@ function all(): Email[] {
     T.refundIssuedEmail(to, { kind: "REFUND", amountCents: 2500, coachName: "Priya Shah", scheduledAt: at }),
     T.refundIssuedEmail(to, { kind: "LATE_CANCEL_WAIVER", amountCents: 5000, sessionsReturned: 0, creditReturnedCents: 1000, coachName: "Priya Shah", scheduledAt: at }),
     T.refundIssuedEmail(to, { kind: "PACKAGE_UNUSED", amountCents: 13680, sessions: 4, coachName: "Casey Nguyen" }),
+    T.packageReadyEmail({ to, coachName: "Priya Shah", sport: "TENNIS", sessions: 5, durationMinutes: 60, totalChargedCents: 20250, coachProfileId: "coach1", packageId: "pkg1" }),
     T.newMessageEmail({ to, senderName: "Priya Shah", threadId: "thread1" }),
     T.consentRequestEmail({ to, guardianName: "Dana Shah", coachName: "Riley Shah", link: "https://getassistcoaching.com/minor-consent/tok", ttlDays: 7 }),
     T.consentRecordedEmail({ to, signerName: "Dana Shah", coachName: "Riley Shah", revokeLink: "https://getassistcoaching.com/minor-consent/revoke/tok" }),
@@ -190,6 +191,14 @@ test("refund emails give the amount and what it was for, never the admin's reaso
   assert.ok(waiver.includes("The session is back in your package."));
   const pkg = renderText(T.refundIssuedEmail("x@resend.dev", { kind: "PACKAGE_UNUSED", amountCents: 13680, sessions: 4, coachName: "Casey Nguyen" }));
   assert.ok(pkg.includes("We've refunded $136.80 to your card for 4 unused sessions in your package with Casey Nguyen."));
+});
+
+test("package ready: what was bought, what was charged, and a link to book from it", () => {
+  const to = "x@resend.dev";
+  const email = T.packageReadyEmail({ to, coachName: "Priya Shah", sport: "TENNIS", sessions: 5, durationMinutes: 60, totalChargedCents: 20250, coachProfileId: "coach1", packageId: "pkg1" });
+  const text = renderText(email);
+  assert.match(text, /5 Tennis sessions, 1 hour each\. We charged your card \$202\.50\./);
+  assert.equal(email.button?.url, "https://getassistcoaching.com/coaches/coach1/book?packageId=pkg1");
 });
 
 test("admin alerts carry no report text or personal details", () => {

@@ -46,6 +46,9 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // The card was charged but our server didn't confirm the package. Stripe's webhook delivers it
+  // (POST /api/stripe/webhook), so the parent must not pay again.
+  const [paidNotConfirmed, setPaidNotConfirmed] = useState(false);
 
   const pricing = useMemo(() => calculateBundlePricing(coach.hourlyRateCents, duration), [coach.hourlyRateCents, duration]);
 
@@ -73,11 +76,11 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ coachProfileId: coach.id, sport, durationMinutes: duration }),
-    });
-    const intentData = await intentRes.json();
-    if (!intentRes.ok) {
+    }).catch(() => null);
+    const intentData = await intentRes?.json().catch(() => null);
+    if (!intentRes?.ok || !intentData) {
       setLoading(false);
-      setError(intentData.error ?? "Something went wrong.");
+      setError(intentData?.error ?? "We couldn't reach our server, so you haven't been charged. Please try again.");
       return;
     }
 
@@ -86,7 +89,11 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
     });
     if (stripeError) {
       setLoading(false);
-      setError(stripeError.message ?? "Your card couldn't be charged.");
+      setError(
+        stripeError.type === "api_connection_error"
+          ? "We lost the connection, so we don't know yet if your payment went through. Check your dashboard for the package before trying again."
+          : (stripeError.message ?? "Your card couldn't be charged."),
+      );
       return;
     }
 
@@ -94,14 +101,35 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paymentIntentId: paymentIntent?.id }),
-    });
-    const confirmData = await confirmRes.json();
+    }).catch(() => null);
+    const confirmData = await confirmRes?.json().catch(() => null);
     setLoading(false);
-    if (!confirmRes.ok) {
-      setError(confirmData.error ?? "Something went wrong.");
-      return;
+    if (confirmRes?.ok) {
+      setSuccess(true);
+    } else if (confirmData?.code === "NOT_PAID" || confirmData?.code === "REFUNDED") {
+      setError(confirmData.error);
+    } else {
+      setPaidNotConfirmed(true);
     }
-    setSuccess(true);
+  }
+
+  if (paidNotConfirmed) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 sm:py-16">
+        <div className="card p-6 sm:p-8">
+          <p className="eyebrow mb-3 text-pitch">Payment received</p>
+          <h1 className="text-display-md font-display text-ink">Your card was charged. Please don&apos;t pay again.</h1>
+          <p className="mt-4 text-ink">
+            We&apos;re still setting up your {pricing.sessionCount} sessions with {coach.name}. They&apos;ll show on your
+            dashboard, usually within a few minutes, and we&apos;ll email you. If they&apos;re not there in an hour, tell us
+            through &ldquo;Need help?&rdquo; on this page.
+          </p>
+          <button onClick={() => router.push("/dashboard")} className={`${primaryButtonClass} mt-6 w-full sm:w-auto`}>
+            Go to my dashboard
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (success) {

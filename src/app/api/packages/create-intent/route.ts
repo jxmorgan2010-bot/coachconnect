@@ -6,6 +6,8 @@ import { isCoachLive } from "@/lib/coach";
 import { ACCOUNT_SUSPENDED_MESSAGE } from "@/lib/contactPolicy";
 import { calculateBundlePricing } from "@/lib/bundles";
 import { getStripe } from "@/lib/stripe";
+import type { Sport } from "@/generated/prisma/client";
+import { packageMetadata } from "@/lib/packageIntent";
 import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
 
 /**
@@ -13,7 +15,8 @@ import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLength
  * a Stripe PaymentIntent for the full discounted total. Unlike a single-session booking
  * hold, this uses automatic capture — buying a package is a real purchase, not a hold
  * released later. The SessionPackage row itself isn't created until the card is
- * confirmed — see POST /api/packages.
+ * confirmed — see POST /api/packages, and POST /api/stripe/webhook for when the browser never
+ * gets that far. What's being bought is recorded on the PaymentIntent for both.
  *
  * The card is also saved on the parent's Stripe customer (the form says so), so a family that only
  * buys packages can quick rebook once the package is used up (src/lib/quickRebookPayment.ts). Any
@@ -81,12 +84,13 @@ export async function POST(req: Request) {
     customer: stripeCustomerId,
     payment_method_types: ["card"],
     setup_future_usage: "off_session",
-    metadata: {
+    metadata: packageMetadata({
       parentProfileId: parentProfile.id,
       coachProfileId: coach.id,
-      sport: data.sport,
-      durationMinutes: String(data.durationMinutes),
-    },
+      sport: data.sport as Sport,
+      durationMinutes: data.durationMinutes,
+      pricing,
+    }),
   });
 
   return NextResponse.json({

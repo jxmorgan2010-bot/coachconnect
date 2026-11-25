@@ -164,6 +164,7 @@ function catalog(v: {
     ["refund", T.refundIssuedEmail(to, { kind: "REFUND", amountCents: 2500, coachName: v.coach, scheduledAt: v.at })],
     ["late-cancel waiver", T.refundIssuedEmail(to, { kind: "LATE_CANCEL_WAIVER", amountCents: 5000, sessionsReturned: 1, creditReturnedCents: 1000, coachName: v.coach, scheduledAt: v.at })],
     ["package refund", T.refundIssuedEmail(to, { kind: "PACKAGE_UNUSED", amountCents: 13680, sessions: 4, coachName: v.coach })],
+    ["package ready", T.packageReadyEmail({ to, coachName: v.coach, sport: booking.sport, sessions: 5, durationMinutes: 75, totalChargedCents: 25313, coachProfileId: "coach1", packageId: "pkg1" })],
     ["new message", T.newMessageEmail({ to, senderName: v.coach, threadId: "thread1" })],
     ["consent request", T.consentRequestEmail({ to, guardianName: v.parent, coachName: v.coach, link: "https://getassistcoaching.com/minor-consent/tok", ttlDays: 7 })],
     ["consent recorded", T.consentRecordedEmail({ to, signerName: v.parent, coachName: v.coach, revokeLink: "https://getassistcoaching.com/minor-consent/revoke/tok" })],
