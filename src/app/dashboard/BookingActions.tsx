@@ -431,8 +431,9 @@ export function QuickRebookButton({
   // Set when the earlier session's length can no longer be booked (LENGTH_REQUIRED).
   const [lengthNeeded, setLengthNeeded] = useState<{ prompt: string; options: { minutes: number; label: string; priceCents: number }[] } | null>(null);
   const [lengthDraft, setLengthDraft] = useState<number | null>(null);
-  // Set when the only card on file was saved on a different booking (CONFIRM_CARD): name it, ask first.
-  const [cardToConfirm, setCardToConfirm] = useState<{ id: string; label: string; when: string; total: string } | null>(null);
+  // Set when the card on file was saved on a different booking or when buying a package
+  // (CONFIRM_CARD): name it, ask first.
+  const [cardToConfirm, setCardToConfirm] = useState<{ id: string; label: string; savedWhen: string; when: string; total: string } | null>(null);
   // Set when there's no saved card at all (NO_SAVED_CARD): link to this coach's booking form.
   const [bookingFormHref, setBookingFormHref] = useState<string | null>(null);
 
@@ -484,6 +485,7 @@ export function QuickRebookButton({
         setCardToConfirm({
           id: data.card.id,
           label: data.card.label,
+          savedWhen: data.card.source === "PACKAGE" ? "when you bought a package" : "on an earlier booking",
           when: formatPacificDateTime(new Date(data.scheduledAt)),
           total: formatCents(data.totalDueCents),
         });
@@ -525,7 +527,7 @@ export function QuickRebookButton({
       <div className="flex max-w-md flex-col items-start gap-2 rounded-lg border-2 border-ink bg-muted p-3">
         <p className="text-sm text-ink">
           <span className="font-bold">Rebook with {coachName} for {cardToConfirm.when}, {cardToConfirm.total}?</span>{" "}
-          This uses your <span className="font-bold">{cardToConfirm.label}</span>, the card you saved on an earlier booking.
+          This uses your <span className="font-bold">{cardToConfirm.label}</span>, the card you saved {cardToConfirm.savedWhen}.
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={primaryButtonClass} disabled={loading} onClick={() => onClick(cardToConfirm.id)}>

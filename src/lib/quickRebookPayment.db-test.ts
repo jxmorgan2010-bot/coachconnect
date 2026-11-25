@@ -18,7 +18,7 @@ if (process.env.QUICK_REBOOK_DB_TEST !== "1" || !url.startsWith("file:") || /(^|
 }
 
 import { prisma } from "./prisma";
-import { findRebookCard, findRebookPackage, type SavedCardInfo } from "./quickRebookPayment";
+import { findRebookCard, findRebookPackage, type PackageCardInfo, type SavedCardInfo } from "./quickRebookPayment";
 import { validatePackageBookingRequest, createPackageBooking, isBookingConflict } from "./bookingValidation";
 import type { Sport } from "@/generated/prisma/client";
 
@@ -73,7 +73,7 @@ async function makeFamily(stripeCustomerId: string | null = `cus_${randomUUID()}
   return { parent, alex };
 }
 
-function makePackage(parentProfileId: string, coachProfileId: string, over: { sport?: Sport; durationMinutes?: number; sessionsUsed?: number; sessionsCashRefunded?: number; status?: "ACTIVE" | "DEPLETED"; createdAt?: Date } = {}) {
+function makePackage(parentProfileId: string, coachProfileId: string, over: { sport?: Sport; durationMinutes?: number; sessionsUsed?: number; sessionsCashRefunded?: number; status?: "ACTIVE" | "DEPLETED"; createdAt?: Date; stripePaymentIntentId?: string } = {}) {
   return prisma.sessionPackage.create({
     data: {
       parentProfileId,
@@ -87,6 +87,7 @@ function makePackage(parentProfileId: string, coachProfileId: string, over: { sp
       pricePerSessionCents: 4000,
       discountPercent: 10,
       totalChargedCents: 18000,
+      stripePaymentIntentId: over.stripePaymentIntentId ?? null,
       ...(over.createdAt ? { createdAt: over.createdAt } : {}),
     },
   });
@@ -124,6 +125,21 @@ function fakeStripe(cards: Record<string, { customerId: string | null; brand?: s
   return { retrieveCard, calls };
 }
 
+const noPackageCards = async (): Promise<PackageCardInfo | null> => {
+  throw new Error("No package card lookup expected");
+};
+
+/** A fake Stripe lookup of packages' PaymentIntents (missing = not found). */
+function fakePackageCards(intents: Record<string, PackageCardInfo>) {
+  const calls: string[] = [];
+  const retrievePackageCard = async (id: string): Promise<PackageCardInfo | null> => {
+    calls.push(id);
+    if (!intents[id]) throw Object.assign(new Error("No such PaymentIntent"), { code: "resource_missing" });
+    return intents[id];
+  };
+  return { retrievePackageCard, calls };
+}
+
 test("package: the oldest matching package with sessions left is used", async () => {
   const coach = await makeCoach();
   const { parent } = await makeFamily();
@@ -151,8 +167,8 @@ test("card: the prior booking's own card is used without confirmation", async ()
   await booking(parent.id, coach.id, alex.id, { stripePaymentMethodId: "pm_other" });
   const prior = await booking(parent.id, coach.id, alex.id, { stripePaymentMethodId: "pm_prior" });
   const { retrieveCard, calls } = fakeStripe({ pm_prior: { customerId: parent.stripeCustomerId }, pm_other: { customerId: parent.stripeCustomerId } });
-  const card = await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard });
-  assert.deepEqual(card, { paymentMethodId: "pm_prior", label: "Visa ending 4242", fromOtherBooking: false });
+  const card = await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard, retrievePackageCard: noPackageCards });
+  assert.deepEqual(card, { paymentMethodId: "pm_prior", label: "Visa ending 4242", source: "PRIOR_BOOKING" });
   assert.deepEqual(calls, ["pm_prior"]);
 });
 
@@ -167,8 +183,8 @@ test("card: after a package session, the newest card from another booking is off
     pm_old: { customerId: parent.stripeCustomerId },
     pm_new: { customerId: parent.stripeCustomerId, brand: "mastercard", last4: "4444" },
   });
-  const card = await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard });
-  assert.deepEqual(card, { paymentMethodId: "pm_new", label: "Mastercard ending 4444", fromOtherBooking: true });
+  const card = await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard, retrievePackageCard: noPackageCards });
+  assert.deepEqual(card, { paymentMethodId: "pm_new", label: "Mastercard ending 4444", source: "OTHER_BOOKING" });
 });
 
 test("card: removed cards, or cards on someone else's customer, are skipped", async () => {
@@ -183,8 +199,8 @@ test("card: removed cards, or cards on someone else's customer, are skipped", as
     pm_detached: { customerId: "cus_someone_else" },
     pm_ok: { customerId: parent.stripeCustomerId },
   });
-  const card = await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard });
-  assert.deepEqual(card, { paymentMethodId: "pm_ok", label: "Visa ending 4242", fromOtherBooking: true });
+  const card = await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard, retrievePackageCard: noPackageCards });
+  assert.deepEqual(card, { paymentMethodId: "pm_ok", label: "Visa ending 4242", source: "OTHER_BOOKING" });
 });
 
 test("card: none at all, or no Stripe customer, gives null", async () => {
@@ -192,12 +208,61 @@ test("card: none at all, or no Stripe customer, gives null", async () => {
   const { parent, alex } = await makeFamily();
   const prior = await booking(parent.id, coach.id, alex.id);
   const { retrieveCard, calls } = fakeStripe({});
-  assert.equal(await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard }), null);
+  assert.equal(await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard, retrievePackageCard: noPackageCards }), null);
 
   const noCustomer = await makeFamily(null);
   const prior2 = await booking(noCustomer.parent.id, coach.id, noCustomer.alex.id, { stripePaymentMethodId: "pm_x" });
-  assert.equal(await findRebookCard({ parentProfileId: noCustomer.parent.id, stripeCustomerId: null, priorBooking: prior2, retrieveCard }), null);
+  assert.equal(await findRebookCard({ parentProfileId: noCustomer.parent.id, stripeCustomerId: null, priorBooking: prior2, retrieveCard, retrievePackageCard: noPackageCards }), null);
   assert.deepEqual(calls, []);
+});
+
+test("card: a package-only family is offered the card saved at package purchase, for confirmation", async () => {
+  const coach = await makeCoach();
+  const { parent, alex } = await makeFamily();
+  const intent = `pi_${randomUUID()}`;
+  const pkg = await makePackage(parent.id, coach.id, { sessionsUsed: 5, status: "DEPLETED", stripePaymentIntentId: intent });
+  const prior = await booking(parent.id, coach.id, alex.id, { packageId: pkg.id });
+  const { retrieveCard } = fakeStripe({});
+  const { retrievePackageCard } = fakePackageCards({ [intent]: { paymentMethodId: "pm_pkg", customerId: parent.stripeCustomerId, brand: "visa", last4: "4242" } });
+  const card = await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard, retrievePackageCard });
+  assert.deepEqual(card, { paymentMethodId: "pm_pkg", label: "Visa ending 4242", source: "PACKAGE" });
+});
+
+test("card: a package bought before cards were saved (not on the customer) is skipped", async () => {
+  const coach = await makeCoach();
+  const { parent, alex } = await makeFamily();
+  const [unsaved, theirs] = [`pi_${randomUUID()}`, `pi_${randomUUID()}`];
+  await makePackage(parent.id, coach.id, { stripePaymentIntentId: unsaved });
+  await makePackage(parent.id, coach.id, { stripePaymentIntentId: theirs });
+  await makePackage(parent.id, coach.id, {}); // no payment on record
+  const prior = await booking(parent.id, coach.id, alex.id);
+  const { retrieveCard } = fakeStripe({});
+  const { retrievePackageCard, calls } = fakePackageCards({
+    [unsaved]: { paymentMethodId: "pm_unsaved", customerId: null, brand: "visa", last4: "4242" },
+    [theirs]: { paymentMethodId: "pm_theirs", customerId: "cus_someone_else", brand: "visa", last4: "4242" },
+  });
+  assert.equal(await findRebookCard({ parentProfileId: parent.id, stripeCustomerId: parent.stripeCustomerId, priorBooking: prior, retrieveCard, retrievePackageCard }), null);
+  assert.equal(calls.length, 2);
+});
+
+test("card: booking and package cards are tried newest first, after the prior booking's own card", async () => {
+  const coach = await makeCoach();
+  const { parent, alex } = await makeFamily();
+  const intent = `pi_${randomUUID()}`;
+  const on = parent.stripeCustomerId;
+  await booking(parent.id, coach.id, alex.id, { stripePaymentMethodId: "pm_old", createdAt: new Date(Date.now() - 20 * DAY) });
+  await makePackage(parent.id, coach.id, { stripePaymentIntentId: intent, createdAt: new Date(Date.now() - 10 * DAY) });
+  const pkgPrior = await booking(parent.id, coach.id, alex.id);
+  const { retrieveCard } = fakeStripe({ pm_old: { customerId: on }, pm_new: { customerId: on }, pm_prior: { customerId: on } });
+  const { retrievePackageCard } = fakePackageCards({ [intent]: { paymentMethodId: "pm_pkg", customerId: on, brand: "amex", last4: "0005" } });
+  const find = (priorBooking: { id: string; stripePaymentMethodId: string | null }) =>
+    findRebookCard({ parentProfileId: parent.id, stripeCustomerId: on, priorBooking, retrieveCard, retrievePackageCard });
+
+  assert.deepEqual(await find(pkgPrior), { paymentMethodId: "pm_pkg", label: "American Express ending 0005", source: "PACKAGE" });
+  await booking(parent.id, coach.id, alex.id, { stripePaymentMethodId: "pm_new", createdAt: new Date(Date.now() - 5 * DAY) });
+  assert.equal((await find(pkgPrior))?.paymentMethodId, "pm_new");
+  const ownCard = await booking(parent.id, coach.id, alex.id, { stripePaymentMethodId: "pm_prior", createdAt: new Date(Date.now() - 30 * DAY) });
+  assert.equal((await find(ownCard))?.source, "PRIOR_BOOKING");
 });
 
 test("another family's cards are never considered", async () => {
@@ -205,9 +270,10 @@ test("another family's cards are never considered", async () => {
   const me = await makeFamily();
   const them = await makeFamily();
   await booking(them.parent.id, coach.id, them.alex.id, { stripePaymentMethodId: "pm_theirs" });
+  await makePackage(them.parent.id, coach.id, { stripePaymentIntentId: `pi_${randomUUID()}` });
   const prior = await booking(me.parent.id, coach.id, me.alex.id);
   const { retrieveCard, calls } = fakeStripe({ pm_theirs: { customerId: me.parent.stripeCustomerId } });
-  assert.equal(await findRebookCard({ parentProfileId: me.parent.id, stripeCustomerId: me.parent.stripeCustomerId, priorBooking: prior, retrieveCard }), null);
+  assert.equal(await findRebookCard({ parentProfileId: me.parent.id, stripeCustomerId: me.parent.stripeCustomerId, priorBooking: prior, retrieveCard, retrievePackageCard: noPackageCards }), null);
   assert.deepEqual(calls, []);
 });
 

@@ -214,6 +214,11 @@ function PackagePurchaseFormInner({ coach }: { coach: CoachInfo }) {
           <p className="text-sm text-muted-foreground">Loading payment form...</p>
         )}
 
+        <p className="text-sm text-ink">
+          <span className="font-bold">Your card will be saved for future bookings.</span> We only use it when you book
+          another session.
+        </p>
+
         <button type="submit" className={`${primaryButtonClass} w-full text-base`} disabled={loading}>
           {loading ? "Purchasing..." : `Buy package — ${formatCents(pricing.totalChargedCents)}`}
         </button>
