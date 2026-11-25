@@ -431,10 +431,16 @@ export function QuickRebookButton({
   // Set when the earlier session's length can no longer be booked (LENGTH_REQUIRED).
   const [lengthNeeded, setLengthNeeded] = useState<{ prompt: string; options: { minutes: number; label: string; priceCents: number }[] } | null>(null);
   const [lengthDraft, setLengthDraft] = useState<number | null>(null);
+  // Set when the only card on file was saved on a different booking (CONFIRM_CARD): name it, ask first.
+  const [cardToConfirm, setCardToConfirm] = useState<{ id: string; label: string; when: string; total: string } | null>(null);
+  // Set when there's no saved card at all (NO_SAVED_CARD): link to this coach's booking form.
+  const [bookingFormHref, setBookingFormHref] = useState<string | null>(null);
 
-  async function onClick() {
+  async function onClick(confirmCardId?: string) {
     setError(null);
     setErrorCode(null);
+    setBookingFormHref(null);
+    if (!confirmCardId) setCardToConfirm(null);
     if (lengthNeeded && !lengthDraft) {
       setError("Choose a length first.");
       return;
@@ -464,11 +470,30 @@ export function QuickRebookButton({
     const res = await fetch("/api/bookings/quick-rebook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId, ...(lengthDraft ? { durationMinutes: lengthDraft } : {}) }),
+      body: JSON.stringify({
+        bookingId,
+        ...(lengthDraft ? { durationMinutes: lengthDraft } : {}),
+        ...(confirmCardId ? { confirmCardId } : {}),
+      }),
     });
     const data = await res.json();
     setLoading(false);
+    setCardToConfirm(null);
     if (!res.ok) {
+      if (data.code === "CONFIRM_CARD" && data.card?.id) {
+        setCardToConfirm({
+          id: data.card.id,
+          label: data.card.label,
+          when: formatPacificDateTime(new Date(data.scheduledAt)),
+          total: formatCents(data.totalDueCents),
+        });
+        return;
+      }
+      if (data.code === "NO_SAVED_CARD" && data.coachProfileId) {
+        setError(data.error);
+        setBookingFormHref(`/coaches/${data.coachProfileId}/book`);
+        return;
+      }
       if (data.code === "LENGTH_REQUIRED" && Array.isArray(data.options)) {
         setLengthNeeded({ prompt: data.error, options: data.options });
         return;
@@ -482,12 +507,36 @@ export function QuickRebookButton({
       setErrorCode(data.code ?? null);
       return;
     }
-    setSuccess(formatPacificDateTime(new Date(data.scheduledAt)));
+    const when = formatPacificDateTime(new Date(data.scheduledAt));
+    setSuccess(
+      data.paidWith === "package"
+        ? `Rebooked with ${coachName} for ${when}, using a session from your package (${data.packageSessionsLeft} left). You'll find it in your bookings.`
+        : `Rebooked with ${coachName} for ${when}${data.cardLabel ? ` on your ${data.cardLabel}` : ""}. You'll find it in your bookings.`,
+    );
     router.refresh();
   }
 
   if (success) {
-    return <p role="status" className={successClass}>Rebooked with {coachName} for {success}. You&apos;ll find it in your bookings.</p>;
+    return <p role="status" className={successClass}>{success}</p>;
+  }
+
+  if (cardToConfirm) {
+    return (
+      <div className="flex max-w-md flex-col items-start gap-2 rounded-lg border-2 border-ink bg-muted p-3">
+        <p className="text-sm text-ink">
+          <span className="font-bold">Rebook with {coachName} for {cardToConfirm.when}, {cardToConfirm.total}?</span>{" "}
+          This uses your <span className="font-bold">{cardToConfirm.label}</span>, the card you saved on an earlier booking.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={primaryButtonClass} disabled={loading} onClick={() => onClick(cardToConfirm.id)}>
+            {loading ? "Rebooking..." : `Confirm and rebook`}
+          </button>
+          <button type="button" className={secondaryButtonClass} disabled={loading} onClick={() => setCardToConfirm(null)}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -495,6 +544,9 @@ export function QuickRebookButton({
       {error && <p className={errorClass}>{error}</p>}
       {errorCode === "LEVEL_NOT_ACCEPTED" && (
         <Link href="/dashboard/family" className={`${quietLinkClass} text-pitch`}>Update levels on your family page</Link>
+      )}
+      {bookingFormHref && (
+        <Link href={bookingFormHref} className={`${quietLinkClass} text-pitch`}>Go to the booking form</Link>
       )}
       {lengthNeeded && (
         <div className="w-full max-w-md">
@@ -517,7 +569,7 @@ export function QuickRebookButton({
           />
         </div>
       )}
-      <button onClick={onClick} className={secondaryButtonClass} disabled={loading} aria-describedby={secondAdultName ? `rebook-adult-${bookingId}` : undefined}>
+      <button onClick={() => onClick()} className={secondaryButtonClass} disabled={loading} aria-describedby={secondAdultName ? `rebook-adult-${bookingId}` : undefined}>
         {loading
           ? "Rebooking..."
           : levelNeeded

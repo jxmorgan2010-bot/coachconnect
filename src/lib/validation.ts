@@ -70,6 +70,8 @@ export const quickRebookSchema = z.object({
   bookingId: z.string().trim().min(1),
   // Only sent when the earlier session's length can no longer be booked (LENGTH_REQUIRED).
   durationMinutes: z.coerce.number().int().optional(),
+  // Only sent after the parent confirms a card saved on a different booking (CONFIRM_CARD).
+  confirmCardId: z.string().trim().min(1).optional(),
 });
 
 export const pointsRedeemSchema = z.object({
