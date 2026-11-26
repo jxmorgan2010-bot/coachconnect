@@ -7,6 +7,7 @@ import {
   coachCancelledParentEmail,
   newMessageEmail,
   newReportEmail,
+  packageReadyEmail,
   parentCancelledCoachEmail,
   parentCancelledParentEmail,
   refundIssuedEmail,
@@ -174,6 +175,31 @@ export function notifyRefundIssued(r: RefundNotice): void {
   later(async () => {
     const email = await refundIssuedFor(r);
     if (email) await sendEmail(email);
+  });
+}
+
+// ---------------------------------------------------------------- packages
+
+/** Called by whoever created the package (browser or Stripe's webhook), so it's sent once. */
+export function notifyPackageReady(packageId: string): void {
+  later(async () => {
+    const pkg = await prisma.sessionPackage.findUnique({
+      where: { id: packageId },
+      include: { parentProfile: { include: { user: true } }, coachProfile: { include: { user: true } } },
+    });
+    if (!pkg) return;
+    await sendEmail(
+      packageReadyEmail({
+        to: pkg.parentProfile.user.email,
+        coachName: pkg.coachProfile.user.name,
+        sport: pkg.sport,
+        sessions: pkg.totalSessions,
+        durationMinutes: pkg.durationMinutes,
+        totalChargedCents: pkg.totalChargedCents,
+        coachProfileId: pkg.coachProfileId,
+        packageId: pkg.id,
+      }),
+    );
   });
 }
 

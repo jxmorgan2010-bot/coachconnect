@@ -2,16 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { packageConfirmSchema } from "@/lib/validation";
-import { calculateBundlePricing, BUNDLE_SESSION_COUNT, BUNDLE_DISCOUNT_PERCENT } from "@/lib/bundles";
+import { deliverPackage } from "@/lib/packagePurchase";
+import { notifyPackageReady } from "@/lib/notify";
 import { getStripe } from "@/lib/stripe";
-import { isAllowedLength, LENGTH_NOT_ALLOWED_MESSAGE } from "@/lib/sessionLengths";
-import type { Sport } from "@/generated/prisma/client";
 
 /**
- * Step 2 of a package purchase: verify the PaymentIntent actually succeeded, then create
- * the SessionPackage from the coach's rate at confirmation time (never from client-
- * supplied pricing) — same defense-in-depth as POST /api/bookings re-pricing before it
- * trusts an intent.
+ * Step 2 of a package purchase: the browser says the card went through. Nothing it sends is
+ * trusted but the payment's id: whether it was paid, and what it bought, come from Stripe
+ * (src/lib/packagePurchase.ts). If the browser never gets here, Stripe's webhook delivers the
+ * package instead (POST /api/stripe/webhook); if the webhook was first, this returns that package.
  */
 export async function POST(req: Request) {
   const session = await getCurrentSession();
@@ -30,51 +29,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Parent profile not found." }, { status: 404 });
   }
 
-  const stripe = getStripe();
-  const intent = await stripe.paymentIntents.retrieve(parsed.data.paymentIntentId);
+  const intent = await getStripe().paymentIntents.retrieve(parsed.data.paymentIntentId, { expand: ["latest_charge"] });
   if (intent.metadata?.parentProfileId !== parentProfile.id) {
     return NextResponse.json({ error: "This payment doesn't belong to you." }, { status: 403 });
   }
-  if (intent.status !== "succeeded") {
-    return NextResponse.json({ error: "Your card wasn't charged. Please try again." }, { status: 400 });
+
+  const result = await deliverPackage(intent);
+  switch (result.status) {
+    case "CREATED":
+      notifyPackageReady(result.packageId);
+      return NextResponse.json({ ok: true, packageId: result.packageId });
+    case "EXISTING":
+      return NextResponse.json({ ok: true, packageId: result.packageId });
+    case "NOT_PAID":
+      return NextResponse.json({ error: "Your card wasn't charged. Please try again.", code: "NOT_PAID" }, { status: 400 });
+    case "NOT_A_PACKAGE":
+      return NextResponse.json({ error: "This payment wasn't for a package." }, { status: 400 });
+    case "REFUNDED":
+      return NextResponse.json({ error: "This payment was refunded.", code: "REFUNDED" }, { status: 409 });
+    case "UNDELIVERABLE":
+      console.error(`Package payment ${intent.id} is paid but can't be delivered: ${result.reason}.`);
+      return NextResponse.json({ error: "Your payment went through, but we couldn't set up the package." }, { status: 409 });
   }
-
-  const existing = await prisma.sessionPackage.findUnique({ where: { stripePaymentIntentId: intent.id } });
-  if (existing) {
-    return NextResponse.json({ ok: true, packageId: existing.id });
-  }
-
-  const coachProfileId = intent.metadata.coachProfileId;
-  const sport = intent.metadata.sport as Sport;
-  const durationMinutes = Number(intent.metadata.durationMinutes);
-  // create-intent already refuses other lengths; this catches an intent made before that.
-  if (!isAllowedLength(durationMinutes)) {
-    return NextResponse.json({ error: `${LENGTH_NOT_ALLOWED_MESSAGE} Contact support about this payment.` }, { status: 400 });
-  }
-
-  const coach = await prisma.coachProfile.findUnique({ where: { id: coachProfileId } });
-  if (!coach || !coach.hourlyRateCents) {
-    return NextResponse.json({ error: "Coach not found." }, { status: 404 });
-  }
-
-  const pricing = calculateBundlePricing(coach.hourlyRateCents, durationMinutes);
-  if (pricing.totalChargedCents !== intent.amount) {
-    return NextResponse.json({ error: "The price changed — contact support." }, { status: 409 });
-  }
-
-  const pkg = await prisma.sessionPackage.create({
-    data: {
-      parentProfileId: parentProfile.id,
-      coachProfileId: coach.id,
-      sport,
-      durationMinutes,
-      totalSessions: BUNDLE_SESSION_COUNT,
-      pricePerSessionCents: pricing.pricePerSessionCents,
-      discountPercent: BUNDLE_DISCOUNT_PERCENT,
-      totalChargedCents: pricing.totalChargedCents,
-      stripePaymentIntentId: intent.id,
-    },
-  });
-
-  return NextResponse.json({ ok: true, packageId: pkg.id });
 }
